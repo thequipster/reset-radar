@@ -13,6 +13,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# B08：给 gnu test exe 单独编 Common-Controls manifest（build.rs patch_test_manifest）
+embed-resource = "3"
 
 # 依赖版本对齐参考实现 codex-cockpit src-tauri/Cargo.toml（MIT，TRUTH §1 来源 3）
 [dependencies]
