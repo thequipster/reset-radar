@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "test": "vitest run",
     "calibrate": "node scripts/calibrate.mjs",
+    "log-prediction": "node scripts/log-prediction.mjs",
     "tauri": "tauri"
   },
   "dependencies": {
