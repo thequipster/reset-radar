@@ -1,0 +1,18 @@
+[package]
+name = "reset-radar"
+version = "0.1.0"
+description = "看得见准头的 Codex 重置风险与用卡规划器"
+authors = ["thequipster"]
+license = "MIT"
+edition = "2021"
+
+# crate-type 与参考项目 codex-cockpit 一致（Tauri 脚手架标准三件）
+[lib]
+name = "reset_radar_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
