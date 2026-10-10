@@ -3,7 +3,7 @@
 > 看得见准头的 Codex 重置风险与用卡规划器。
 > A Codex reset-risk & credit planner that **proves its own accuracy**.
 
-[![CI](https://img.shields.io/badge/CI-planned-blue)](.github/workflows) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 为什么做这个
 
