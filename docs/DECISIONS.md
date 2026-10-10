@@ -78,3 +78,16 @@
 - 决定：徽章指向 `thequipster/reset-radar`；依据 git config user.name=thequipster + D007 版权人
   同名先例。若实际 GitHub 用户名不同，RR11「README 内链接全部可达」检查兜底替换。
 - 依据：RUNBOOK §1.11 无人值守决策权。
+
+## D013 MERGE 槽集成修复权：测试运行器接线类回归可在合入内直修（2026-10-11，会话 S1011-0213）
+
+- 现象：RR01（vitest 骨架）与 RR03（scripts/ 下 node:test 套件）单独门禁全绿，合并后
+  `npx vitest run` 全量出现文件级 failed——vitest 默认 include `**/*.test.mjs` 误载
+  `scripts/fetch-history.test.mjs`（node:test 语法，vitest 转换器无法解析）。全量基线
+  「0 failed」被打破，且 RR02 的 CI 同样会红。
+- 决定：MERGE 槽在合入复跑门禁时发现**纯集成接线回归**（测试运行器/构建配置接线、零业务
+  逻辑、不改 src/lib 算法），允许在主仓以独立 fixup commit 直修并在本文件留痕；超出此口径
+  （触及业务逻辑/算法）仍退回 🔴重开走卡流程。本次修复：vite.config.ts vitest exclude
+  追加 `scripts/**`（node:test 归 `node --test`，RR03 已约定；两套测试运行器职责正交）。
+- 依据：RUNBOOK §1.11 无人值守决策权；§8.3 要求主仓复跑门禁不得新增 failed——集成回归
+  不修则合入无法闭环；ARCHITECTURE「算法唯一实现源 src/lib」未受影响（改动仅测试接线）。
