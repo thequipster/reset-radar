@@ -60,6 +60,45 @@
   （Tue+Sat 合计 19/59≈32%——参考实现"Tue/Sat 70% 基线"与真实样本的偏差正是 RR04/RR07 校准闭环的原料）。
 - 出处：RR03 会话对两端点的直接实测（响应原文存于上述夹具；task_logs/RR03_done.md 有证据链）。
 
+### B08 本机 gnu 下 cargo test 的 test exe 需补 Common-Controls v6 manifest（RR08 会话实测 2026-10-11）
+- 机制：gnu 工具链给 exe 嵌的默认 manifest（longPathAware/asInvoker，在 exe `.rsrc` 节）不含
+  `Microsoft.Windows.Common-Controls` v6 依赖；tao/wry 静态导入的 `TaskDialogIndirect`/
+  `SetWindowSubclass` 等符号只存在于 comctl32 v6 → test exe 启动即 `0xC0000139
+  STATUS_ENTRYPOINT_NOT_FOUND`（bash 下表现为 exit 127 且零输出，易误判 command not found）。
+  外置 `<exe>.manifest` 无效（有内嵌 manifest 时外置被忽略）。
+- 修法（已实证）：pwsh `UpdateResource` 把含 `<dependency>…Common-Controls 6.0.0.0…</dependency>`
+  的 manifest 原位写入 test exe（RT_MANIFEST=24 / ID=1）→ 10/10 全绿；**每次重编译 test exe 后
+  需重打**。待正规化：build.rs 里 windres 嵌含依赖的 manifest（RR08 下轮）。
+- 另：webview2-com 链入的 `WebView2Loader.dll` 需与 test exe 同目录（`target/debug/deps/`，
+  从 `target/debug/build/webview2-com-sys-*/out/x64/` 拷贝），否则 0xC0000135。
+- 诊断手法：objdump -p 全量核对 import 表 (DLL,符号) 对（407 对中定位 SYM_FAIL
+  comctl32!TaskDialogIndirect）。
+- 出处：RR08 会话 S1011-0443 实测（task_logs/RR08_wip.md 有过程链）。
+- 〔勘正 2026-10-11 S1011-0643〕已正规化（agent/RR08 a1f802a）：根因补全——tauri-build 的
+  资源经 embed-resource `cargo:rustc-link-arg-bins` 只进正式 bin，test exe 只剩 gcc spec
+  `%{!shared:%:if-exists(default-manifest.o%s)}`（winlibs `x86_64-w64-mingw32/lib/`）链入
+  的默认 manifest。build.rs 以 `embed_resource::compile_for_everything`（通用
+  `cargo:rustc-link-arg=`，覆盖 `#[test]` unit test binary；`-tests` 变体只认 `[[test]]`
+  target 会被 cargo 拒指令）补一份与 bin 同源 manifest → cargo test --lib 直接 10/10，
+  无需手工补丁。副作用：链接 warning `.rsrc merge failure: multiple non-default manifests`
+  （ld 对 bin/test 各有两份同内容 CC manifest）——无害，加载器取任一份都含 comctl32 v6；
+  release app 冒烟实证可运行。MSVC 构建不走该分支（build.rs 按 TARGET_ENV=gnu 门控）。
+
+### B09 本机 gnu 下 `tauri dev` 同死路；agent 会话输入注入不可达（RR09 会话实测 2026-10-11）
+- 机制①：`npm run tauri dev` 走 dev 模式会链接 cdylib（`reset_radar_lib.dll`）——与 §8-2
+  `cargo test` 全量同型的 gnu ld 失败：`export ordinal too large: 94564`。dev 模式在本机
+  不可用；运行验证一律走 release 路径：`cargo build --release --features
+  tauri/custom-protocol`（B01 特性必带）后直跑 exe。
+- 机制②：工位 agent 会话无前台权（SetForegroundWindow / 最小化+恢复均 FOREGROUND=False），
+  `mouse_event`/`SetCursorPos` 注入的点击不落目标窗口（两截图 MD5 相同实证）。可行/不可行
+  分界：**PrintWindow(PW_CLIENTONLY|PW_RENDERFULLCONTENT=3) 可离屏渲染 WebView2 内容**
+  （窗口无需前台）；交互类验证需 computer-use 技能的 SDK 注入，或改 UI 支持状态入口
+  （如 `location.hash=#expanded`）再重启进程截图。CopyFromScreen 会被遮挡窗口污染（弃）。
+- 另：mklink 经 Git Bash 传 `src-tauri\target` 反斜杠会被吃成根目录杂名 junction——建
+  junction 用正斜杠命名参数；junction（node_modules）须在 `git worktree remove` 前拆除，
+  且 `git add -A` 前先查 `git status`（junction 会被当目录展开暂存）。
+- 出处：RR09 会话 S1011-0713 实测（task_logs/RR09_done.md 排障遗产节）。
+
 ## §8 黑名单（已证伪/已知坑——绝不重踩）
 
 > 以下均初始化会话实测踩过，任何会话不得以任何理由重新引入；确有新证据要翻案，先立挖卡。

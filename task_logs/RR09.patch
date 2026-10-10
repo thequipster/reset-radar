@@ -1,0 +1,1016 @@
+From 12d838079042878a6570aa6fb443e87614d58bf7 Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 07:37:45 +0800
+Subject: [PATCH] feat(ui): floating capsule + expanded three-panel dashboard
+ wired to lib core (RR09)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- src/ui/types.ts: RR08 ProviderSnapshot 契约（models.rs camelCase 对应）
+- src/ui/adapters.ts: 快照→视图模型纯映射（risk/planner/resetCard 同参喂入，D006）
+- src/ui/useSnapshots.ts: invoke get_snapshots + listen background-snapshots-updated；
+  浏览器环境 demo 降级（D018，不参与测试断言）
+- src/ui/{Capsule,ExpandedCard}.tsx + App.tsx 两态切换；数字全部来自 src/lib（§2）
+- src/ui/__tests__/ui.adapters.test.ts 8 条域测试（透传+降级）
+- tauri.conf.json 窗口高 300→560（D018 窗口铬属 UI）
+- docs/screenshots/20261011-capsule.png：release app 真实数据截图（29%=RR08 冒烟实测）
+  展开态截图留 RR09 续作（输入注入在本会话环境不可达，见 done）
+---
+ docs/screenshots/20261011-capsule.png | Bin 0 -> 13592 bytes
+ src-tauri/tauri.conf.json             |   2 +-
+ src/App.tsx                           |  48 ++++++-
+ src/ui/Capsule.tsx                    |  71 +++++++++++
+ src/ui/ExpandedCard.tsx               | 174 ++++++++++++++++++++++++++
+ src/ui/__tests__/ui.adapters.test.ts  | 133 ++++++++++++++++++++
+ src/ui/adapters.ts                    | 111 ++++++++++++++++
+ src/ui/history.ts                     |  17 +++
+ src/ui/types.ts                       |  32 +++++
+ src/ui/useSnapshots.ts                |  85 +++++++++++++
+ 10 files changed, 666 insertions(+), 7 deletions(-)
+ create mode 100644 docs/screenshots/20261011-capsule.png
+ create mode 100644 src/ui/Capsule.tsx
+ create mode 100644 src/ui/ExpandedCard.tsx
+ create mode 100644 src/ui/__tests__/ui.adapters.test.ts
+ create mode 100644 src/ui/adapters.ts
+ create mode 100644 src/ui/history.ts
+ create mode 100644 src/ui/types.ts
+ create mode 100644 src/ui/useSnapshots.ts
+
+diff --git a/docs/screenshots/20261011-capsule.png b/docs/screenshots/20261011-capsule.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..b01f0d19ba9144d4cf1c2f3e8f639b7221e61d13
+GIT binary patch
+literal 13592
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/src-tauri/tauri.conf.json b/src-tauri/tauri.conf.json
+index 42e4efe..202ee98 100644
+--- a/src-tauri/tauri.conf.json
++++ b/src-tauri/tauri.conf.json
+@@ -15,7 +15,7 @@
+         "label": "main",
+         "title": "重置雷达 reset-radar",
+         "width": 420,
+-        "height": 300,
++        "height": 560,
+         "resizable": true
+       }
+     ],
+diff --git a/src/App.tsx b/src/App.tsx
+index 5f6d33f..c0ac343 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,12 +1,48 @@
+-import { APP_IDENTIFIER, APP_NAME } from "./lib";
++// 应用根（RR09）：胶囊态 / 展开卡两态切换。UI 层零业务规则（ARCHITECTURE §2）——
++// 组件只排版 adapters 视图模型，数字与建议一律产自 src/lib 纯核心。
++import { useState } from "react";
++import { buildDashboard } from "./ui/adapters";
++import Capsule from "./ui/Capsule";
++import ExpandedCard from "./ui/ExpandedCard";
++import { RESET_HISTORY_ANNOUNCED_AT } from "./ui/history";
++import { useSnapshots } from "./ui/useSnapshots";
+ 
+-// UI 层零业务规则（ARCHITECTURE §2）：本组件只展示核心层常量，数字/建议一律来自 src/lib。
+ export default function App() {
++  const [expanded, setExpanded] = useState(false);
++  const { snapshots, live } = useSnapshots();
++
++  const codex = snapshots.find((item) => item.provider === "codex") ?? snapshots[0];
++  const vm = codex != null ? buildDashboard(codex, RESET_HISTORY_ANNOUNCED_AT) : null;
++
++  if (vm == null) {
++    return (
++      <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, color: "#e8eaf0" }}>
++        <p>正在采集 CODEX 快照…（首次启动约需数秒）</p>
++        {!live && <p style={{ color: "#9aa3b2", fontSize: 12 }}>浏览器预览：等待 Tauri 环境</p>}
++      </main>
++    );
++  }
++
+   return (
+-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24 }}>
+-      <h1>{APP_NAME} · 重置雷达</h1>
+-      <p>脚手架已就绪——风险模型 / 每日配速 / 用卡规划将在此展开（RR04 起）。</p>
+-      <p style={{ color: "#888", fontSize: 12 }}>{APP_IDENTIFIER}</p>
++    <main
++      style={{
++        minHeight: "100vh",
++        background: "#14171d",
++        padding: 16,
++        display: "flex",
++        flexDirection: "column",
++        gap: 12,
++        alignItems: expanded ? "stretch" : "flex-start",
++      }}
++    >
++      {expanded ? (
++        <ExpandedCard vm={vm} onCollapse={() => setExpanded(false)} />
++      ) : (
++        <Capsule vm={vm} onExpand={() => setExpanded(true)} />
++      )}
++      {!live && (
++        <span style={{ color: "#9aa3b2", fontSize: 11 }}>demo 数据（浏览器降级，非实采）</span>
++      )}
+     </main>
+   );
+ }
+diff --git a/src/ui/Capsule.tsx b/src/ui/Capsule.tsx
+new file mode 100644
+index 0000000..f9524b9
+--- /dev/null
++++ b/src/ui/Capsule.tsx
+@@ -0,0 +1,71 @@
++// 悬浮胶囊态（RR09）：只展示，不计算——所有数字来自 adapters 视图模型（源头 src/lib）。
++import type { DashboardViewModel } from "./adapters";
++
++/** 风险配色（纯展示层映射：分数→颜色，不产出任何业务数字）。 */
++function riskColor(score: number | null): string {
++  if (score == null) return "#9e9e9e";
++  if (score < 30) return "#4caf50";
++  if (score < 60) return "#ff9800";
++  return "#f44336";
++}
++
++export default function Capsule({
++  vm,
++  onExpand,
++}: {
++  vm: DashboardViewModel;
++  onExpand: () => void;
++}) {
++  const riskScore = vm.risk?.score ?? null;
++  return (
++    <button
++      onClick={onExpand}
++      style={{
++        display: "flex",
++        alignItems: "center",
++        gap: 14,
++        padding: "14px 22px",
++        borderRadius: 999,
++        border: "1px solid #3a3f4a",
++        background: "#1e222b",
++        color: "#e8eaf0",
++        fontFamily: "system-ui, sans-serif",
++        fontSize: 14,
++        cursor: "pointer",
++        boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
++      }}
++      title="点击展开详情"
++    >
++      <span style={{ fontWeight: 700, letterSpacing: 1 }}>{vm.displayName}</span>
++      <span style={{ fontSize: 26, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
++        {vm.remainingPercent == null ? "—%" : `${Math.round(vm.remainingPercent)}%`}
++      </span>
++      <span style={{ fontSize: 12, color: "#9aa3b2" }}>周额度剩余</span>
++      <span
++        style={{
++          display: "inline-flex",
++          alignItems: "center",
++          gap: 6,
++          padding: "3px 10px",
++          borderRadius: 999,
++          background: "#262b36",
++          fontSize: 12,
++        }}
++      >
++        <span
++          style={{
++            width: 8,
++            height: 8,
++            borderRadius: "50%",
++            background: riskColor(riskScore),
++            display: "inline-block",
++          }}
++        />
++        重置风险 {riskScore == null ? "—" : `${riskScore.toFixed(1)}%`}
++      </span>
++      {vm.resetCredits != null && (
++        <span style={{ fontSize: 12, color: "#9aa3b2" }}>卡×{vm.resetCredits}</span>
++      )}
++    </button>
++  );
++}
+diff --git a/src/ui/ExpandedCard.tsx b/src/ui/ExpandedCard.tsx
+new file mode 100644
+index 0000000..c328ea7
+--- /dev/null
++++ b/src/ui/ExpandedCard.tsx
+@@ -0,0 +1,174 @@
++// 展开卡（RR09）：三块面板——风险雷达 / 今日建议 / 用卡规划。
++// UI 零业务规则（ARCHITECTURE §2）：本组件只做 vm 字段的排版与文案映射，不计算任何数字。
++import type { DashboardViewModel } from "./adapters";
++import type { ResetCardDecision, RiskFactor } from "../lib";
++
++/** 用卡决策的展示文案（机器键→中文，rc:39-44 决策语义的 UI 翻译，非业务判断）。 */
++const DECISION_LABELS: Record<ResetCardDecision, string> = {
++  "no-credits": "无可用重置卡",
++  "hold-until-depleted": "额度尚多 · 暂缓用卡",
++  "hold-until-natural-reset": "撑得到自然重置 · 不必烧卡",
++  "use-today": "建议今天用卡",
++  "wait-for-best-day": "等待最佳用卡日",
++};
++
++const sectionStyle: React.CSSProperties = {
++  background: "#1e222b",
++  border: "1px solid #3a3f4a",
++  borderRadius: 12,
++  padding: "10px 14px",
++};
++
++const titleStyle: React.CSSProperties = {
++  fontSize: 12,
++  color: "#9aa3b2",
++  letterSpacing: 1,
++  margin: "2px 0 6px",
++};
++
++/** 可解释因子行（D006：UI 必须按 id/label/delta/note 渲染，不许只给总分）。 */
++function FactorRows({ factors }: { factors: RiskFactor[] }) {
++  if (factors.length === 0) return <div style={{ color: "#9aa3b2", fontSize: 12 }}>无因子</div>;
++  return (
++    <div style={{ display: "grid", gap: 3 }}>
++      {factors.map((factor) => (
++        <div
++          key={factor.id}
++          style={{ display: "flex", gap: 8, fontSize: 12, alignItems: "baseline" }}
++        >
++          <span
++            style={{
++              minWidth: 48,
++              textAlign: "right",
++              fontVariantNumeric: "tabular-nums",
++              color: factor.delta >= 0 ? "#ff9800" : "#4caf50",
++            }}
++          >
++            {factor.delta >= 0 ? "+" : ""}
++            {factor.delta.toFixed(1)}
++          </span>
++          <span style={{ color: "#e8eaf0" }}>{factor.label}</span>
++          <span style={{ color: "#9aa3b2", flex: 1 }}>{factor.note}</span>
++        </div>
++      ))}
++    </div>
++  );
++}
++
++function Metric({ label, value }: { label: string; value: string }) {
++  return (
++    <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 86 }}>
++      <span style={{ fontSize: 11, color: "#9aa3b2" }}>{label}</span>
++      <span style={{ fontSize: 15, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
++        {value}
++      </span>
++    </div>
++  );
++}
++
++export default function ExpandedCard({
++  vm,
++  onCollapse,
++}: {
++  vm: DashboardViewModel;
++  onCollapse: () => void;
++}) {
++  const card = vm.cardPlan;
++  return (
++    <div
++      style={{
++        display: "grid",
++        gap: 10,
++        fontFamily: "system-ui, sans-serif",
++        color: "#e8eaf0",
++      }}
++    >
++      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
++        <span style={{ fontSize: 15, fontWeight: 700 }}>
++          {vm.displayName} · 重置雷达
++        </span>
++        {vm.plan != null && (
++          <span style={{ fontSize: 11, color: "#9aa3b2" }}>{vm.plan}</span>
++        )}
++        <span style={{ flex: 1 }} />
++        <span style={{ fontSize: 11, color: "#9aa3b2" }}>
++          数据时刻 {vm.observedAt.slice(11, 16)}（北京+8）
++        </span>
++        <button onClick={onCollapse} style={{ fontSize: 12, cursor: "pointer" }}>
++          收起
++        </button>
++      </div>
++
++      {vm.status !== "ok" && (
++        <div style={{ ...sectionStyle, borderColor: "#f44336" }}>
++          <div style={titleStyle}>采集状态</div>
++          <div style={{ fontSize: 13 }}>
++            {vm.status}
++            {vm.message != null ? ` · ${vm.message}` : ""}
++          </div>
++        </div>
++      )}
++
++      {/* 面板一：风险雷达 */}
++      <div style={sectionStyle}>
++        <div style={titleStyle}>① 风险雷达 · 未来 24h 强制重置概率</div>
++        <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 6 }}>
++          <span style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
++            {vm.risk == null ? "—" : `${vm.risk.score.toFixed(1)}%`}
++          </span>
++          <Metric label="48h 碰撞概率" value={card == null ? "—" : `${card.forcedReset48hPercent.toFixed(1)}%`} />
++        </div>
++        <FactorRows factors={vm.risk?.factors ?? []} />
++      </div>
++
++      {/* 面板二：今日建议 */}
++      <div style={sectionStyle}>
++        <div style={titleStyle}>② 今日建议用量（周额度百分点）</div>
++        {vm.dailyPlan == null ? (
++          <div style={{ fontSize: 12, color: "#9aa3b2" }}>周窗数据缺失，暂无建议</div>
++        ) : (
++          <>
++            <div style={{ display: "flex", gap: 18, marginBottom: 6 }}>
++              <span style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
++                +{vm.dailyPlan.suggested.toFixed(1)}
++              </span>
++              <Metric label="软上限" value={`${vm.dailyPlan.cap.toFixed(1)}`} />
++              <Metric label="均匀配速" value={`${vm.dailyPlan.uniformPace.toFixed(1)}`} />
++              <Metric label="风险前拉" value={`${vm.dailyPlan.riskBoost.toFixed(1)}`} />
++              <Metric
++                label="短窗剩余"
++                value={vm.shortRemainingPercent == null ? "—" : `${Math.round(vm.shortRemainingPercent)}%`}
++              />
++            </div>
++            <FactorRows factors={vm.dailyPlan.factors} />
++          </>
++        )}
++      </div>
++
++      {/* 面板三：用卡规划 */}
++      <div style={sectionStyle}>
++        <div style={titleStyle}>③ 用卡规划</div>
++        {card == null ? (
++          <div style={{ fontSize: 12, color: "#9aa3b2" }}>周窗数据缺失，暂无规划</div>
++        ) : (
++          <>
++            <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 6 }}>
++              <span style={{ fontSize: 16, fontWeight: 700 }}>
++                {DECISION_LABELS[card.decision]}
++              </span>
++              <Metric label="今日期望收益" value={`+${card.expectedGainTodayPercent.toFixed(1)}%`} />
++              <Metric label="最佳日收益" value={`+${card.expectedGainBestPercent.toFixed(1)}%`} />
++              <Metric label="最佳日" value={card.bestDayLocalDate} />
++              <Metric label="24h 碰撞" value={`${card.forcedReset24hPercent.toFixed(1)}%`} />
++              <Metric label="自然重置" value={`${card.daysUntilNaturalReset.toFixed(1)}天`} />
++            </div>
++            <div style={{ fontSize: 11, color: "#9aa3b2" }}>
++              重置卡 {card.credits} 张 · 日需 {card.dailyNeedPercent.toFixed(1)}%/天 ·
++              策略 {card.policyVersion} · 理由链 {card.reasons.join(" › ")}
++            </div>
++          </>
++        )}
++      </div>
++    </div>
++  );
++}
+diff --git a/src/ui/__tests__/ui.adapters.test.ts b/src/ui/__tests__/ui.adapters.test.ts
+new file mode 100644
+index 0000000..e53536c
+--- /dev/null
++++ b/src/ui/__tests__/ui.adapters.test.ts
+@@ -0,0 +1,133 @@
++// RR09 域测试：src/ui/adapters.ts 快照→视图模型映射。
++// 锚点：adapters 是 UI 层唯一的装配逻辑（ARCHITECTURE §2），断言口径 = 与 src/lib
++// 同参直算结果透传一致 + 字段映射 + 数据缺失降级；不含任何独立业务期望值。
++import { describe, expect, it } from "vitest";
++import {
++  assessResetRisk,
++  estimateDailyNeedPercent,
++  planDailyUsage,
++  planResetCard,
++} from "../../lib";
++import { buildDashboard } from "../adapters";
++import type { ProviderSnapshot } from "../types";
++
++// 固定时间轴：观测时刻 asOf=2026-10-10T12:00Z（北京周日 20:00），
++// 周窗重置 resetsAt=2026-10-12T12:00Z → 恰好 daysToReset=2（整数便于对账）。
++const AS_OF = "2026-10-10T12:00:00Z";
++const RESETS_AT = "2026-10-12T12:00:00Z";
++const HISTORY = ["2026-10-05T12:00:00Z", "2026-09-28T12:00:00Z"];
++
++function okSnapshot(overrides: Partial<ProviderSnapshot> = {}): ProviderSnapshot {
++  return {
++    provider: "codex",
++    displayName: "CODEX",
++    plan: "PLUS",
++    weeklyWindow: { remainingPercent: 55, resetsAt: RESETS_AT, windowSeconds: 604_800 },
++    shortWindow: { remainingPercent: 64, resetsAt: null, windowSeconds: 3600 },
++    resetCredits: 3,
++    rateLimitSnapshot: {
++      source: "app-server",
++      usedPercent: 45,
++      windowDurationMins: 10_080,
++      resetsAt: RESETS_AT,
++      observedAt: AS_OF,
++    },
++    updatedAt: AS_OF,
++    status: "ok",
++    message: null,
++    ...overrides,
++  };
++}
++
++describe("字段透传（RR08 契约 models.rs）", () => {
++  it("周窗/短窗/卡量/plan 直映射到视图模型", () => {
++    const vm = buildDashboard(okSnapshot(), HISTORY);
++    expect(vm.remainingPercent).toBe(55);
++    expect(vm.shortRemainingPercent).toBe(64);
++    expect(vm.resetCredits).toBe(3);
++    expect(vm.plan).toBe("PLUS");
++    expect(vm.observedAt).toBe(AS_OF);
++    expect(vm.status).toBe("ok");
++  });
++
++  it("主数字取周窗而非短窗（换源即红：55≠64）", () => {
++    const vm = buildDashboard(okSnapshot(), HISTORY);
++    expect(vm.remainingPercent).not.toBe(vm.shortRemainingPercent);
++  });
++});
++
++describe("三块面板与 src/lib 同参透传", () => {
++  it("风险：与 assessResetRisk(history, asOf) 逐位一致（now=观测时刻而非墙钟）", () => {
++    const vm = buildDashboard(okSnapshot(), HISTORY);
++    const direct = assessResetRisk(HISTORY, new Date(AS_OF));
++    expect(vm.risk?.score).toBe(direct.score);
++    expect(vm.risk?.factors).toEqual(direct.factors);
++  });
++
++  it("今日建议：daysToReset=2 喂参，与 planDailyUsage 同参直算一致", () => {
++    const vm = buildDashboard(okSnapshot(), HISTORY);
++    const score = assessResetRisk(HISTORY, new Date(AS_OF)).score;
++    const direct = planDailyUsage(
++      { remaining: 55, daysToReset: 2, risk: score, now: new Date(AS_OF) },
++    );
++    expect(vm.dailyPlan).toEqual(direct);
++  });
++
++  it("用卡规划：dailyNeed 走 lib 兜底 estimateDailyNeedPercent([])，与直算一致", () => {
++    const vm = buildDashboard(okSnapshot(), HISTORY);
++    const score = assessResetRisk(HISTORY, new Date(AS_OF)).score;
++    const direct = planResetCard({
++      remainingPercent: 55,
++      resetsAt: RESETS_AT,
++      resetCredits: 3,
++      creditExpiresAt: null,
++      dailyNeedPercent: estimateDailyNeedPercent([]),
++      tomorrowRiskPercent: score,
++      now: new Date(AS_OF),
++    });
++    expect(vm.cardPlan).toEqual(direct);
++    expect(vm.cardPlan?.credits).toBe(3);
++  });
++});
++
++describe("数据缺失降级", () => {
++  it("无周窗 → 胶囊数字/建议/规划为空，风险仍按历史给出", () => {
++    const vm = buildDashboard(
++      okSnapshot({ weeklyWindow: null }),
++      HISTORY,
++    );
++    expect(vm.remainingPercent).toBeNull();
++    expect(vm.dailyPlan).toBeNull();
++    expect(vm.cardPlan).toBeNull();
++    expect(vm.risk).not.toBeNull();
++  });
++
++  it("周窗已过期（resetsAt ≤ 观测时刻）→ 两块面板不展示（planResetCard null 口径）", () => {
++    const vm = buildDashboard(
++      okSnapshot({
++        weeklyWindow: { remainingPercent: 55, resetsAt: AS_OF, windowSeconds: 604_800 },
++      }),
++      HISTORY,
++    );
++    expect(vm.dailyPlan).toBeNull();
++    expect(vm.cardPlan).toBeNull();
++  });
++
++  it("采集失败快照（unavailable）→ 状态透传可展示，风险面板仍可用", () => {
++    const vm = buildDashboard(
++      okSnapshot({
++        status: "unavailable",
++        message: "codex app-server 未登录",
++        weeklyWindow: null,
++        shortWindow: null,
++        resetCredits: null,
++        rateLimitSnapshot: null,
++      }),
++      HISTORY,
++    );
++    expect(vm.status).toBe("unavailable");
++    expect(vm.message).toBe("codex app-server 未登录");
++    expect(vm.remainingPercent).toBeNull();
++    expect(vm.risk).not.toBeNull();
++  });
++});
+diff --git a/src/ui/adapters.ts b/src/ui/adapters.ts
+new file mode 100644
+index 0000000..e388c47
+--- /dev/null
++++ b/src/ui/adapters.ts
+@@ -0,0 +1,111 @@
++// 快照 → 视图模型 的纯映射层（RR09）。ARCHITECTURE §2：本文件不做业务判断，
++// 一切数字/建议都来自 src/lib 纯核心；这里只负责喂参、透传与展示态装配（D006）。
++import {
++  assessResetRisk,
++  estimateDailyNeedPercent,
++  planDailyUsage,
++  planResetCard,
++  type DailyUsagePlan,
++  type ResetCardPlan,
++  type ResetRisk,
++} from "../lib";
++import type { ProviderSnapshot } from "./types";
++
++export const MS_PER_DAY = 86_400_000; // 单位换算（ms→天），非业务公式
++
++/** 视图模型：三块面板数据 + 新鲜度元信息。字段可空 = 该面板因数据缺失不展示。 */
++export interface DashboardViewModel {
++  provider: string;
++  displayName: string;
++  status: string;
++  message: string | null;
++  plan: string | null;
++  /** 周窗剩余额度 %（胶囊主数字）。 */
++  remainingPercent: number | null;
++  resetsAt: string | null;
++  resetCredits: number | null;
++  /** 短窗剩余 %（辅助展示）。 */
++  shortRemainingPercent: number | null;
++  updatedAt: string;
++  /** 数据新鲜度时刻（risk 的 now 语义，risk.ts 文件头：取快照观测时刻而非墙钟）。 */
++  observedAt: string;
++  risk: ResetRisk | null;
++  dailyPlan: DailyUsagePlan | null;
++  cardPlan: ResetCardPlan | null;
++}
++
++/**
++ * 组装仪表盘视图模型。
++ * @param snapshot RR08 get_snapshots / background-snapshots-updated 的单条快照
++ * @param history 已清洗的 announcedAt ISO 串（data/resets-history.json 夹具口径，RR03）
++ */
++export function buildDashboard(
++  snapshot: ProviderSnapshot,
++  history: readonly string[],
++  now: Date = new Date(),
++): DashboardViewModel {
++  const observedAt =
++    snapshot.rateLimitSnapshot?.observedAt ?? snapshot.updatedAt;
++  // risk 的 now = 数据新鲜度时刻（as_of 语义）；解析失败退墙钟。
++  const observedMs = Date.parse(observedAt);
++  const asOf = Number.isFinite(observedMs) ? new Date(observedMs) : now;
++
++  const risk = assessResetRisk(history, asOf);
++
++  const weekly = snapshot.weeklyWindow;
++  const remaining =
++    weekly != null && Number.isFinite(weekly.remainingPercent)
++      ? weekly.remainingPercent
++      : null;
++  const resetsAt = weekly?.resetsAt ?? null;
++
++  // 今日建议与用卡规划都依赖有效周窗（剩余% + 自然重置时刻），缺失则两块不展示。
++  let dailyPlan: DailyUsagePlan | null = null;
++  let cardPlan: ResetCardPlan | null = null;
++  if (remaining != null && resetsAt != null) {
++    const resetsAtMs = Date.parse(resetsAt);
++    if (Number.isFinite(resetsAtMs) && resetsAtMs > asOf.getTime()) {
++      // daysToReset 是 planner 的入参契约（planner.ts:20），单位换算在调用侧完成。
++      const daysToReset = (resetsAtMs - asOf.getTime()) / MS_PER_DAY;
++      dailyPlan = planDailyUsage(
++        {
++          remaining,
++          daysToReset,
++          risk: risk.score,
++          now: asOf,
++        },
++      );
++      cardPlan = planResetCard({
++        remainingPercent: remaining,
++        resetsAt,
++        resetCredits: snapshot.resetCredits,
++        creditExpiresAt: null, // 上游 app-server v1 不产出过期时刻（models.rs 裁剪注记）
++        // 无日消耗观测样本：走 lib 兜底均匀周配速 100/7（resetCard.ts:137 契约）。
++        dailyNeedPercent: estimateDailyNeedPercent([]),
++        tomorrowRiskPercent: risk.score,
++        now: asOf,
++      });
++    }
++  }
++
++  return {
++    provider: snapshot.provider,
++    displayName: snapshot.displayName,
++    status: snapshot.status,
++    message: snapshot.message,
++    plan: snapshot.plan,
++    remainingPercent: remaining,
++    resetsAt,
++    resetCredits: snapshot.resetCredits,
++    shortRemainingPercent:
++      snapshot.shortWindow != null &&
++      Number.isFinite(snapshot.shortWindow.remainingPercent)
++        ? snapshot.shortWindow.remainingPercent
++        : null,
++    updatedAt: snapshot.updatedAt,
++    observedAt,
++    risk,
++    dailyPlan,
++    cardPlan,
++  };
++}
+diff --git a/src/ui/history.ts b/src/ui/history.ts
+new file mode 100644
+index 0000000..8d680c8
+--- /dev/null
++++ b/src/ui/history.ts
+@@ -0,0 +1,17 @@
++// 重置历史接线（RR09）：读取 RR03 采集夹具 data/resets-history.json（数据锁：只读）。
++// UI 零业务规则：这里只做形状提取（events[].announcedAt），风险计算全部在 src/lib。
++import historyFixture from "../../data/resets-history.json";
++
++interface HistoryEvent {
++  announcedAt: string;
++}
++
++/**
++ * 已清洗的 announcedAt ISO 串列表（最新事件 2025-11-22，assessResetRisk 输入契约）。
++ * 夹具由 scripts/fetch-history.mjs 生成（RR03）；正式滚动更新由后续数据卡接管。
++ */
++export const RESET_HISTORY_ANNOUNCED_AT: readonly string[] = (
++  historyFixture.events as HistoryEvent[]
++)
++  .map((event) => event.announcedAt)
++  .filter((value) => typeof value === "string");
+diff --git a/src/ui/types.ts b/src/ui/types.ts
+new file mode 100644
+index 0000000..c44887b
+--- /dev/null
++++ b/src/ui/types.ts
+@@ -0,0 +1,32 @@
++// UI 层契约类型：与 src-tauri/src/models.rs 的 serde camelCase 输出一一对应（RR08）。
++// UI 层零业务规则（ARCHITECTURE §2）——本文件只描述数据形状，不含任何计算。
++
++/** 用量窗口（周窗/短窗共用）。对应 Rust UsageWindow。 */
++export interface UsageWindow {
++  remainingPercent: number;
++  resetsAt: string | null;
++  windowSeconds: number;
++}
++
++/** 官方接口原始元数据（对账展示用）。对应 Rust RateLimitSnapshot。 */
++export interface RateLimitSnapshot {
++  source: string;
++  usedPercent: number;
++  windowDurationMins: number | null;
++  resetsAt: string | null;
++  observedAt: string;
++}
++
++/** 单 provider 快照。对应 Rust ProviderSnapshot（v1 裁剪版）。 */
++export interface ProviderSnapshot {
++  provider: string;
++  displayName: string;
++  plan: string | null;
++  shortWindow: UsageWindow | null;
++  weeklyWindow: UsageWindow | null;
++  resetCredits: number | null;
++  rateLimitSnapshot: RateLimitSnapshot | null;
++  updatedAt: string;
++  status: string;
++  message: string | null;
++}
+diff --git a/src/ui/useSnapshots.ts b/src/ui/useSnapshots.ts
+new file mode 100644
+index 0000000..3a48d31
+--- /dev/null
++++ b/src/ui/useSnapshots.ts
+@@ -0,0 +1,85 @@
++// 快照接线 hook（RR09）：Tauri invoke + 后台刷新事件监听；纯浏览器环境优雅降级 demo。
++import { useEffect, useState } from "react";
++import { invoke } from "@tauri-apps/api/core";
++import { listen } from "@tauri-apps/api/event";
++import type { ProviderSnapshot } from "./types";
++
++/** Tauri v2 注入检测（浏览器 vite dev 下无此全局 → demo 降级）。 */
++function isTauri(): boolean {
++  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
++}
++
++/**
++ * 浏览器降级演示快照：数值取 RR08 冒烟实测落盘样本（plan=PLUS/周窗 29%/credits 3），
++  仅用于 `npm run dev` 无 Tauri 时的界面预览，不参与任何测试断言。
++ */
++function demoSnapshot(): ProviderSnapshot {
++  const now = new Date();
++  const weeklyResetsAt = new Date(
++    Math.ceil((now.getTime() + 2 * 86_400_000) / 86_400_000) * 86_400_000,
++  ).toISOString();
++  return {
++    provider: "codex",
++    displayName: "CODEX",
++    plan: "PLUS",
++    weeklyWindow: {
++      remainingPercent: 29,
++      resetsAt: weeklyResetsAt,
++      windowSeconds: 604_800,
++    },
++    shortWindow: {
++      remainingPercent: 64,
++      resetsAt: null,
++      windowSeconds: 3600,
++    },
++    resetCredits: 3,
++    rateLimitSnapshot: {
++      source: "app-server",
++      usedPercent: 71,
++      windowDurationMins: 10_080,
++      resetsAt: weeklyResetsAt,
++      observedAt: now.toISOString(),
++    },
++    updatedAt: now.toISOString(),
++    status: "ok",
++    message: null,
++  };
++}
++
++export interface SnapshotsState {
++  snapshots: ProviderSnapshot[];
++  /** true = Tauri 实数据；false = 浏览器 demo 降级。 */
++  live: boolean;
++}
++
++/** 拉取 get_snapshots 并订阅 background-snapshots-updated（RR08 契约，lib.rs:27）。 */
++export function useSnapshots(): SnapshotsState {
++  const [state, setState] = useState<SnapshotsState>(() =>
++    isTauri()
++      ? { snapshots: [], live: true }
++      : { snapshots: [demoSnapshot()], live: false },
++  );
++
++  useEffect(() => {
++    if (!isTauri()) return; // 浏览器环境保持 demo，不触发会失败的调用
++    let disposed = false;
++    const apply = (values: ProviderSnapshot[]) => {
++      if (!disposed && Array.isArray(values) && values.length > 0) {
++        setState({ snapshots: values, live: true });
++      }
++    };
++    invoke<ProviderSnapshot[]>("get_snapshots").then(apply).catch(() => {
++      /* 采集失败保留空态：UI 展示 unavailable 占位，不崩溃 */
++    });
++    const unlisten = listen<ProviderSnapshot[]>(
++      "background-snapshots-updated",
++      (event) => apply(event.payload),
++    );
++    return () => {
++      disposed = true;
++      unlisten.then((fn) => fn()).catch(() => {});
++    };
++  }, []);
++
++  return state;
++}
+-- 
+2.52.0.windows.1
+

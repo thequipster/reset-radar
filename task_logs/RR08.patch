@@ -1,0 +1,1136 @@
+From e5f6463c49edccc3fcd96ec81a505880f25835c5 Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 04:57:33 +0800
+Subject: [PATCH 1/2] feat(data-layer): codex app-server collector + snapshot
+ SWR chain (RR08 WIP)
+
+- codex.rs: spawn app-server --stdio JSON-RPC (initialize/initialized/account.rateLimits.read,
+  6s timeout, kill_on_drop, CREATE_NO_WINDOW) + parse layer, ported from codex-cockpit
+  codex.rs:588-810 with per-fn line refs; 6 unit tests incl. official fixture
+- snapshots.rs: last-snapshots.json atomic write (tmp+rename) + warm-start stale load,
+  ported from codex-cockpit lib.rs:83-441; 4 unit tests
+- models.rs: UsageWindow/RateLimitSnapshot/ProviderSnapshot (camelCase serde, trimmed)
+- lib.rs: get_snapshots SWR 3-stage command (TTL/stale+background refresh/no-cache
+  single-flight) + refresh_snapshots + startup background loop (D005)
+- tests 10/10 green via manifest workaround (TRUTH B08), mutation check round 1 red/green
+- remaining: app smoke run + build.rs manifest formalization
+---
+ src-tauri/Cargo.lock       |  57 +++++-
+ src-tauri/Cargo.toml       |   6 +
+ src-tauri/src/codex.rs     | 409 +++++++++++++++++++++++++++++++++++++
+ src-tauri/src/lib.rs       | 177 +++++++++++++++-
+ src-tauri/src/models.rs    |  59 ++++++
+ src-tauri/src/snapshots.rs | 166 +++++++++++++++
+ 6 files changed, 867 insertions(+), 7 deletions(-)
+ create mode 100644 src-tauri/src/codex.rs
+ create mode 100644 src-tauri/src/models.rs
+ create mode 100644 src-tauri/src/snapshots.rs
+
+diff --git a/src-tauri/Cargo.lock b/src-tauri/Cargo.lock
+index 8d55f53..815fc87 100644
+--- a/src-tauri/Cargo.lock
++++ b/src-tauri/Cargo.lock
+@@ -323,8 +323,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
+ dependencies = [
+  "iana-time-zone",
++ "js-sys",
+  "num-traits",
+  "serde",
++ "wasm-bindgen",
+  "windows-link",
+ ]
+ 
+@@ -576,6 +578,15 @@ dependencies = [
+  "crypto-common",
+ ]
+ 
++[[package]]
++name = "dirs"
++version = "6.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c3e8aa94d75141228480295a7d0e7feb620b1a5ad9f12bc40be62411e38cce4e"
++dependencies = [
++ "dirs-sys",
++]
++
+ [[package]]
+ name = "dirs"
+ version = "7.0.0"
+@@ -731,6 +742,16 @@ dependencies = [
+  "typeid",
+ ]
+ 
++[[package]]
++name = "errno"
++version = "0.3.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
++dependencies = [
++ "libc",
++ "windows-sys 0.61.2",
++]
++
+ [[package]]
+ name = "fastrand"
+ version = "2.5.0"
+@@ -2488,8 +2509,13 @@ dependencies = [
+ name = "reset-radar"
+ version = "0.1.0"
+ dependencies = [
++ "chrono",
++ "dirs 6.0.0",
++ "serde",
++ "serde_json",
+  "tauri",
+  "tauri-build",
++ "tokio",
+ ]
+ 
+ [[package]]
+@@ -2784,6 +2810,16 @@ version = "2.0.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+ 
++[[package]]
++name = "signal-hook-registry"
++version = "1.4.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
++dependencies = [
++ "errno",
++ "libc",
++]
++
+ [[package]]
+ name = "simd-adler32"
+ version = "0.3.10"
+@@ -3044,7 +3080,7 @@ dependencies = [
+  "anyhow",
+  "bytes",
+  "cookie",
+- "dirs",
++ "dirs 7.0.0",
+  "dunce",
+  "embed_plist",
+  "getrandom 0.3.4",
+@@ -3094,7 +3130,7 @@ checksum = "59563ca5b331fd97f27ee9672ec8d36d33bb3c9e2c9f6710a1a5687256052e45"
+ dependencies = [
+  "anyhow",
+  "cargo_toml",
+- "dirs",
++ "dirs 7.0.0",
+  "glob",
+  "heck 0.5.0",
+  "json-patch",
+@@ -3353,10 +3389,23 @@ dependencies = [
+  "libc",
+  "mio",
+  "pin-project-lite",
++ "signal-hook-registry",
+  "socket2",
++ "tokio-macros",
+  "windows-sys 0.61.2",
+ ]
+ 
++[[package]]
++name = "tokio-macros"
++version = "2.7.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 3.0.7",
++]
++
+ [[package]]
+ name = "tokio-util"
+ version = "0.7.20"
+@@ -3537,7 +3586,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "b2b9c52859a94554803ccd4a24b98f74148ebc73b90676d783f3490b1bff9d72"
+ dependencies = [
+  "crossbeam-channel",
+- "dirs",
++ "dirs 7.0.0",
+  "libappindicator",
+  "muda",
+  "objc2",
+@@ -4161,7 +4210,7 @@ dependencies = [
+  "block2",
+  "cookie",
+  "crossbeam-channel",
+- "dirs",
++ "dirs 7.0.0",
+  "dom_query",
+  "dpi",
+  "dunce",
+diff --git a/src-tauri/Cargo.toml b/src-tauri/Cargo.toml
+index ae816fb..6e21bcd 100644
+--- a/src-tauri/Cargo.toml
++++ b/src-tauri/Cargo.toml
+@@ -14,5 +14,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
+ [build-dependencies]
+ tauri-build = { version = "2", features = [] }
+ 
++# 依赖版本对齐参考实现 codex-cockpit src-tauri/Cargo.toml（MIT，TRUTH §1 来源 3）
+ [dependencies]
+ tauri = { version = "2", features = [] }
++serde = { version = "1", features = ["derive"] }
++serde_json = "1"
++chrono = { version = "0.4", features = ["serde"] }
++tokio = { version = "1", features = ["io-util", "macros", "process", "sync", "time"] }
++dirs = "6"
+diff --git a/src-tauri/src/codex.rs b/src-tauri/src/codex.rs
+new file mode 100644
+index 0000000..7756409
+--- /dev/null
++++ b/src-tauri/src/codex.rs
+@@ -0,0 +1,409 @@
++//! codex app-server 采集（RR08）：spawn `codex app-server --stdio` 走 JSON-RPC 握手
++//! 读 rateLimits + rateLimitResetCredits（卡面：单次 read 同时拿两者，无 HTTP fallback）。
++//! 握手序列与解析移植自参考实现 codex-cockpit src-tauri/src/codex.rs（MIT，TRUTH §1 来源 3），
++//! 逐函数注明参考行号。
++
++use std::path::PathBuf;
++use std::process::Stdio;
++use std::time::Duration;
++
++use serde_json::{json, Value};
++use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
++use tokio::process::{ChildStdin, Command};
++use tokio::time::timeout;
++
++use crate::models::{ProviderSnapshot, RateLimitSnapshot, UsageWindow};
++
++/// 周窗口时长（分钟）。出处：参考 codex.rs:27 WEEKLY_WINDOW_MINUTES。
++const WEEKLY_WINDOW_MINUTES: u64 = 10_080;
++/// 短窗口（5h）时长（分钟）。出处：参考 codex.rs:765 字面量 300。
++const SHORT_WINDOW_MINUTES: u64 = 300;
++/// app-server 响应超时。出处：参考 codex.rs:29 APP_SERVER_TIMEOUT（RR08 卡面：6s）。
++const APP_SERVER_TIMEOUT: Duration = Duration::from_secs(6);
++
++/// 定位 codex 可执行文件。出处：参考 codex.rs:588-617 codex_program
++/// （CODEX_BIN → PATH 的 codex.exe/codex.cmd → home 的 AppData/Roaming/npm/codex.cmd）。
++fn codex_program() -> Option<PathBuf> {
++    let mut candidates = Vec::new();
++    if let Some(path) = std::env::var_os("CODEX_BIN") {
++        candidates.push(PathBuf::from(path));
++    }
++    if let Some(path) = std::env::var_os("PATH") {
++        let directories: Vec<_> = std::env::split_paths(&path).collect();
++        for directory in &directories {
++            #[cfg(windows)]
++            candidates.push(directory.join("codex.exe"));
++            #[cfg(not(windows))]
++            candidates.push(directory.join("codex"));
++        }
++        #[cfg(windows)]
++        for directory in &directories {
++            candidates.push(directory.join("codex.cmd"));
++        }
++    }
++    if let Some(home) = dirs::home_dir() {
++        #[cfg(not(windows))]
++        candidates.push(home.join(".local/bin/codex"));
++        #[cfg(windows)]
++        candidates.push(home.join("AppData/Roaming/npm/codex.cmd"));
++    }
++    candidates.into_iter().find(|path| path.is_file())
++}
++
++/// 多键名取数（官方接口 camel/snake 两态兼容）。出处：参考 codex.rs:125-129。
++fn number_with_key<'a>(value: &'a Value, keys: &[&'a str]) -> Option<(&'a str, f64)> {
++    keys.iter()
++        .find_map(|key| value.get(*key)?.as_f64().map(|number| (*key, number)))
++}
++
++/// u64 取数（负数拒收）。出处：参考 codex.rs:130-137 integer。
++fn integer(value: &Value, keys: &[&str]) -> Option<u64> {
++    keys.iter().find_map(|key| {
++        let value = value.get(*key)?;
++        value
++            .as_u64()
++            .or_else(|| value.as_i64().and_then(|item| u64::try_from(item).ok()))
++    })
++}
++
++/// 时间戳取数：字符串直通 / Unix 秒转 RFC3339。出处：参考 codex.rs:139-151 timestamp。
++fn timestamp(value: &Value, keys: &[&str]) -> Option<String> {
++    keys.iter().find_map(|key| {
++        let item = value.get(*key)?;
++        if let Some(text) = item.as_str() {
++            return Some(text.to_owned());
++        }
++        item.as_i64()
++            .and_then(|seconds| chrono::DateTime::from_timestamp(seconds, 0))
++            .map(|time| time.to_rfc3339())
++    })
++}
++
++/// 写一行 JSON-RPC 请求。出处：参考 codex.rs:620-628 write_app_server_request。
++async fn write_app_server_request(stdin: &mut ChildStdin, value: Value) -> Result<(), String> {
++    let mut line = serde_json::to_vec(&value)
++        .map_err(|_| "Codex App Server request could not be encoded.".to_string())?;
++    line.push(b'\n');
++    stdin
++        .write_all(&line)
++        .await
++        .map_err(|_| "Codex App Server did not accept the request.".to_string())
++}
++
++/// spawn app-server 完成握手并读回 rateLimits 结果。
++/// 序列：initialize(id=1) → initialized(通知) → account/rateLimits/read(id=2)。
++/// 出处：参考 codex.rs:630-703 read_app_server_rate_limits
++/// （kill_on_drop + Windows CREATE_NO_WINDOW=0x0800_0000 + 6s 超时 + id=2 过滤）。
++async fn read_app_server_rate_limits() -> Result<(Value, String), String> {
++    let program = codex_program().ok_or_else(|| "Codex App Server was not found.".to_string())?;
++    let mut command = Command::new(program);
++    #[cfg(windows)]
++    command.creation_flags(0x0800_0000);
++    let mut child = command
++        .args(["app-server", "--stdio"])
++        .stdin(Stdio::piped())
++        .stdout(Stdio::piped())
++        .stderr(Stdio::null())
++        .kill_on_drop(true)
++        .spawn()
++        .map_err(|_| "Codex App Server could not be started.".to_string())?;
++    let mut stdin = child
++        .stdin
++        .take()
++        .ok_or_else(|| "Codex App Server stdin is unavailable.".to_string())?;
++    let stdout = child
++        .stdout
++        .take()
++        .ok_or_else(|| "Codex App Server stdout is unavailable.".to_string())?;
++
++    let requests = [
++        json!({
++            "id": 1,
++            "method": "initialize",
++            "params": {"clientInfo": {"name": "reset-radar", "version": env!("CARGO_PKG_VERSION")}}
++        }),
++        json!({"method": "initialized"}),
++        json!({"id": 2, "method": "account/rateLimits/read", "params": null}),
++    ];
++    for request in requests {
++        if let Err(error) = write_app_server_request(&mut stdin, request).await {
++            let _ = child.kill().await;
++            let _ = child.wait().await;
++            return Err(error);
++        }
++    }
++    stdin
++        .flush()
++        .await
++        .map_err(|_| "Codex App Server did not flush the request.".to_string())?;
++
++    let mut lines = BufReader::new(stdout).lines();
++    let response = timeout(APP_SERVER_TIMEOUT, async {
++        loop {
++            let line = lines
++                .next_line()
++                .await
++                .map_err(|_| "Codex App Server output could not be read.".to_string())?
++                .ok_or_else(|| {
++                    "Codex App Server stopped before returning quota data.".to_string()
++                })?;
++            let Ok(value) = serde_json::from_str::<Value>(&line) else {
++                continue;
++            };
++            if value.get("id").and_then(Value::as_i64) != Some(2) {
++                continue;
++            }
++            if value.get("error").is_some() {
++                return Err("Codex App Server rejected the quota read.".to_string());
++            }
++            return value
++                .get("result")
++                .cloned()
++                .ok_or_else(|| "Codex App Server returned no quota result.".to_string());
++        }
++    })
++    .await
++    .map_err(|_| "Codex App Server quota read timed out.".to_string())?;
++    let _ = child.kill().await;
++    let _ = child.wait().await;
++    Ok((response?, chrono::Utc::now().to_rfc3339()))
++}
++
++/// 窗口解析：remaining=100-used（clamp 0..100）、分钟转秒。出处：参考 codex.rs:705-717。
++fn parse_app_server_window(value: &Value) -> Option<UsageWindow> {
++    let used_percent = number_with_key(value, &["usedPercent", "used_percent"])?.1;
++    if !used_percent.is_finite() {
++        return None;
++    }
++    Some(UsageWindow {
++        remaining_percent: (100.0 - used_percent).clamp(0.0, 100.0),
++        resets_at: timestamp(value, &["resetsAt", "resets_at"]),
++        window_seconds: integer(value, &["windowDurationMins", "window_duration_mins"])
++            .unwrap_or_default()
++            .saturating_mul(60),
++    })
++}
++
++/// 定位 codex 限额桶：优先 rateLimitsByLimitId.codex。出处：参考 codex.rs:719-725。
++fn find_app_server_bucket(result: &Value) -> Option<&Value> {
++    result
++        .get("rateLimitsByLimitId")
++        .and_then(|value| value.get("codex"))
++        .or_else(|| result.get("rateLimits"))
++}
++
++/// 在 primary/secondary 中按 windowDurationMins 挑出目标窗口。
++/// 出处：参考 codex.rs:726-751 find_app_server_window（含无 duration 元数据时的
++/// 单窗 legacy 兜底——仅在无歧义时使用，防止 5h 窗被误标为周窗）。
++fn find_app_server_window(bucket: &Value, expected_minutes: u64) -> Option<&Value> {
++    let windows = ["primary", "secondary"]
++        .iter()
++        .filter_map(|key| bucket.get(*key));
++    if let Some(window) = windows.clone().find(|value| {
++        integer(value, &["windowDurationMins", "window_duration_mins"])
++            .is_some_and(|minutes| minutes.abs_diff(expected_minutes) <= 1)
++    }) {
++        return Some(window);
++    }
++    if expected_minutes == WEEKLY_WINDOW_MINUTES {
++        let mut usable = windows.filter(|value| {
++            number_with_key(value, &["usedPercent", "used_percent"]).is_some()
++                && integer(value, &["windowDurationMins", "window_duration_mins"]).is_none()
++        });
++        let first = usable.next();
++        if first.is_some() && usable.next().is_none() {
++            return first;
++        }
++    }
++    None
++}
++
++/// 组装 ProviderSnapshot（周窗必选/短窗可选/credits/plan）。
++/// 出处：参考 codex.rs:753-810 parse_app_server_snapshot。
++fn parse_app_server_snapshot(result: &Value, observed_at: String) -> Result<ProviderSnapshot, String> {
++    let bucket = find_app_server_bucket(result)
++        .ok_or_else(|| "Codex App Server response has no Codex quota bucket.".to_string())?;
++    let weekly_value = find_app_server_window(bucket, WEEKLY_WINDOW_MINUTES)
++        .ok_or_else(|| "Codex App Server response has no usable quota window.".to_string())?;
++    let weekly_window = parse_app_server_window(weekly_value)
++        .ok_or_else(|| "Codex App Server weekly quota window is incomplete.".to_string())?;
++    let used_percent = number_with_key(weekly_value, &["usedPercent", "used_percent"])
++        .map(|(_, value)| value.clamp(0.0, 100.0))
++        .ok_or_else(|| "Codex App Server weekly usage is missing.".to_string())?;
++    let short_window = ["primary", "secondary"]
++        .iter()
++        .filter_map(|key| bucket.get(*key))
++        .find(|value| {
++            integer(value, &["windowDurationMins", "window_duration_mins"])
++                .is_some_and(|minutes| minutes.abs_diff(SHORT_WINDOW_MINUTES) <= 1)
++        })
++        .and_then(parse_app_server_window);
++    let reset_credits = result
++        .get("rateLimitResetCredits")
++        .and_then(|value| integer(value, &["availableCount", "available_count"]));
++    let plan = bucket
++        .get("planType")
++        .and_then(Value::as_str)
++        .map(|value| value.to_uppercase());
++    let rate_limit_snapshot = RateLimitSnapshot {
++        source: "app-server".into(),
++        used_percent,
++        window_duration_mins: integer(
++            weekly_value,
++            &["windowDurationMins", "window_duration_mins"],
++        ),
++        resets_at: timestamp(weekly_value, &["resetsAt", "resets_at"]),
++        observed_at: observed_at.clone(),
++    };
++    Ok(ProviderSnapshot {
++        provider: "codex".into(),
++        display_name: "CODEX".into(),
++        plan,
++        short_window,
++        weekly_window: Some(weekly_window),
++        reset_credits,
++        rate_limit_snapshot: Some(rate_limit_snapshot),
++        updated_at: observed_at,
++        status: "ok".into(),
++        message: None,
++    })
++}
++
++/// 采集入口：失败降级为 unavailable 快照（由 SWR 后台循环重试）。v1 无 legacy HTTP 路径。
++pub async fn fetch_snapshot() -> ProviderSnapshot {
++    match read_app_server_rate_limits().await {
++        Ok((result, observed_at)) => match parse_app_server_snapshot(&result, observed_at) {
++            Ok(snapshot) => snapshot,
++            Err(message) => ProviderSnapshot::failure("unavailable", &message),
++        },
++        Err(message) => ProviderSnapshot::failure("unavailable", &message),
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    /// 官方 app-server 响应夹具。出处：参考 codex.rs:1168-1198（原样移植）。
++    fn official_result() -> Value {
++        json!({
++            "rateLimits": {
++                "limitId": "codex",
++                "primary": {
++                    "usedPercent": 26,
++                    "windowDurationMins": 10080,
++                    "resetsAt": 1787200981_i64
++                },
++                "secondary": {
++                    "usedPercent": 7,
++                    "windowDurationMins": 300,
++                    "resetsAt": 1786400000_i64
++                },
++                "planType": "prolite"
++            },
++            "rateLimitsByLimitId": {
++                "codex": {
++                    "primary": {
++                        "usedPercent": 26,
++                        "windowDurationMins": 10080,
++                        "resetsAt": 1787200981_i64
++                    },
++                    "secondary": {
++                        "usedPercent": 7,
++                        "windowDurationMins": 300,
++                        "resetsAt": 1786400000_i64
++                    },
++                    "planType": "prolite"
++                },
++                "codex_bengalfox": {
++                    "primary": {
++                        "usedPercent": 99,
++                        "windowDurationMins": 10080,
++                        "resetsAt": 1787200981_i64
++                    }
++                }
++            },
++            "rateLimitResetCredits": {"availableCount": 0}
++        })
++    }
++
++    /// 出处：参考 codex.rs:1167-1215 parses_official_app_server_weekly_snapshot（断言原样）。
++    #[test]
++    fn parses_official_app_server_weekly_snapshot() {
++        let snapshot =
++            parse_app_server_snapshot(&official_result(), "2026-08-13T08:30:00Z".into())
++                .expect("official app-server snapshot");
++        assert_eq!(snapshot.plan.as_deref(), Some("PROLITE"));
++        assert_eq!(snapshot.weekly_window.unwrap().remaining_percent, 74.0);
++        assert_eq!(snapshot.short_window.unwrap().remaining_percent, 93.0);
++        assert_eq!(snapshot.reset_credits, Some(0));
++        let official = snapshot.rate_limit_snapshot.expect("official metadata");
++        assert_eq!(official.source, "app-server");
++        assert_eq!(official.used_percent, 26.0);
++        assert_eq!(official.window_duration_mins, Some(WEEKLY_WINDOW_MINUTES));
++        assert_eq!(
++            official.resets_at.as_deref(),
++            Some("2026-08-20T04:43:01+00:00")
++        );
++    }
++
++    /// 出处：参考 codex.rs:1218-1228 does_not_mislabel_short_app_server_window_as_weekly。
++    #[test]
++    fn does_not_mislabel_short_app_server_window_as_weekly() {
++        let result = json!({
++            "rateLimits": {
++                "primary": {"usedPercent": 26, "windowDurationMins": 300},
++                "secondary": null
++            }
++        });
++        let error = parse_app_server_snapshot(&result, "2026-08-13T08:30:00Z".into())
++            .expect_err("short-only response should not be accepted as weekly");
++        assert!(error.contains("no usable quota window"));
++    }
++
++    /// bucket 优先级：rateLimitsByLimitId.codex 压过顶层 rateLimits。
++    /// 出处：参考 codex.rs:719-725 find_app_server_bucket 的 or_else 顺序。
++    #[test]
++    fn prefers_rate_limits_by_limit_id_bucket() {
++        let mut result = official_result();
++        result["rateLimits"]["primary"]["usedPercent"] = json!(99);
++        let snapshot =
++            parse_app_server_snapshot(&result, "2026-08-13T08:30:00Z".into()).unwrap();
++        assert_eq!(snapshot.weekly_window.unwrap().remaining_percent, 74.0);
++    }
++
++    /// remaining clamp 边界：used=100 → remaining=0。出处：参考 codex.rs:712 clamp(0.0,100.0)。
++    #[test]
++    fn clamps_remaining_into_0_100() {
++        let window = parse_app_server_window(&json!({
++            "usedPercent": 100,
++            "windowDurationMins": 10080
++        }))
++        .unwrap();
++        assert_eq!(window.remaining_percent, 0.0);
++    }
++
++    /// snake_case 键名兼容（resets_at 字符串直通）。出处：参考 codex.rs:125-151 双键名工具。
++    #[test]
++    fn accepts_snake_case_keys() {
++        let window = parse_app_server_window(&json!({
++            "used_percent": 40,
++            "resets_at": "2026-08-20T00:00:00Z",
++            "window_duration_mins": 10080
++        }))
++        .unwrap();
++        assert_eq!(window.remaining_percent, 60.0);
++        assert_eq!(window.window_seconds, 604_800);
++        assert_eq!(window.resets_at.as_deref(), Some("2026-08-20T00:00:00Z"));
++    }
++
++    /// Unix 秒 → RFC3339。出处：参考 codex.rs:139-151 timestamp 与 :1211 断言原文。
++    #[test]
++    fn timestamp_converts_unix_seconds_to_rfc3339() {
++        let value = json!({"resetsAt": 1787200981_i64});
++        assert_eq!(
++            timestamp(&value, &["resetsAt"]).as_deref(),
++            Some("2026-08-20T04:43:01+00:00")
++        );
++    }
++}
+diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+index 2f6836b..2be802e 100644
+--- a/src-tauri/src/lib.rs
++++ b/src-tauri/src/lib.rs
+@@ -1,9 +1,180 @@
+-// reset-radar 数据层入口（RR01 最小骨架）。
+-// 结构对齐参考项目 codex-cockpit src-tauri/src/{main.rs,lib.rs}（MIT，TRUTH §1 来源 3）；
+-// 采集/快照/SWR 等实装自 RR08 起，本文件先保持最小可运行。
++//! reset-radar 数据层入口（RR08 实装）。
++//! SWR 快照链（内存缓存 + last-snapshots.json 热启动 + 后台刷新事件）对齐
++//! 参考项目 codex-cockpit src-tauri/src/lib.rs 2026-10-10 修复版行为
++//! （MIT，TRUTH §1 来源 3；D005 stale-while-revalidate 内建 v1）。
++
++mod codex;
++mod models;
++mod snapshots;
++
++use std::sync::Mutex;
++use std::time::{Duration, Instant};
++
++use tauri::{AppHandle, Emitter, Manager, State};
++
++use models::ProviderSnapshot;
++
++/// 内存缓存 TTL：期内 get_snapshots 直返缓存。出处：参考 lib.rs:81 SNAPSHOT_CACHE_TTL=30s。
++const SNAPSHOT_CACHE_TTL: Duration = Duration::from_secs(30);
++/// 单飞合并窗口：并发实取合并为一次。出处：参考 lib.rs:84 SNAPSHOT_CACHE_COLLAPSE_WINDOW=10s。
++const SNAPSHOT_CACHE_COLLAPSE_WINDOW: Duration = Duration::from_secs(10);
++/// 后台首刷延迟：让窗口先画 stale 值再刷。出处：参考 lib.rs:80 =500ms。
++const BACKGROUND_FIRST_REFRESH_DELAY: Duration = Duration::from_millis(500);
++/// 后台刷新间隔。出处：参考 lib.rs:77 BACKGROUND_REFRESH_INTERVAL=5min。
++const BACKGROUND_REFRESH_INTERVAL: Duration = Duration::from_secs(5 * 60);
++/// 后台刷新完成事件（RR09 前端 listen）。参考 emit_to("widget","background-snapshots-updated")；
++/// 本项目单窗口，全局 emit 同名事件。
++const BACKGROUND_SNAPSHOTS_UPDATED_EVENT: &str = "background-snapshots-updated";
++
++#[derive(Default)]
++struct AppState {
++    /// 单飞锁。出处：参考 lib.rs:243 fetch_lock。
++    fetch_lock: tokio::sync::Mutex<()>,
++    /// 内存缓存（写入时刻 + 最新快照）。出处：参考 lib.rs:244 snapshot_cache。
++    snapshot_cache: Mutex<Option<(Instant, Vec<ProviderSnapshot>)>>,
++    /// last-snapshots.json 所在目录（app_config_dir，setup 时解析）。
++    cache_dir: Mutex<Option<std::path::PathBuf>>,
++}
++
++/// 采集全部 provider（v1 仅 codex）。出处：参考 lib.rs:306 collect_snapshots_once 的精简。
++async fn collect_snapshots() -> Vec<ProviderSnapshot> {
++    vec![codex::fetch_snapshot().await]
++}
++
++/// 后台刷新：实取 → 更新内存缓存 → 持久化 → 推事件。
++/// 出处：参考 lib.rs:359-369 refresh_snapshots_in_background。
++async fn refresh_snapshots_in_background(app: &AppHandle) {
++    let state = app.state::<AppState>();
++    let _guard = state.fetch_lock.lock().await;
++    let values = collect_snapshots().await;
++    if let Ok(mut cache) = state.snapshot_cache.lock() {
++        *cache = Some((Instant::now(), values.clone()));
++    }
++    if let Ok(dir) = state.cache_dir.lock() {
++        if let Some(dir) = dir.as_ref() {
++            // best effort：写失败只损失下次热启动速度（参考 lib.rs:407-409 口径）。
++            let _ = snapshots::persist_snapshot_cache(
++                dir,
++                &values,
++                &chrono::Utc::now().to_rfc3339(),
++            );
++        }
++    }
++    let _ = app.emit(BACKGROUND_SNAPSHOTS_UPDATED_EVENT, &values);
++}
++
+ #[cfg_attr(mobile, tauri::mobile_entry_point)]
+ pub fn run() {
+     tauri::Builder::default()
++        .setup(|app| {
++            let handle = app.handle().clone();
++            let config_dir = app.path().app_config_dir().ok();
++            if let Some(dir) = &config_dir {
++                let _ = std::fs::create_dir_all(dir);
++            }
++            let state = AppState {
++                cache_dir: Mutex::new(config_dir.clone()),
++                ..Default::default()
++            };
++            // 热启动：载入上次快照（标 stale）作缓存锚点，冷启动则留空待实取。
++            // 出处：参考 lib.rs:415-441 load_persisted_snapshot_cache + run_background_refresh_loop。
++            if let Some(dir) = config_dir.as_ref() {
++                if let Some(saved) =
++                    snapshots::load_persisted_snapshot_cache(dir, chrono::Utc::now())
++                {
++                    let anchor = Instant::now()
++                        .checked_sub(saved.age)
++                        .unwrap_or_else(Instant::now);
++                    *state.snapshot_cache.lock().unwrap() = Some((anchor, saved.snapshots));
++                }
++            }
++            app.manage(state);
++            tauri::async_runtime::spawn(async move {
++                tokio::time::sleep(BACKGROUND_FIRST_REFRESH_DELAY).await;
++                loop {
++                    refresh_snapshots_in_background(&handle).await;
++                    tokio::time::sleep(BACKGROUND_REFRESH_INTERVAL).await;
++                }
++            });
++            Ok(())
++        })
++        .invoke_handler(tauri::generate_handler![get_snapshots, refresh_snapshots])
+         .run(tauri::generate_context!())
+         .expect("error while running tauri application");
+ }
++
++/// SWR 三段式：TTL 内直返缓存 → 有 stale 先返旧值+后台刷新 → 无缓存单飞实取。
++/// 出处：参考 lib.rs:651-693 get_snapshots。
++#[tauri::command]
++async fn get_snapshots(
++    app: AppHandle,
++    state: State<'_, AppState>,
++) -> Result<Vec<ProviderSnapshot>, String> {
++    if let Ok(cache) = state.snapshot_cache.lock() {
++        if let Some((time, values)) = &*cache {
++            if time.elapsed() < SNAPSHOT_CACHE_TTL {
++                return Ok(values.clone());
++            }
++        }
++    }
++    // stale 缓存（典型为热启动后）：立即返回旧值让 UI 先画，后台刷新落地后走事件。
++    let stale = state
++        .snapshot_cache
++        .lock()
++        .ok()
++        .and_then(|cache| cache.as_ref().map(|(_, values)| values.clone()));
++    if let Some(values) = stale {
++        let background = app.clone();
++        tauri::async_runtime::spawn(async move {
++            refresh_snapshots_in_background(&background).await;
++        });
++        return Ok(values);
++    }
++    // 无缓存：实取（fetch_lock 单飞 + collapse 双检）。
++    let _guard = state.fetch_lock.lock().await;
++    if let Ok(cache) = state.snapshot_cache.lock() {
++        if let Some((time, values)) = &*cache {
++            if time.elapsed() < SNAPSHOT_CACHE_COLLAPSE_WINDOW {
++                return Ok(values.clone());
++            }
++        }
++    }
++    let values = collect_snapshots().await;
++    if let Ok(mut cache) = state.snapshot_cache.lock() {
++        *cache = Some((Instant::now(), values.clone()));
++    }
++    if let Ok(dir) = state.cache_dir.lock() {
++        if let Some(dir) = dir.as_ref() {
++            let _ = snapshots::persist_snapshot_cache(
++                dir,
++                &values,
++                &chrono::Utc::now().to_rfc3339(),
++            );
++        }
++    }
++    Ok(values)
++}
++
++/// 手动刷新（RR09 UI 下拉/按钮用）。出处：参考 lib.rs:696-703 refresh_snapshots。
++#[tauri::command]
++async fn refresh_snapshots(
++    app: AppHandle,
++    state: State<'_, AppState>,
++) -> Result<Vec<ProviderSnapshot>, String> {
++    let _guard = state.fetch_lock.lock().await;
++    let values = collect_snapshots().await;
++    if let Ok(mut cache) = state.snapshot_cache.lock() {
++        *cache = Some((Instant::now(), values.clone()));
++    }
++    if let Ok(dir) = state.cache_dir.lock() {
++        if let Some(dir) = dir.as_ref() {
++            let _ = snapshots::persist_snapshot_cache(
++                dir,
++                &values,
++                &chrono::Utc::now().to_rfc3339(),
++            );
++        }
++    }
++    let _ = app.emit(BACKGROUND_SNAPSHOTS_UPDATED_EVENT, &values);
++    Ok(values)
++}
+diff --git a/src-tauri/src/models.rs b/src-tauri/src/models.rs
+new file mode 100644
+index 0000000..0c65cab
+--- /dev/null
++++ b/src-tauri/src/models.rs
+@@ -0,0 +1,59 @@
++//! 数据层纯数据模型（RR08）。
++//! 字段对齐参考实现 codex-cockpit src-tauri/src/models.rs（MIT，TRUTH §1 来源 3）；
++//! v1 只走 codex app-server 路径，裁剪其不产出的 monthly/balance/resetCreditExpiresAt 字段。
++
++use serde::{Deserialize, Serialize};
++
++/// 用量窗口（周窗/短窗共用形状）。出处：参考 models.rs UsageWindow（camelCase serde）。
++#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
++#[serde(rename_all = "camelCase")]
++pub struct UsageWindow {
++    pub remaining_percent: f64,
++    pub resets_at: Option<String>,
++    pub window_seconds: u64,
++}
++
++/// 官方接口原始元数据（对账留档）。出处：参考 models.rs RateLimitSnapshot。
++#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
++#[serde(rename_all = "camelCase")]
++pub struct RateLimitSnapshot {
++    pub source: String,
++    pub used_percent: f64,
++    pub window_duration_mins: Option<u64>,
++    pub resets_at: Option<String>,
++    pub observed_at: String,
++}
++
++/// 单 provider 快照。出处：参考 models.rs ProviderSnapshot（裁剪见模块注释）。
++#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
++#[serde(rename_all = "camelCase")]
++pub struct ProviderSnapshot {
++    pub provider: String,
++    pub display_name: String,
++    pub plan: Option<String>,
++    pub short_window: Option<UsageWindow>,
++    pub weekly_window: Option<UsageWindow>,
++    pub reset_credits: Option<u64>,
++    pub rate_limit_snapshot: Option<RateLimitSnapshot>,
++    pub updated_at: String,
++    pub status: String,
++    pub message: Option<String>,
++}
++
++impl ProviderSnapshot {
++    /// 失败快照（unavailable/signed_out 等）。出处：参考 models.rs ProviderSnapshot::failure。
++    pub fn failure(status: &str, message: &str) -> Self {
++        Self {
++            provider: "codex".into(),
++            display_name: "CODEX".into(),
++            plan: None,
++            short_window: None,
++            weekly_window: None,
++            reset_credits: None,
++            rate_limit_snapshot: None,
++            updated_at: chrono::Utc::now().to_rfc3339(),
++            status: status.into(),
++            message: Some(message.into()),
++        }
++    }
++}
+diff --git a/src-tauri/src/snapshots.rs b/src-tauri/src/snapshots.rs
+new file mode 100644
+index 0000000..889d897
+--- /dev/null
++++ b/src-tauri/src/snapshots.rs
+@@ -0,0 +1,166 @@
++//! 快照持久化：last-snapshots.json 原子写（tmp+rename）与热启动 stale 载入（D005）。
++//! 移植自参考实现 codex-cockpit src-tauri/src/lib.rs:83-441 快照链
++//! （MIT，TRUTH §1 来源 3），逐函数注明参考行号。
++
++use std::path::Path;
++use std::time::Duration;
++
++use chrono::{DateTime, Utc};
++use serde::{Deserialize, Serialize};
++
++use crate::models::ProviderSnapshot;
++
++/// 热启动缓存文件名。出处：参考 lib.rs:85 SNAPSHOT_CACHE_FILE。
++pub const SNAPSHOT_CACHE_FILE: &str = "last-snapshots.json";
++
++/// fetchedAt 解析失败时的兜底缓存年龄。出处：参考 lib.rs:421-425（24h）。
++const MAX_CACHE_AGE_FALLBACK: Duration = Duration::from_secs(24 * 60 * 60);
++
++/// 热启动载荷。出处：参考 lib.rs:378-384 PersistedSnapshots（camelCase serde）。
++#[derive(Serialize, Deserialize)]
++#[serde(rename_all = "camelCase")]
++struct PersistedSnapshots {
++    fetched_at: String,
++    snapshots: Vec<ProviderSnapshot>,
++}
++
++/// 热启动载入结果：快照列表 + 距 fetchedAt 的年龄（换算内存缓存锚点用）。
++pub struct PersistedCache {
++    pub snapshots: Vec<ProviderSnapshot>,
++    pub age: Duration,
++}
++
++/// 原子写：先写 .tmp 再 rename（失败只损失下次热启动速度，不影响正确性）。
++/// 出处：参考 lib.rs:396-413 persist_snapshot_cache。
++pub fn persist_snapshot_cache(
++    dir: &Path,
++    values: &[ProviderSnapshot],
++    fetched_at: &str,
++) -> std::io::Result<()> {
++    let path = dir.join(SNAPSHOT_CACHE_FILE);
++    let payload = PersistedSnapshots {
++        fetched_at: fetched_at.to_owned(),
++        snapshots: values.to_vec(),
++    };
++    let serialized = serde_json::to_vec_pretty(&payload)
++        .map_err(|error| std::io::Error::other(error.to_string()))?;
++    let temporary = path.with_extension("json.tmp");
++    std::fs::write(&temporary, &serialized)?;
++    std::fs::rename(&temporary, &path)
++}
++
++/// 把 ok 快照标记为 stale（热启动先画旧值的口径）。
++/// 出处：参考 lib.rs:426-435（status=stale + 固定 message）。
++fn mark_stale(values: Vec<ProviderSnapshot>) -> Vec<ProviderSnapshot> {
++    let mut values = values;
++    for snapshot in &mut values {
++        if snapshot.status == "ok" {
++            snapshot.status = "stale".into();
++            snapshot.message = Some("Last known quota; refreshing live data.".into());
++        }
++    }
++    values
++}
++
++/// fetchedAt → 缓存年龄；解析失败回退 24h。出处：参考 lib.rs:419-425。
++fn cache_age(fetched_at: &str, now: DateTime<Utc>) -> Duration {
++    DateTime::parse_from_rfc3339(fetched_at)
++        .ok()
++        .and_then(|fetched_at| (now - fetched_at.with_timezone(&Utc)).to_std().ok())
++        .unwrap_or(MAX_CACHE_AGE_FALLBACK)
++}
++
++/// 读取持久化缓存并标 stale；文件缺失/损坏返回 None（走冷启动实取）。
++/// 出处：参考 lib.rs:415-441 load_persisted_snapshot_cache（IO 部分抽本函数，纯逻辑拆出）。
++pub fn load_persisted_snapshot_cache(dir: &Path, now: DateTime<Utc>) -> Option<PersistedCache> {
++    let raw = std::fs::read_to_string(dir.join(SNAPSHOT_CACHE_FILE)).ok()?;
++    let saved: PersistedSnapshots = serde_json::from_str(&raw).ok()?;
++    let age = cache_age(&saved.fetched_at, now);
++    Some(PersistedCache {
++        snapshots: mark_stale(saved.snapshots),
++        age,
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn ok_snapshot() -> ProviderSnapshot {
++        ProviderSnapshot {
++            provider: "codex".into(),
++            display_name: "CODEX".into(),
++            plan: Some("PRO".into()),
++            short_window: None,
++            weekly_window: Some(crate::models::UsageWindow {
++                remaining_percent: 74.0,
++                resets_at: Some("2026-08-20T04:43:01+00:00".into()),
++                window_seconds: 604_800,
++            }),
++            reset_credits: Some(2),
++            rate_limit_snapshot: None,
++            updated_at: "2026-10-11T04:00:00+00:00".into(),
++            status: "ok".into(),
++            message: None,
++        }
++    }
++
++    /// 独立临时目录（免 tempfile 依赖）。
++    fn temp_dir(tag: &str) -> std::path::PathBuf {
++        let dir = std::env::temp_dir().join(format!("reset-radar-rr08-{}-{}", tag, std::process::id()));
++        let _ = std::fs::remove_dir_all(&dir);
++        std::fs::create_dir_all(&dir).unwrap();
++        dir
++    }
++
++    /// 落盘 → camelCase 键 → 读回 roundtrip。出处：PersistedSnapshots serde 口径。
++    #[test]
++    fn persist_then_load_roundtrips_with_camel_case_keys() {
++        let dir = temp_dir("roundtrip");
++        let now = "2026-10-11T04:10:00+00:00".parse::<DateTime<Utc>>().unwrap();
++        persist_snapshot_cache(&dir, &[ok_snapshot()], "2026-10-11T04:00:00+00:00").unwrap();
++        let raw = std::fs::read_to_string(dir.join(SNAPSHOT_CACHE_FILE)).unwrap();
++        assert!(raw.contains("\"fetchedAt\""));
++        assert!(raw.contains("\"weeklyWindow\""));
++        assert!(!raw.contains("\"fetched_at\""));
++        let loaded = load_persisted_snapshot_cache(&dir, now).unwrap();
++        // ok → stale 标记（见下一测试），此处先验值与年龄。
++        assert_eq!(loaded.snapshots.len(), 1);
++        assert_eq!(loaded.age, Duration::from_secs(600));
++        std::fs::remove_dir_all(&dir).ok();
++    }
++
++    /// 热启动载入必须把 ok 标 stale。出处：参考 lib.rs:426-435。
++    #[test]
++    fn load_marks_ok_snapshots_stale() {
++        let dir = temp_dir("stale");
++        let now = "2026-10-11T04:10:00+00:00".parse::<DateTime<Utc>>().unwrap();
++        persist_snapshot_cache(&dir, &[ok_snapshot()], "2026-10-11T04:00:00+00:00").unwrap();
++        let loaded = load_persisted_snapshot_cache(&dir, now).unwrap();
++        let snapshot = &loaded.snapshots[0];
++        assert_eq!(snapshot.status, "stale");
++        assert_eq!(
++            snapshot.message.as_deref(),
++            Some("Last known quota; refreshing live data.")
++        );
++        std::fs::remove_dir_all(&dir).ok();
++    }
++
++    /// 文件缺失 → None（冷启动）。出处：参考 lib.rs:415-417 read .ok() 链。
++    #[test]
++    fn load_missing_file_returns_none() {
++        let dir = temp_dir("missing");
++        let now = Utc::now();
++        assert!(load_persisted_snapshot_cache(&dir, now).is_none());
++        std::fs::remove_dir_all(&dir).ok();
++    }
++
++    /// fetchedAt 损坏 → 年龄回退 24h。出处：参考 lib.rs:421-425 unwrap_or(24h)。
++    #[test]
++    fn unparsable_fetched_at_defaults_to_24h() {
++        assert_eq!(
++            cache_age("not-a-timestamp", Utc::now()),
++            MAX_CACHE_AGE_FALLBACK
++        );
++    }
++}
+-- 
+2.52.0.windows.1
+
+From a1f802ae7de0d7e3e4e9257edc1c8d6a4cce6b5c Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 06:55:33 +0800
+Subject: [PATCH 2/2] fix(data-layer): embed Common-Controls manifest for gnu
+ test artifacts (RR08 B08)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+tauri-build 资源走 cargo:rustc-link-arg-bins 只进 bin，test exe 只剩 gcc
+spec 链入的 default-manifest（无 Common-Controls）→ tao/wry comctl32 v6
+导入 0xC0000139（TRUTH B08）。build.rs 以 embed-resource
+compile_for_everything 补一份与 bin 同源 manifest（cargo 指令粒度限制：
+rustc-link-arg-tests 只认 [[test]] target，本包测试在 lib 内）。冒烟实证：
+release app 起动存活且真实握手落盘 last-snapshots.json（plan=PLUS 周窗 29%）。
+---
+ src-tauri/Cargo.lock |  1 +
+ src-tauri/Cargo.toml |  2 ++
+ src-tauri/build.rs   | 54 +++++++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 56 insertions(+), 1 deletion(-)
+
+diff --git a/src-tauri/Cargo.lock b/src-tauri/Cargo.lock
+index 815fc87..4e4664f 100644
+--- a/src-tauri/Cargo.lock
++++ b/src-tauri/Cargo.lock
+@@ -2511,6 +2511,7 @@ version = "0.1.0"
+ dependencies = [
+  "chrono",
+  "dirs 6.0.0",
++ "embed-resource",
+  "serde",
+  "serde_json",
+  "tauri",
+diff --git a/src-tauri/Cargo.toml b/src-tauri/Cargo.toml
+index 6e21bcd..997a29b 100644
+--- a/src-tauri/Cargo.toml
++++ b/src-tauri/Cargo.toml
+@@ -13,6 +13,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
+ 
+ [build-dependencies]
+ tauri-build = { version = "2", features = [] }
++# B08：给 gnu test exe 单独编 Common-Controls manifest（build.rs patch_test_manifest）
++embed-resource = "3"
+ 
+ # 依赖版本对齐参考实现 codex-cockpit src-tauri/Cargo.toml（MIT，TRUTH §1 来源 3）
+ [dependencies]
+diff --git a/src-tauri/build.rs b/src-tauri/build.rs
+index d860e1e..8fc2b11 100644
+--- a/src-tauri/build.rs
++++ b/src-tauri/build.rs
+@@ -1,3 +1,55 @@
+ fn main() {
+-    tauri_build::build()
++    tauri_build::build();
++    patch_test_manifest();
+ }
++
++/// B08 正规化：windows-gnu 下 test exe 缺 Common-Controls 依赖的根治补法。
++/// 机制链（TRUTH §2 B08）：tauri-build 的资源经 embed-resource 走
++/// `cargo:rustc-link-arg-bins` 只进正式 bin；test exe 只剩 gcc spec
++/// `%{!shared:%:if-exists(default-manifest.o%s)}` 链入的默认 manifest
++/// （longPathAware/asInvoker，无 Common-Controls）→ tao/wry 静态导入的
++/// TaskDialogIndirect 等符号只存在于 comctl32 v6 → 启动即 0xC0000139。
++/// 这里给 test target 单独编一份与 bin 同源的 manifest（内容照抄
++/// tauri-build 2.7.1 src/windows-app-manifest.xml，TRUTH §1 来源 3 同栈参考）。
++/// MSVC 构建不进本分支（CI/官方工具链的 rc.exe 产物不受 gnu 默认 manifest 影响）。
++fn patch_test_manifest() {
++    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
++    let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
++    if target_os != "windows" || target_env != "gnu" {
++        return;
++    }
++    let out_dir =
++        std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR is set by cargo"));
++    std::fs::write(out_dir.join("test-app-manifest.xml"), TEST_APP_MANIFEST)
++        .expect("write gnu test manifest xml");
++    std::fs::write(
++        out_dir.join("test-manifest.rc"),
++        "#define RT_MANIFEST 24\n1 RT_MANIFEST \"test-app-manifest.xml\"\n",
++    )
++    .expect("write gnu test manifest rc");
++    let rc = out_dir.join("test-manifest.rc");
++    // compile_for_everything：通用 cargo:rustc-link-arg 覆盖 #[test] unit test
++    // binary（compile_for_tests 的 rustc-link-arg-tests 只认 [[test]] target，
++    // 本包测试全在 lib 内会被 cargo 拒指令）。bin 会与 tauri-build 的资源
++    // 重复一份同内容 manifest（都含 Common-Controls，加载器取任一都正确）。
++    embed_resource::compile_for_everything(&rc, embed_resource::NONE)
++        .manifest_required()
++        .expect("compile gnu test manifest resource");
++}
++
++/// 与 tauri-build 2.7.1 windows-app-manifest.xml 逐字一致（Common-Controls v6 依赖）。
++const TEST_APP_MANIFEST: &str = r#"<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
++  <dependency>
++    <dependentAssembly>
++      <assemblyIdentity
++        type="win32"
++        name="Microsoft.Windows.Common-Controls"
++        version="6.0.0.0"
++        processorArchitecture="*"
++        publicKeyToken="6595b64144ccf1df"
++        language="*"
++      />
++    </dependentAssembly>
++  </dependency>
++</assembly>
++"#;
+-- 
+2.52.0.windows.1
+

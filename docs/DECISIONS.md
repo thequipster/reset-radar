@@ -128,3 +128,32 @@
   ③ `beijingCalendarDateKey` 自 resetCard.ts 导出（D014 beijingWeekday 同例——日键唯一实现源）。
 - 依据：RUNBOOK §1.4/§1.11、§9.1 固定命令；ARCHITECTURE §2 分层（脚本=IO 壳、算法在 lib）；
   risk.ts as_of 语义先例；B06（边界漂移前车之鉴）。
+
+## D017 B08 正规化取 compile_for_everything 而非 compile_for_tests（2026-10-11，会话 S1011-0643）
+
+- 现象：B08（gnu test exe 缺 Common-Controls manifest → 0xC0000139）需在 build.rs 正规化，
+  embed-resource 提供按 target 粒度的多个 compile_for_* 变体，选型影响 bin 产物形态。
+- 决定：① 用 `compile_for_everything`（通用 `cargo:rustc-link-arg=`）——`compile_for_tests`
+  的 `cargo:rustc-link-arg-tests` 指令要求包有 `[[test]]` target，本包测试全在 lib 内
+  （`#[cfg(test)]`），cargo 直接拒指令（实测报 "does not have a test target"）；通用版覆盖
+  `#[test]` unit test binary（embed-resource 3.0.12 文档明示）。② 接受 bin 与 tauri-build
+  资源各链一份同内容 CC manifest 的重复（ld warning "multiple non-default manifests"）：
+  两份均含 Common-Controls v6 依赖，加载器取任一份行为等价；release app 冒烟实证可运行
+  （进程存活+真实握手落盘）。③ 门控 `CARGO_CFG_TARGET_ENV=gnu`——MSVC/CI 不进该分支，
+  rc.exe 路径问题不外溢。
+- 依据：TRUTH B08 机制链（gcc spec if-exists default-manifest.o / embed-resource
+  lib.rs:443 `rustc-link-arg-bins` 只进 bin）；quota-float.exe 单份 CC manifest 实证；
+  ARCHITECTURE 最小复杂度（不为消一条无害 warning 引入 -B 遮蔽等更脆机制）。
+
+## D018 RR09 UI 卡可动 tauri.conf.json 窗口参数；浏览器降级 demo 快照口径（2026-10-11，会话 S1011-0713）
+
+- 现象：① 卡面「悬浮胶囊+展开卡」需要窗口高度从 300 放到 560，而 tauri.conf.json 物理上
+  位于 src-tauri/（data-layer 域目录）；② `npm run dev` 纯浏览器环境无 `__TAURI_INTERNALS__`，
+  invoke 必然失败。
+- 决定：① 窗口铬（宽高/标题/装饰）属 UI 交付面：ui 域卡允许改 tauri.conf.json 的
+  `app.windows` 展示参数（本卡仅 height 300→560）；域互斥不受影响（当时无 data-layer 卡
+  在飞）。Rust 源码（src-tauri/src/）仍归 data-layer 域，ui 卡不碰。② useSnapshots 在无
+  Tauri 环境降级为内置 demo 快照（数值=RR08 冒烟实测样本 plan=PLUS/周窗29%/credits3），
+  界面显示「demo 数据」标记；demo 快照不参与任何测试断言（adapters 测试全部自构造夹具）。
+- 依据：RUNBOOK §4 域互斥本义（防并行撞路径，非禁配置归属）；ARCHITECTURE §2
+  （降级壳不含业务规则）；RR08 冒烟落盘实测值复用（TRUTH §1 证据链内）。

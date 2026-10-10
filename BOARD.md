@@ -14,9 +14,10 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：MERGE→WORK（RR01–RR06 已闭环🟢；RR07 🟡待合入；RR08–RR12 🟠可领）**
-（下一班建议：占 MERGE 槽合入 RR07（core 域串行），合完回 WORK 领 RR08（data-layer 域，
-Tauri command get_snapshots，与 core 无在飞冲突；RR08 是 RR09 UI 的数据前置））
+**当前阶段：MERGE（RR09 🟡待合入；RR10–RR12 🟠可领）**
+（下一班建议：占 MERGE 槽合入 RR09（单 commit 12d8380，patch task_logs/RR09.patch 对 main
+干净适用；拆 worktree 前先拆 node_modules junction 见 done →下轮3）→ 阶段切 WORK 领 RR10
+（预测落盘）。RR09 遗留小项：展开态截图（done →下轮1，两条路径）+ 胶囊溢出 420px 窗宽立修卡）
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -25,6 +26,29 @@ Tauri command get_snapshots，与 core 无在飞冲突；RR08 是 RR09 UI 的数
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
+### [2026-10-11 07:21→08:05] RR09 | P1 | 🧱🟡待合入 | ui | 会话 S1011-0713
+- 分支/commit：agent/RR09 @ **12d8380**（单 commit；基于 main 42d443c；patch 备份
+  task_logs/RR09.patch 对 main 干净适用）
+- 已落：src/ui/ 六件（types 契约/adapters 纯映射/useSnapshots 事件接线+浏览器降级 D018/
+  history 夹具只读/Capsule/ExpandedCard）+ App 两态切换 + tauri.conf.json 窗高 560（D018）；
+  数字全部来自 src/lib（§2/D006）
+- 四绿：tsc✅ 域 8/8✅ 全量 73/73 0failed✅（基线 65→73 只升）变异红验两轮✅
+  （主数字换源红5 / daysToReset 注入+8h 红1）+ cargo check --tests 1m02s✅（复验）
+- 运行证据：release app（custom-protocol）实跑 + PrintWindow 截图 **胶囊态真实数据 ✅**
+  （29%=RR08 冒烟实测值，端到端通）；⚠️ `tauri dev` 本机 cdylib 链接死路（TRUTH B09）
+  → 卡面口径以 release 等效替代；**展开态截图未取得**（agent 会话无前台权，输入注入
+  不可达，B09）→ 下轮补
+- →下轮：①展开态截图（computer-use SDK 注入或 App 支持 hash 状态入口）②胶囊溢出 420px
+  立修卡素材 ③MERGE 拆 worktree 前先拆 node_modules junction（done 有指引）
+
+### [2026-10-11 04:47→07:16] RR08 | P1 | 🧱🟢已闭环 | data-layer | 会话 S1011-0443 交付 → S1011-0643 接管续作 → S1011-0713 合入
+- 合入：agent/RR08 @ a1f802a（2 commits）→ main **42d443c**（cherry-pick，树恒等✅，
+  worktree/分支已拆）
+- 主仓复验：tsc✅ vitest 全量 65/65 0failed✅ cargo check --tests 12.9s✅
+- 交付详情：task_logs/RR08_done.md（codex.rs app-server 握手+解析/snapshots.rs 原子写+SWR/
+  models/lib get_snapshots/build.rs B08 正规化 D017；真实握手落盘冒烟 plan=PLUS/周窗29%/credits3）
+- 解锁：RR09（UI）数据前置 get_snapshots+background-snapshots-updated 就绪；RR10 同域解锁
+
 <!-- 条目模板：
 ### [时间] <卡号> | <优先级> | <类型标记>🟠在飞 | <域> | 会话 <会话ID>
 - 分支/commit：agent/<卡号> @ <sha>
@@ -32,7 +56,14 @@ Tauri command get_snapshots，与 core 无在飞冲突；RR08 是 RR09 UI 的数
 - →下轮：<续作指引>
 -->
 
-### [2026-10-11 04:17→04:27] RR07 | P0 | 🧱🟡待合入 | core | 会话 S1011-0413
+### [2026-10-11 04:17→04:44] RR07 | P0 | 🧱🟢已闭环 | core | 会话 S1011-0413 交付 → S1011-0443 合入
+- 合入：agent/RR07 @ 13be6b1 → main **dddc641**（cherry-pick，树恒等✅，worktree/分支已拆）
+- 主仓复验：tsc✅ vitest 全量 65/65 0failed✅（基线 49→65 只升）
+- 解锁：core 域首批（risk/planner/resetCard/calibration）全闭环；calibration 已入 index.ts 导出，
+  RR09 UI 可直接 import；npm run calibrate 可跑，RR12 REVIEW 校准报告 artifact 有来源；
+  RR10 可消费 scorePredictions 行契约与 joinPredictionsWithResets
+
+### [2026-10-11 04:17→04:27] RR07 交付记录（S1011-0413，已由上行合入闭环吸收）
 - 分支/commit：agent/RR07 @ 13be6b1（基于 main 58ff13b；patch 备份 task_logs/RR07.patch，
   已验证对 main 干净适用）
 - 已落：src/lib/calibration.ts（scorePredictions：Brier/命中率/基准率/分周/可靠性曲线 +
