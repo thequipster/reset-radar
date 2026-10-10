@@ -14,5 +14,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+# 依赖版本对齐参考实现 codex-cockpit src-tauri/Cargo.toml（MIT，TRUTH §1 来源 3）
 [dependencies]
 tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1", features = ["io-util", "macros", "process", "sync", "time"] }
+dirs = "6"
