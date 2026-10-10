@@ -14,7 +14,8 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（10 张 🟠待领；RR01 🟡待合入；RR03 🟠在飞）**
+**当前阶段：WORK（10 张 🟠待领；RR01、RR03 🟡待合入）**
+（下一班：RR02 可领；RR04+ 依赖 RR01 合入——RR02 领完后即应进 MERGE 批量合 RR01+RR03）
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -30,10 +31,15 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 - →下轮：<续作指引>
 -->
 
-### [2026-10-11 01:16] RR03 | P0 | 🎣🟠在飞 | data采集 | 会话 S1011-0113
-- 分支/commit：agent/RR03（worktree ../reset-radar_wt/RR03，自 main a0af473 分出）
-- 已落：领卡开工——scripts/fetch-history.mjs 拉真实重置历史 + 清洗夹具（只采集不实装算法）
-- →下轮：—
+### [2026-10-11 01:16→01:32] RR03 | P0 | 🎣🟡待合入 | data采集 | 会话 S1011-0113
+- 分支/commit：agent/RR03 @ cf4d0ab（worktree ../reset-radar_wt/RR03 保留待 MERGE）
+- 已落：scripts/fetch-history.mjs（零依赖 node，4s 超时+UA，原子写）+ node:test 12 用例 +
+  data/resets-history.json 首拉夹具 59 条（schema reset-radar/resets-history@1，TRUTH §2 B07）。
+  清洗移植 reset_forecast.rs:103-132（常量 :8-9）。门禁（D010 等价口径）：node:test 12/12✅
+  幂等复跑剔除易变字段逐字节一致✅ 变异红验两轮（去重窗口/未来容差 各5→0 均红→复原绿）✅
+- →下轮：MERGE 可与 RR01 批量合（路径无交集）；RR04 起直接消费 events[].announcedAt；排障遗产 4 条见 done
+
+### [2026-10-11 00:57] RR01 | P0 | 🧱🟡待合入 | core+ui+data-layer | 会话 S1011-0043
 
 ### [2026-10-11 00:57] RR01 | P0 | 🧱🟡待合入 | core+ui+data-layer | 会话 S1011-0043
 - 分支/commit：agent/RR01 @ cd9f759（worktree ../reset-radar_wt/RR01 保留待 MERGE）

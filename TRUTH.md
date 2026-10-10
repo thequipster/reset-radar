@@ -45,6 +45,21 @@
 - 机制：参考项目 `usageDateKey`（04:00 记账日）与北京零点两套边界混用，曾致用卡规划日期标签差一天。
   本项目全项目唯一边界=北京零点（D004）。
 
+### B07 codex-resets.com 真实历史夹具与 API schema（RR03 会话实测 2026-10-11）
+- API schema（GET /api/v1/resets?limit=100&order=desc → 200）：
+  `{ data: [{ id, reset_type, announced_at, text, source: { type, author?, url } }], pagination: { has_more, next_cursor }, meta: { api_version, generated_at } }`；
+  GET /api/v1/status → 200：`{ data: { latest_reset{同上}, scheduled_reset, active_watch, stats: { total, last_reset_at, days_since_last, avg_interval_days } }, meta }`。
+  announced_at 为 ISO-8601 毫秒 Z 串。注意：本机 curl(schannel) 对该域握手偶发失败，node fetch(OpenSSL) 稳定 200——探活用 node。
+- 夹具：`data/resets-history.json`（scripts/fetch-history.mjs 生成，schema `reset-radar/resets-history@1`）：
+  `{ schema, fetchedAt, sources, upstream{apiVersion,generatedAt,pagination}, status{…/status.data 原样}, events[], summary }`；
+  events 为清洗后（解析失败丢弃/未来容差 5min/倒序/相邻 5min 去重，/status 的 latest_reset 并入——移植自 reset_forecast.rs:103-132）
+  的 `{ id, resetType, announcedAt, text, sourceType, sourceUrl }`，announcedAt 统一为 ISO 毫秒 Z 串、最新在前。
+- 首拉统计（2026-10-11 01:20 +08，meta.generated_at 2026-10-10T17:15Z）：**59 条**（banked 6 / regular 53），
+  跨度 2025-09-17 → 2026-10-08（约 386 天），status.stats：avg_interval_days=6.7、days_since_last=2.6；
+  **北京星期分布**（D004 边界）：Mon 4 / Tue 10 / Wed 12 / Thu 8 / Fri 7 / Sat 9 / Sun 9
+  （Tue+Sat 合计 19/59≈32%——参考实现"Tue/Sat 70% 基线"与真实样本的偏差正是 RR04/RR07 校准闭环的原料）。
+- 出处：RR03 会话对两端点的直接实测（响应原文存于上述夹具；task_logs/RR03_done.md 有证据链）。
+
 ## §8 黑名单（已证伪/已知坑——绝不重踩）
 
 > 以下均初始化会话实测踩过，任何会话不得以任何理由重新引入；确有新证据要翻案，先立挖卡。
