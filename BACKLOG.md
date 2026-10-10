@@ -123,3 +123,7 @@
 - 2026-10-11 00:57 RR01 🟡待合入（agent/RR01 @ cd9f759；四绿+卡面口径全过，证据 task_logs/RR01_done.md；会话 S1011-0043）
 - 2026-10-11 01:32 RR03 🟡待合入（agent/RR03 @ cf4d0ab；D010 等价口径全过：node:test 12/12+幂等复跑一致+变异红验两轮；TRUTH §2 B07 锚点已建；证据 task_logs/RR03_done.md；会话 S1011-0113）
 - 2026-10-11 01:50 RR02 🟡待合入（agent/RR02 @ c451728；D011 等价口径全过：actionlint 0 告警+PyYAML parse+check-ci.py 结构断言绿+RR01 基线 4/4 复核+三变异红验；徽章 owner 裁决 D012；证据 task_logs/RR02_done.md；会话 S1011-0143）
+- 2026-10-11 02:30 RR01 🟢已闭环（MERGE S1011-0213：cd9f759→main 838649b，树恒等✅；主仓复验 tsc✅ vitest 4/4 0failed✅ cargo check✅56.9s；worktree/分支已拆）
+- 2026-10-11 02:30 RR03 🟢已闭环（MERGE S1011-0213：cf4d0ab→main 93858e9，树恒等✅；node --test 12/12✅；worktree/分支已拆）
+- 2026-10-11 02:30 RR02 🟢已闭环（MERGE S1011-0213：c451728→main 0e0f5bc，树恒等✅；check-ci 结构门禁绿✅；CI 真跑待用户 push 首跑；worktree/分支已拆）
+- 2026-10-11 02:30 MERGE 批量合入注记：RR01+RR03 合并暴露 vitest 误载 scripts/*.test.mjs 的集成回归，以 fixup c78978c 直修（决策 D013：MERGE 槽测试接线类回归窄口径直修权），全量基线恢复 0 failed；阶段按阶段机切 WORK（RR04–RR12 🟠可领）

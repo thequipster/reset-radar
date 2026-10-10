@@ -14,9 +14,9 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：MERGE（RR01、RR03、RR02 三张🟡待合入；core 域 RR04+ 全部依赖 RR01 合入）**
-（下一班：MERGE 槽按序批量合 RR01→RR03→RR02：cherry-pick+树恒等+主仓复跑全量门禁+拆 worktree；
-合完切 WORK 领 RR04，RR02 合入后 CI 生效）
+**当前阶段：WORK（RR01/RR03/RR02 已合入闭环，RR04+ 全部解锁🟠待领）**
+（阶段机口径：有🟠可领=WORK——RUNBOOK §8.5 的"切 REVIEW"仅在 🟠🟡 全清时适用，现 RR04–RR12 仍🟠。
+下一班：按建议顺序领 RR04——core 域首张，可直接消费 RR03 已合入的 events[].announcedAt 夹具）
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -32,40 +32,27 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 - →下轮：<续作指引>
 -->
 
-### [2026-10-11 01:45→01:50] RR02 | P1 | 🧱🟡待合入 | docs+发布 | 会话 S1011-0143
-- 分支/commit：agent/RR02 @ c451728（worktree ../reset-radar_wt/RR02 保留待 MERGE）
-- 已落：.github/workflows/ci.yml（windows-latest；npm ci→tsc→vitest→cargo check→tauri build→
-  artifact 上传；action 逐 SHA pin 借鉴 codex-cockpit release.yml）+ scripts/check-ci.py 结构断言器
-  + README 徽章接线（owner=thequipster，D012）。门禁（D011 等价口径）：actionlint 0 告警✅
-  PyYAML parse✅ check-ci 绿✅ RR01 基线 4/4 复核✅ 变异红验三轮（删vitest步骤/改ubuntu/撤徽章
-  均红→复原绿）✅
-- →下轮：MERGE 可与 RR01+RR03 批量合（三方路径无交集已核对，见 done）；无 runner 不声称"跑过"，
-  用户 push 后首跑见真章；node:test 纳入 CI 留给 REVIEW 立卡
+### [2026-10-11 01:45→02:30] RR02 | P1 | 🧱🟢已闭环 | docs+发布 | 会话 S1011-0143 交付 → S1011-0213 合入
+- 合入：agent/RR02 @ c451728 → main **0e0f5bc**（cherry-pick，树恒等✅，worktree/分支已拆）
+- 主仓复验：check-ci 结构门禁绿✅；CI 真跑待用户 push 后首跑（无 runner 不声称"跑过"）
+- 遗留：node:test 纳入 CI 留给 REVIEW 立卡（done 已记）
 
-### [2026-10-11 01:16→01:32] RR03 | P0 | 🎣🟡待合入 | data采集 | 会话 S1011-0113
-- 分支/commit：agent/RR03 @ cf4d0ab（worktree ../reset-radar_wt/RR03 保留待 MERGE）
-- 已落：scripts/fetch-history.mjs（零依赖 node，4s 超时+UA，原子写）+ node:test 12 用例 +
-  data/resets-history.json 首拉夹具 59 条（schema reset-radar/resets-history@1，TRUTH §2 B07）。
-  清洗移植 reset_forecast.rs:103-132（常量 :8-9）。门禁（D010 等价口径）：node:test 12/12✅
-  幂等复跑剔除易变字段逐字节一致✅ 变异红验两轮（去重窗口/未来容差 各5→0 均红→复原绿）✅
-- →下轮：MERGE 可与 RR01 批量合（路径无交集）；RR04 起直接消费 events[].announcedAt；排障遗产 4 条见 done
+### [2026-10-11 01:16→02:30] RR03 | P0 | 🎣🟢已闭环 | data采集 | 会话 S1011-0113 交付 → S1011-0213 合入
+- 合入：agent/RR03 @ cf4d0ab → main **93858e9**（cherry-pick，树恒等✅，worktree/分支已拆）
+- 主仓复验：node --test 12/12✅；RR04 起可直接消费 data/resets-history.json 的 events[].announcedAt
+- 集成注记：与 RR01 合并后 vitest 误载本卡 .test.mjs → fixup c78978c 修复（D013），node:test 与
+  vitest 职责正交（scripts/** 已从 vitest exclude）
 
-### [2026-10-11 00:57] RR01 | P0 | 🧱🟡待合入 | core+ui+data-layer | 会话 S1011-0043
-
-### [2026-10-11 00:57] RR01 | P0 | 🧱🟡待合入 | core+ui+data-layer | 会话 S1011-0043
-- 分支/commit：agent/RR01 @ cd9f759（worktree ../reset-radar_wt/RR01 保留待 MERGE）
-- 已落：Tauri2+React19+TS+Vite7+vitest5 骨架；identifier app.resetradar.desktop；src/lib+meta+smoke 4 测试；
-  .gitignore 补 src-tauri/gen/。门禁：tsc✅ vitest 4/0✅ 变异红验✅（2 断言红→复原绿）cargo check✅(1m32s) build✅(958ms)
-- →下轮：MERGE 会话 cherry-pick cd9f759 → 树恒等 → 主仓复跑门禁 → 拆 worktree；此后 RR02/RR03 可领，RR04+ 依赖本卡
+### [2026-10-11 00:57→02:30] RR01 | P0 | 🧱🟢已闭环 | core+ui+data-layer | 会话 S1011-0043 交付 → S1011-0213 合入
+- 合入：agent/RR01 @ cd9f759 → main **838649b**（cherry-pick，树恒等✅，worktree/分支已拆；
+  原🟡条目重复表头一并清理）
+- 主仓复验：tsc✅ vitest 全量 4/4 0failed✅ cargo check✅(56.9s)——RR04+ 依赖本卡全部解锁
 
 
 ## 建议领取顺序
 
-1. RR01（脚手架——一切的地基，其余卡都依赖它）
-2. RR03（挖数据——与 RR02 不同域，若 RR01 在飞可先领：脚本仅依赖 node，不依赖脚手架）
-3. RR02（CI——纯 yaml，可与任何卡并行）
-4. RR04 → RR05 → RR06 → RR07（core 域串行；RR07 依赖 RR03 的数据夹具）
-5. RR08 → RR10（数据层串行）
-6. RR09（UI，依赖 RR08）
-7. RR11（发布打磨，依赖 RR09 截图）
-8. RR12（循环锚——首批功能卡合入后执行首轮 REVIEW，之后永续滚动）
+1. RR04 → RR05 → RR06 → RR07（core 域串行；RR07 依赖 RR03 的数据夹具——已合入可直接消费）
+2. RR08 → RR10（数据层串行）
+3. RR09（UI，依赖 RR08）
+4. RR11（发布打磨，依赖 RR09 截图）
+5. RR12（循环锚——首批功能卡合入后执行首轮 REVIEW，之后永续滚动）
