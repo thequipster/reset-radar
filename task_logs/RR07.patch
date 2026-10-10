@@ -1,0 +1,736 @@
+From 13be6b1ec69538f1aa459a7a0ef3e7012647a9dc Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 04:23:34 +0800
+Subject: [PATCH] feat(core): prediction calibrator scorePredictions +
+ calibrate report script (RR07)
+
+- src/lib/calibration.ts: scorePredictions (Brier/hitRate/baseRate/byWeek/reliability,
+  standard Brier=mean((p-y)^2) per card evidence) + joinPredictionsWithResets
+  (Beijing-key reconciliation, first-row-per-day ex-ante, immature-day exclusion)
+- scripts/calibrate.mjs: REVIEW artifact renderer (RUNBOOK 9.1 command verbatim),
+  node >=22.18 native type-stripping loads lib directly (D016)
+- lib import chain carries .ts extensions + tsconfig allowImportingTsExtensions;
+  beijingCalendarDateKey exported from resetCard (single day-key source, D014-style)
+- 16 domain tests incl. Brier anchors (perfect=0 / const-50%=0.25 / all-wrong=1),
+  B06 anti-anchor join test, cross-year Monday weekKey; two mutation rounds red-verified
+---
+ package.json                               |   1 +
+ scripts/calibrate.mjs                      | 165 +++++++++++++++
+ src/lib/__tests__/calibration.core.test.ts | 231 +++++++++++++++++++++
+ src/lib/calibration.ts                     | 209 +++++++++++++++++++
+ src/lib/index.ts                           |   3 +-
+ src/lib/planner.ts                         |   6 +-
+ src/lib/resetCard.ts                       |   7 +-
+ tsconfig.json                              |   3 +
+ 8 files changed, 619 insertions(+), 6 deletions(-)
+ create mode 100644 scripts/calibrate.mjs
+ create mode 100644 src/lib/__tests__/calibration.core.test.ts
+ create mode 100644 src/lib/calibration.ts
+
+diff --git a/package.json b/package.json
+index 8fd4372..03c2395 100644
+--- a/package.json
++++ b/package.json
+@@ -7,6 +7,7 @@
+     "dev": "vite",
+     "build": "tsc && vite build",
+     "test": "vitest run",
++    "calibrate": "node scripts/calibrate.mjs",
+     "tauri": "tauri"
+   },
+   "dependencies": {
+diff --git a/scripts/calibrate.mjs b/scripts/calibrate.mjs
+new file mode 100644
+index 0000000..2d02566
+--- /dev/null
++++ b/scripts/calibrate.mjs
+@@ -0,0 +1,165 @@
++#!/usr/bin/env node
++// scripts/calibrate.mjs —— RR07：预测 vs 实际 对答案，渲染校准报告 Markdown（REVIEW artifact）。
++// 用法（RUNBOOK §9.1 固定命令）：node scripts/calibrate.mjs > docs/calibration-latest.md
++// 计分实现单一源于 src/lib/calibration.ts（RUNBOOK §1.4 单一实现源，本脚本零算法）；
++// 经 node ≥22.18 原生 type-stripping 直载 .ts（本机 v22.23.1 实测；lib 内 import 链带
++// .ts 扩展 + tsconfig allowImportingTsExtensions，见 docs/DECISIONS.md D016）。
++// as_of 取历史夹具 fetchedAt（数据新鲜度时刻，与 risk.ts now 语义同源）：夹具滞后时，
++// 未被历史覆盖的预测日按「未完结」剔除，绝不误判为 realized=false。
++
++import { readFileSync } from "node:fs";
++import { fileURLToPath } from "node:url";
++import { joinPredictionsWithResets, scorePredictions } from "../src/lib/calibration.ts";
++
++const root = fileURLToPath(new URL("../", import.meta.url));
++const generatedAt = new Date().toISOString();
++const lines = [];
++const emit = (s = "") => lines.push(s);
++
++function readJsonIfExists(path, label) {
++  try {
++    return JSON.parse(readFileSync(`${root}${path}`, "utf8"));
++  } catch (err) {
++    if (err?.code === "ENOENT") return { missing: path };
++    console.error(`[calibrate] ${label} 解析失败: ${err.message}`);
++    return { broken: path, error: err.message };
++  }
++}
++
++// —— data/predictions.jsonl：逐行 JSON，坏行跳过并计数（ stderr 可见，不改写数据）——
++function readPredictionRows() {
++  let raw;
++  try {
++    raw = readFileSync(`${root}data/predictions.jsonl`, "utf8");
++  } catch (err) {
++    if (err?.code === "ENOENT") return { missing: true };
++    throw err;
++  }
++  const rows = [];
++  let skipped = 0;
++  for (const line of raw.split(/\r?\n/)) {
++    const t = line.trim();
++    if (!t) continue;
++    try {
++      const obj = JSON.parse(t);
++      if (typeof obj?.date === "string" && Number.isFinite(obj?.predictedRisk)) {
++        rows.push({ date: obj.date, predictedRisk: obj.predictedRisk, fetchedAt: obj.fetchedAt });
++      } else {
++        skipped += 1;
++      }
++    } catch {
++      skipped += 1;
++    }
++  }
++  return { rows, skipped };
++}
++
++const history = readJsonIfExists("data/resets-history.json", "历史夹具");
++const predictions = readPredictionRows();
++
++emit("# 校准报告（calibration-latest）");
++emit();
++emit(`> 生成：${generatedAt}｜命令：\`node scripts/calibrate.mjs > docs/calibration-latest.md\``);
++emit();
++
++if (history.missing || history.broken || !Array.isArray(history.events)) {
++  emit("## ⚠️ 无法计分");
++  emit();
++  emit(`- 历史夹具 data/resets-history.json 不可用（${history.missing ? "文件不存在" : history.broken ? "解析失败" : "events 非数组"}）。`);
++  emit("- 先运行 `node scripts/fetch-history.mjs` 拉取重置历史，再重新生成本报告。");
++  emit();
++  process.stdout.write(lines.join("\n") + "\n");
++  process.exit(0);
++}
++
++const announcedAt = history.events
++  .map((e) => e?.announcedAt)
++  .filter((v) => typeof v === "string");
++const fetchedAtMs = Date.parse(history.fetchedAt ?? "");
++const asOf = Number.isFinite(fetchedAtMs) ? new Date(fetchedAtMs) : generatedAtDate();
++
++function generatedAtDate() {
++  console.error("[calibrate] 夹具 fetchedAt 缺失/非法，as_of 退化为墙钟（结果仅作骨架参考）");
++  return new Date();
++}
++
++emit(
++  `- 重置历史：data/resets-history.json —— ${announcedAt.length} events（fetchedAt ${history.fetchedAt ?? "缺失"}）`,
++);
++emit(`- as_of（数据新鲜度时刻）= 夹具 fetchedAt：${asOf.toISOString()}`);
++
++if (predictions.missing) {
++  emit(`- 预测日志：data/predictions.jsonl —— 尚不存在（RR10 落盘器未运行/未合入）`);
++  emit();
++  emit("## ⚠️ 暂无预测日志，无可计分样本");
++  emit();
++  emit("- 校准闭环需要先积累「每日预测 → 落盘」（RR10：data/predictions.jsonl 只追加）。");
++  emit("- 该文件出现后本报告自动给出完整指标；此前本文件仅作报告骨架（REVIEW 拍仍会生成）。");
++  emit();
++  emit("## 指标口径（供对照）");
++  emit();
++  emit("| 指标 | 定义 | 参照 |");
++  emit("|---|---|---|");
++  emit("| Brier 分数 | mean((p − y)²)，y∈{0,1} | 0=完美 / 0.25=恒50% / 1=全错 |");
++  emit("| 命中率 | p≥50% 判「会重置」，与实际一致即命中 | 地板=「全猜不重置」=1−基准率 |");
++  emit("| 基准率 | 实际重置日占比 | 预测技能的参照基线 |");
++  emit();
++  process.stdout.write(lines.join("\n") + "\n");
++  process.exit(0);
++}
++
++emit(
++  `- 预测日志：data/predictions.jsonl —— ${predictions.rows.length} 行有效${predictions.skipped ? ` / ${predictions.skipped} 行坏行跳过` : ""}`,
++);
++
++const outcomes = joinPredictionsWithResets(predictions.rows, announcedAt, asOf);
++const score = scorePredictions(outcomes);
++const realizedDays = outcomes.filter((r) => r.realized).length;
++
++emit(`- 计分日：${score.n} 个（同日多行取首行 + 未完结日剔除；其中实际重置日 ${realizedDays} 个）`);
++emit();
++emit("## 总分");
++emit();
++emit("| 指标 | 值 | 解读 |");
++emit("|---|---|---|");
++emit(`| 计分样本 n | ${score.n} | 每行 = 一个已完结的北京日 |`);
++emit(
++  `| Brier 分数 | ${fmt(score.brier, (v) => v.toFixed(3))} | 0=完美 / 0.25=恒50%参照 / 1=全错，越低越好 |`,
++);
++emit(`| 命中率（阈 ${score.thresholdPercent}%） | ${fmt(score.hitRate, pct)} | 阈值化命中占比 |`);
++emit(`| 基准率 | ${fmt(score.baseRate, pct)} | 实际重置日占比；「全猜不重置」命中率为 ${score.baseRate === null ? "—" : pct(1 - score.baseRate)} |`);
++emit();
++emit("## 分周走势（周一起）");
++emit();
++emit("| 周（周一） | 样本 | Brier | 命中率 |");
++emit("|---|---|---|---|");
++for (const w of score.byWeek) {
++  emit(`| ${w.weekKey} | ${w.n} | ${w.brier.toFixed(3)} | ${pct(w.hitRate)} |`);
++}
++if (score.byWeek.length === 0) emit("| —（无样本） | | | |");
++emit();
++emit("## 可靠性曲线（预测十分桶）");
++emit();
++emit("| 预测区间% | 样本 | 平均预测% | 实际发生% |");
++emit("|---|---|---|---|");
++for (const b of score.reliability) {
++  emit(`| ${b.label} | ${b.n} | ${b.avgPredictedPercent.toFixed(1)} | ${b.observedPercent.toFixed(1)} |`);
++}
++if (score.reliability.length === 0) emit("| —（无样本） | | | |");
++emit();
++emit("## 读法");
++emit();
++emit("- Brier ≤ 0.25 才优于「恒猜 50%」；**样本 < 30 时各项指标仅供参考**。");
++emit("- 可靠性表「平均预测」与「实际发生」越贴近对角线，概率越可信；系统性高估/低估即校准偏差方向。");
++emit("- 分周 Brier 持续走高 = 模型状态漂移，优先复核 risk 因子与夹具新鲜度。");
++emit();
++
++process.stdout.write(lines.join("\n") + "\n");
++
++function pct(v) {
++  return `${(v * 100).toFixed(1)}%`;
++}
++
++function fmt(v, f) {
++  return v === null ? "—（暂无可计分日）" : f(v);
++}
+diff --git a/src/lib/__tests__/calibration.core.test.ts b/src/lib/__tests__/calibration.core.test.ts
+new file mode 100644
+index 0000000..0f31c64
+--- /dev/null
++++ b/src/lib/__tests__/calibration.core.test.ts
+@@ -0,0 +1,231 @@
++// RR07 域测试：src/lib/calibration.ts 预测校准器。
++// 真值：Brier=mean((p−y)²) 标准定义（卡面证据行）；期望值全部手算推导写在各用例注释。
++// 星期/日期锚：2026-10-12=周一（与 risk.core.test.ts 同锚），由此推 10-05 周一、
++// 10-11 周日、2026-12-28 周一、2027-01-01 周五；北京日键边界锚定 B06（UTC 漏 +8h 必红）。
++import { describe, expect, it } from "vitest";
++import {
++  CALIBRATION_DEFAULT_THRESHOLD_PERCENT,
++  joinPredictionsWithResets,
++  scorePredictions,
++  type PredictionOutcome,
++} from "../calibration";
++
++const rec = (dateKey: string, predictedPercent: number, realized: boolean): PredictionOutcome => ({
++  dateKey,
++  predictedPercent,
++  realized,
++});
++
++describe("数学正确性（卡面验证口径）", () => {
++  it("完美预测 → Brier=0、命中率=1", () => {
++    // p 与 y 全一致：(1−1)²+(0−0)²+(1−1)²=0；阈值化全命中
++    const s = scorePredictions([rec("2026-10-05", 100, true), rec("2026-10-06", 0, false), rec("2026-10-07", 100, true)]);
++    expect(s.n).toBe(3);
++    expect(s.brier).toBe(0);
++    expect(s.hitRate).toBe(1);
++    expect(s.baseRate).toBeCloseTo(2 / 3, 10);
++  });
++
++  it("恒 50% 预测 → Brier=0.25", () => {
++    // 每条 (0.5−y)²=0.25；p=50≥阈 50 判正向，命中 2/3
++    const s = scorePredictions([rec("2026-10-05", 50, true), rec("2026-10-06", 50, false), rec("2026-10-07", 50, true)]);
++    expect(s.brier).toBe(0.25);
++    expect(s.hitRate).toBeCloseTo(2 / 3, 10);
++  });
++
++  it("全错（自信全反）→ Brier=1、命中率=0", () => {
++    // (1−0)²+(0−1)²=2，均值 1
++    const s = scorePredictions([rec("2026-10-05", 100, false), rec("2026-10-06", 0, true)]);
++    expect(s.brier).toBe(1);
++    expect(s.hitRate).toBe(0);
++    expect(s.baseRate).toBe(0.5);
++  });
++
++  it("手算混合序列 → Brier=0.225、命中率=0.75、基准率=0.25", () => {
++    // p=[80,30,60,10] y=[0,0,1,0]：
++    //   Brier=(0.64+0.09+0.16+0.01)/4=0.90/4=0.225
++    //   阈 50%：判向 [T,F,T,F] vs 实现 [F,F,T,F] → 命中 3/4（仅 p=80 误报）
++    const s = scorePredictions([
++      rec("2026-10-05", 80, false),
++      rec("2026-10-06", 30, false),
++      rec("2026-10-07", 60, true),
++      rec("2026-10-08", 10, false),
++    ]);
++    expect(s.brier).toBeCloseTo(0.225, 10);
++    expect(s.hitRate).toBe(0.75);
++    expect(s.baseRate).toBe(0.25);
++    expect(s.thresholdPercent).toBe(CALIBRATION_DEFAULT_THRESHOLD_PERCENT);
++  });
++
++  it("阈值可调：同一序列阈 70% → 命中率 0.5（Brier 不变）", () => {
++    // 判向变为 p≥70：[T,F,F,F] vs [F,F,T,F] → 命中 2/4（p=30/10 猜不重置✓，p=80/60 全错位）
++    const records = [
++      rec("2026-10-05", 80, false),
++      rec("2026-10-06", 30, false),
++      rec("2026-10-07", 60, true),
++      rec("2026-10-08", 10, false),
++    ];
++    const s = scorePredictions(records, { thresholdPercent: 70 });
++    expect(s.hitRate).toBe(0.5);
++    expect(s.brier).toBeCloseTo(0.225, 10);
++    expect(s.thresholdPercent).toBe(70);
++  });
++
++  it("空输入 → n=0 且 brier/hitRate=null（不误读为完美）", () => {
++    const s = scorePredictions([]);
++    expect(s.n).toBe(0);
++    expect(s.brier).toBeNull();
++    expect(s.hitRate).toBeNull();
++    expect(s.baseRate).toBeNull();
++    expect(s.byWeek).toEqual([]);
++    expect(s.reliability).toEqual([]);
++  });
++
++  it("防御：形状非法/非Finite 的行剔除，不炸", () => {
++    const s = scorePredictions([
++      rec("2026-10-05", 50, true),
++      rec("not-a-date", 50, true),
++      rec("2026-10-06", Number.NaN, true),
++    ]);
++    expect(s.n).toBe(1);
++    expect(s.brier).toBeCloseTo(0.25, 10);
++  });
++});
++
++describe("byWeek 分周走势（周一分组键）", () => {
++  it("按周聚合、weekKey 升序、周内指标独立", () => {
++    // 周1（10-05/08/11 同属周一 10-05 起）：p=[100,0,0] y=[T,F,F] → Brier=0、命中 3/3
++    // 周2（10-12/13 属周一 10-12 起）：p=[50,100] y=[F,F] → Brier=(0.25+1)/2=0.625、命中 0/2
++    const s = scorePredictions([
++      rec("2026-10-05", 100, true),
++      rec("2026-10-08", 0, false),
++      rec("2026-10-11", 0, false),
++      rec("2026-10-12", 50, false),
++      rec("2026-10-13", 100, false),
++    ]);
++    expect(s.byWeek.map((w) => w.weekKey)).toEqual(["2026-10-05", "2026-10-12"]);
++    const [w1, w2] = s.byWeek;
++    expect(w1.n).toBe(3);
++    expect(w1.brier).toBe(0);
++    expect(w1.hitRate).toBe(1);
++    expect(w2.n).toBe(2);
++    expect(w2.brier).toBe(0.625);
++    expect(w2.hitRate).toBe(0);
++  });
++
++  it("跨年周锚定无歧义：2026-12-31 与 2027-01-01 同属周一 2026-12-28", () => {
++    // ISO 周号在跨年处有周年归属歧义；用周一日期键则无（D016）
++    const s = scorePredictions([rec("2026-12-31", 40, false), rec("2027-01-01", 60, true)]);
++    expect(s.byWeek.map((w) => w.weekKey)).toEqual(["2026-12-28"]);
++    expect(s.byWeek[0].n).toBe(2);
++  });
++});
++
++describe("reliability 可靠性曲线（十分桶）", () => {
++  it("桶分配与桶内统计；空桶不出现", () => {
++    // p=[5,14,95,100] y=[F,T,T,T] → 桶 0-10{1,avg5,obs0}、10-20{1,avg14,obs100}、90-100{2,avg97.5,obs100}
++    const s = scorePredictions([
++      rec("2026-10-05", 5, false),
++      rec("2026-10-06", 14, true),
++      rec("2026-10-07", 95, true),
++      rec("2026-10-08", 100, true),
++    ]);
++    expect(s.reliability.map((b) => b.label)).toEqual(["0-10", "10-20", "90-100"]);
++    const [b0, b1, b9] = s.reliability;
++    expect(b0).toMatchObject({ n: 1, avgPredictedPercent: 5, observedPercent: 0 });
++    expect(b1).toMatchObject({ n: 1, avgPredictedPercent: 14, observedPercent: 100 });
++    expect(b9).toMatchObject({ n: 2, avgPredictedPercent: 97.5, observedPercent: 100 });
++  });
++
++  it("桶界含下不含上、末桶双含", () => {
++    // p=0 → 0-10；p=10 → 10-20；p=100 → 90-100
++    const s = scorePredictions([
++      rec("2026-10-05", 0, false),
++      rec("2026-10-06", 10, true),
++      rec("2026-10-07", 100, true),
++    ]);
++    expect(s.reliability.map((b) => b.label)).toEqual(["0-10", "10-20", "90-100"]);
++    expect(s.reliability[0].observedPercent).toBe(0);
++    expect(s.reliability[1].observedPercent).toBe(100);
++    expect(s.reliability[2].observedPercent).toBe(100);
++  });
++});
++
++describe("joinPredictionsWithResets 预测×历史对账", () => {
++  const NOW = new Date("2026-10-12T02:00:00Z"); // 北京 10-12 10:00 → 当日键 2026-10-12
++
++  it("realized 按北京日历键对账（B06 反锚定：漏 +8h 必红）", () => {
++    // 2026-10-08T17:30Z = 北京 10-09 01:30 → 事件落键 2026-10-09（UTC 键会误判为 10-08）
++    const out = joinPredictionsWithResets(
++      [
++        { date: "2026-10-08", predictedRisk: 10 },
++        { date: "2026-10-09", predictedRisk: 40 },
++      ],
++      ["2026-10-08T17:30:00Z"],
++      NOW,
++    );
++    expect(out).toEqual([
++      { dateKey: "2026-10-08", predictedPercent: 10, realized: false },
++      { dateKey: "2026-10-09", predictedPercent: 40, realized: true },
++    ]);
++  });
++
++  it("同日多行取首行（ex-ante 事前预测）", () => {
++    const out = joinPredictionsWithResets(
++      [
++        { date: "2026-10-09", predictedRisk: 40, fetchedAt: "2026-10-09T01:00:00Z" },
++        { date: "2026-10-09", predictedRisk: 70, fetchedAt: "2026-10-09T20:00:00Z" },
++      ],
++      [],
++      NOW,
++    );
++    expect(out).toHaveLength(1);
++    expect(out[0].predictedPercent).toBe(40);
++  });
++
++  it("未完结北京日剔除：as_of 当日与未来行不计分", () => {
++    const out = joinPredictionsWithResets(
++      [
++        { date: "2026-10-11", predictedRisk: 30 },
++        { date: "2026-10-12", predictedRisk: 50 },
++        { date: "2026-10-13", predictedRisk: 60 },
++      ],
++      [],
++      NOW,
++    );
++    expect(out.map((r) => r.dateKey)).toEqual(["2026-10-11"]);
++  });
++
++  it("防御：非法行/非法 announcedAt 跳过，输出按日期升序", () => {
++    const out = joinPredictionsWithResets(
++      [
++        { date: "2026-10-10", predictedRisk: 20 },
++        { date: "garbage", predictedRisk: 20 },
++        { date: "2026-10-09", predictedRisk: Number.NaN },
++        { date: "2026-10-09", predictedRisk: 10 },
++      ],
++      ["not-a-date"],
++      NOW,
++    );
++    expect(out.map((r) => r.dateKey)).toEqual(["2026-10-09", "2026-10-10"]);
++    expect(out.every((r) => r.realized === false)).toBe(true);
++  });
++
++  it("端到端：join → scorePredictions 手算闭环", () => {
++    // 事件 10-08T17:30Z 落北京键 10-09：p=[80,20] y=[0,1] → Brier=(0.64+0.64)/2=0.64、命中 0
++    const s = scorePredictions(
++      joinPredictionsWithResets(
++        [
++          { date: "2026-10-08", predictedRisk: 80 },
++          { date: "2026-10-09", predictedRisk: 20 },
++        ],
++        ["2026-10-08T17:30:00Z"],
++        NOW,
++      ),
++    );
++    expect(s.n).toBe(2);
++    expect(s.brier).toBeCloseTo(0.64, 10);
++    expect(s.hitRate).toBe(0);
++    expect(s.baseRate).toBe(0.5);
++  });
++});
+diff --git a/src/lib/calibration.ts b/src/lib/calibration.ts
+new file mode 100644
+index 0000000..7e4b9b7
+--- /dev/null
++++ b/src/lib/calibration.ts
+@@ -0,0 +1,209 @@
++// 预测校准器（RR07）：对「重置风险预测 vs 实际是否重置」对答案——项目差异化核心（D001）。
++// 参考实现收集了数据却从不对答案（TRUTH §1 来源 3 全仓无 calibration 先例，已核实），
++// 本模块为从零新建；度量取标准定义（RR07 卡面证据行，即本文件真值出处）：
++//   Brier 分数 = mean((p − y)²)，y∈{0,1} —— 完美预测=0、恒 50% 预测=0.25、全错=1；
++//   命中率 = 阈值化命中占比：p ≥ 阈值 判「会重置」，与 y 一致即命中。
++// 日期唯一边界 = 北京日历键（D004），复用 resetCard.beijingCalendarDateKey（§1.4 单一实现源）。
++// 接口契约见 docs/DECISIONS.md D016：全项目 0-100 刻度；同日多行取首行（ex-ante）；
++// 未完结北京日不计分；byWeek 分组键=该周周一北京日历键；n=0 时 brier/hitRate=null。
++// 本模块为纯函数：不查网络、不读文件、不读钟（now 一律显式传入）。
++
++import { beijingCalendarDateKey } from "./resetCard.ts";
++
++/** 卡面口径：50% 二分阈（p≥50% 判「会重置」）。 */
++export const CALIBRATION_DEFAULT_THRESHOLD_PERCENT = 50;
++/** 可靠性曲线分桶数（0-100 十等分，末桶双含）。标准可靠性图口径。 */
++export const CALIBRATION_BIN_COUNT = 10;
++
++const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/; // 北京日历键形状（ YYYY-MM-DD ）
++const DAY_MS = 86_400_000;
++
++/** 一条已对账的预测：某北京日给出过的预测概率 vs 该日实际是否发生强制重置。 */
++export interface PredictionOutcome {
++  dateKey: string; // 北京日历键 YYYY-MM-DD（预测目标日）
++  predictedPercent: number; // 0-100：该日发生强制重置的预测概率
++  realized: boolean; // 该北京日内是否实际发生强制重置
++}
++
++/** data/predictions.jsonl 单行（RR10 写入口径，本卡先行定义契约）。 */
++export interface PredictionLogRow {
++  date: string; // 北京日历键（评估当日）
++  predictedRisk: number; // 0-100（assessResetRisk().score 直传）
++  fetchedAt?: string; // ISO 串，溯源用（排序语义=文件追加顺序，见 join）
++}
++
++export interface WeekCalibration {
++  weekKey: string; // 该周周一的北京日历键（分组锚；规避 ISO 周年歧义，D016）
++  n: number;
++  brier: number; // 本周 Brier（0-1，精确值不四舍五入——展示层负责格式化）
++  hitRate: number; // 本周命中率（0-1）
++}
++
++export interface ReliabilityBin {
++  label: string; // "0-10"…"90-100"（百分点区间，含下不含上，末桶双含）
++  n: number;
++  avgPredictedPercent: number; // 桶内平均预测概率（0-100）
++  observedPercent: number; // 桶内实际重置发生率（0-100）
++}
++
++export interface CalibrationScore {
++  n: number; // 计分样本数（=已完结北京日数）
++  brier: number | null; // 0-1；n=0 时 null（返回 0 会误读为完美预测）
++  hitRate: number | null; // 0-1；同上
++  thresholdPercent: number; // 本报告采用的二分阈
++  baseRate: number | null; // 实际重置日占比（0-1）：预测技能的参照基线（全猜"不重置"的命中率）
++  byWeek: WeekCalibration[]; // 按周聚合，weekKey 升序；仅含有样本的周
++  reliability: ReliabilityBin[]; // 十分桶；仅列有样本的桶
++}
++
++export interface ScoreOptions {
++  thresholdPercent?: number; // 缺省 CALIBRATION_DEFAULT_THRESHOLD_PERCENT
++}
++
++const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
++
++/** 逐行三指标统计（Brier / 命中 / 基准率）；入参须已过防御过滤，n>0 由调用方保证。 */
++function scoreCore(rows: readonly PredictionOutcome[], thresholdPercent: number) {
++  let brierSum = 0;
++  let hits = 0;
++  let realizedCount = 0;
++  for (const r of rows) {
++    const p = clamp(r.predictedPercent, 0, 100) / 100;
++    const y = r.realized ? 1 : 0;
++    brierSum += (p - y) * (p - y); // 标准定义：均方差（卡面证据行）
++    if (r.predictedPercent >= thresholdPercent === r.realized) hits += 1;
++    if (r.realized) realizedCount += 1;
++  }
++  const n = rows.length;
++  return { n, brier: brierSum / n, hitRate: hits / n, baseRate: realizedCount / n };
++}
++
++/** 北京日历键 → 该周周一的北京日历键。键按 UTC 平面日解析（键本身无时区语义）。
++ *  周日=0 折算同 resetCard.hazardWeekday（(d+6)%7）：周一回退 0 天、周日回退 6 天。 */
++function weekKeyOfDateKey(dateKey: string): string | null {
++  const ms = Date.parse(`${dateKey}T00:00:00Z`);
++  if (!Number.isFinite(ms)) return null;
++  const monday = ms - ((new Date(ms).getUTCDay() + 6) % 7) * DAY_MS;
++  return new Date(monday).toISOString().slice(0, 10);
++}
++
++/**
++ * 逐条打分：Brier / 命中率 / 分周走势 / 可靠性曲线。
++ * 防御：dateKey 形状非法或 predictedPercent 非Finite 的行剔除（不改写、不报错，调用方日志可见 n 差额）；
++ * predictedPercent 越界夹紧到 [0,100]（写入口径已是 0-100，夹紧仅防脏数据放大）。
++ */
++export function scorePredictions(
++  records: readonly PredictionOutcome[],
++  options?: ScoreOptions,
++): CalibrationScore {
++  const thresholdPercent = options?.thresholdPercent ?? CALIBRATION_DEFAULT_THRESHOLD_PERCENT;
++
++  const valid = records.filter(
++    (r) =>
++      DATE_KEY_RE.test(r.dateKey) &&
++      Number.isFinite(r.predictedPercent) &&
++      typeof r.realized === "boolean",
++  );
++  const n = valid.length;
++
++  const byWeekMap = new Map<string, PredictionOutcome[]>();
++  const bins: PredictionOutcome[][] = Array.from({ length: CALIBRATION_BIN_COUNT }, () => []);
++
++  for (const r of valid) {
++    const wk = weekKeyOfDateKey(r.dateKey);
++    if (wk !== null) {
++      const bucket = byWeekMap.get(wk);
++      if (bucket) bucket.push(r);
++      else byWeekMap.set(wk, [r]);
++    }
++    const binIdx = Math.min(CALIBRATION_BIN_COUNT - 1, Math.floor(clamp(r.predictedPercent, 0, 100) / 10));
++    bins[binIdx].push(r);
++  }
++
++  if (n === 0) {
++    return {
++      n: 0,
++      brier: null,
++      hitRate: null,
++      thresholdPercent,
++      baseRate: null,
++      byWeek: [],
++      reliability: [],
++    };
++  }
++
++  const total = scoreCore(valid, thresholdPercent);
++
++  const byWeek = [...byWeekMap.entries()]
++    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
++    .map(([weekKey, rows]) => {
++      const s = scoreCore(rows, thresholdPercent); // 分量与总量同一口径
++      return { weekKey, n: s.n, brier: s.brier, hitRate: s.hitRate };
++    });
++
++  const reliability = bins
++    .map((rows, i) => {
++      if (rows.length === 0) return null;
++      const avg = rows.reduce((acc, r) => acc + clamp(r.predictedPercent, 0, 100), 0) / rows.length;
++      const observed = rows.filter((r) => r.realized).length / rows.length;
++      return {
++        label: binLabel(i),
++        n: rows.length,
++        avgPredictedPercent: avg,
++        observedPercent: observed * 100,
++      };
++    })
++    .filter((b): b is ReliabilityBin => b !== null);
++
++  return {
++    n,
++    brier: total.brier,
++    hitRate: total.hitRate,
++    thresholdPercent,
++    baseRate: total.baseRate,
++    byWeek,
++    reliability,
++  };
++}
++
++function binLabel(i: number): string {
++  return `${i * 10}-${(i + 1) * 10}`;
++}
++
++/**
++ * 预测日志 × 重置历史 → 可打分的已对账记录（计分前的诚实性过滤都在这一步）。
++ * ① realized：announcedAt（RR03 夹具口径 ISO 串）折北京日历键，键相等即该日实现；
++ * ② 同日多行只取首行（ex-ante：当日后续补行已含当日部分信息，不算事前预测，D016）；
++ *    行序=数组序（RR10 追加写，文件序即时间序）；
++ * ③ 未完结日剔除：dateKey ≥ as_of（now）的北京日键不参与计分——
++ *    与 risk.ts 的 as_of 数据新鲜度语义同源：夹具滞后时不把未覆盖日误判为 realized=false。
++ */
++export function joinPredictionsWithResets(
++  rows: readonly PredictionLogRow[],
++  announcedAt: readonly string[],
++  now: Date,
++): PredictionOutcome[] {
++  const resetDayKeys = new Set(
++    announcedAt
++      .map((v) => Date.parse(v))
++      .filter((ts) => Number.isFinite(ts))
++      .map((ts) => beijingCalendarDateKey(ts)),
++  );
++
++  const asOfKey = beijingCalendarDateKey(now.getTime());
++  const firstRowPerDay = new Map<string, PredictionLogRow>();
++  for (const row of rows) {
++    if (typeof row?.date !== "string" || !DATE_KEY_RE.test(row.date)) continue;
++    if (!Number.isFinite(row.predictedRisk)) continue;
++    if (row.date >= asOfKey) continue; // 未完结北京日：当日/未来一律不计分
++    if (!firstRowPerDay.has(row.date)) firstRowPerDay.set(row.date, row); // 首行=事前预测
++  }
++
++  return [...firstRowPerDay.entries()]
++    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
++    .map(([dateKey, row]) => ({
++      dateKey,
++      predictedPercent: row.predictedRisk,
++      realized: resetDayKeys.has(dateKey),
++    }));
++}
+diff --git a/src/lib/index.ts b/src/lib/index.ts
+index b7fd7e9..9ea70b4 100644
+--- a/src/lib/index.ts
++++ b/src/lib/index.ts
+@@ -1,6 +1,7 @@
+ // 核心层入口：纯 TS、零 React / 零 Tauri 依赖（ARCHITECTURE §2 硬约束）。
+-// 后续核心模块（risk / planner / card / calibration）从这里统一导出。
++// risk / planner / card / calibration 四模块齐备（calibration 自 RR07 起）。
+ export * from "./meta";
+ export * from "./risk";
+ export * from "./planner";
+ export * from "./resetCard";
++export * from "./calibration";
+diff --git a/src/lib/planner.ts b/src/lib/planner.ts
+index ee051ad..2841659 100644
+--- a/src/lib/planner.ts
++++ b/src/lib/planner.ts
+@@ -5,8 +5,10 @@
+ // 周末判定沿用 RR04 的 beijingWeekday（D004 北京零点唯一边界）。
+ // 本函数为纯函数：不查网络、不读钟（now 仅用于推导周末，可显式传 isWeekend 覆盖）。
+ 
+-import type { RiskFactor } from "./risk";
+-import { beijingWeekday } from "./risk";
++// import 带 .ts 扩展：node ≥22.18 原生 type-stripping 直载脚本链所需（RR07 D016；
++// tsc 侧由 tsconfig allowImportingTsExtensions 放行，noEmit 下合法）
++import type { RiskFactor } from "./risk.ts";
++import { beijingWeekday } from "./risk.ts";
+ // —— 以下两件为 RR06（resetCard 移植）一并引入的同源依赖，出处均为 dynamicQuota.ts ——
+ // 星期强制重置风险先验（周一=0…周日=6；周二/周六为重置波 0.7）。出处 dq:6。
+ export const DEFAULT_WEEKDAY_HAZARDS = [0.1, 0.7, 0.1, 0.1, 0.1, 0.7, 0.1] as const;
+diff --git a/src/lib/resetCard.ts b/src/lib/resetCard.ts
+index 1798f42..7a00ce4 100644
+--- a/src/lib/resetCard.ts
++++ b/src/lib/resetCard.ts
+@@ -16,7 +16,7 @@
+ //（校准后的明日 24h 风险替换第一天的先验）。周二/周六重置波前夜用卡会被覆写，
+ // 该模型自动将其折价。
+ 
+-import { DEFAULT_WEEKDAY_HAZARDS, planRemainingQuota } from "./planner";
++import { DEFAULT_WEEKDAY_HAZARDS, planRemainingQuota } from "./planner.ts";
+ 
+ export const RESET_CARD_POLICY_VERSION = "reset-card-p010-v1"; // rc:22
+ /** 在「今天」之后向前评估多少个候选用卡日。rc:24 */
+@@ -108,8 +108,9 @@ function beijingDayStartMs(dayIndex: number): number {
+   return dayIndex * DAY_MS - BEIJING_OFFSET_MS; // rc:107-109
+ }
+ 
+-/** 北京日历日期键（零点边界）；参考实现同款，本项目全项目唯一键位（D004）。rc:111-114 */
+-function beijingCalendarDateKey(ms: number): string {
++/** 北京日历日期键（零点边界）；参考实现同款，本项目全项目唯一键位（D004）。rc:111-114
++ *  RR07 起导出为公共工具（D016）：校准器的对账/分组键复用此处，避免第二实现漂移（D014 同理）。 */
++export function beijingCalendarDateKey(ms: number): string {
+   return new Date(ms + BEIJING_OFFSET_MS).toISOString().slice(0, 10);
+ }
+ 
+diff --git a/tsconfig.json b/tsconfig.json
+index e935337..34795a8 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -14,6 +14,9 @@
+     "resolveJsonModule": true,
+     "isolatedModules": true,
+     "noEmit": true,
++    // 允许 import 带 .ts 扩展（RR07 D016）：scripts/calibrate.mjs 经 node ≥22.18 原生
++    // type-stripping 直载核心层，扩展名是 node ESM 解析的硬要求；本项仅在 noEmit 下合法
++    "allowImportingTsExtensions": true,
+     "jsx": "react-jsx"
+   },
+   "include": ["src"]
+-- 
+2.52.0.windows.1
+

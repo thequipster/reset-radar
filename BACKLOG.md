@@ -127,3 +127,10 @@
 - 2026-10-11 02:30 RR03 🟢已闭环（MERGE S1011-0213：cf4d0ab→main 93858e9，树恒等✅；node --test 12/12✅；worktree/分支已拆）
 - 2026-10-11 02:30 RR02 🟢已闭环（MERGE S1011-0213：c451728→main 0e0f5bc，树恒等✅；check-ci 结构门禁绿✅；CI 真跑待用户 push 首跑；worktree/分支已拆）
 - 2026-10-11 02:30 MERGE 批量合入注记：RR01+RR03 合并暴露 vitest 误载 scripts/*.test.mjs 的集成回归，以 fixup c78978c 直修（决策 D013：MERGE 槽测试接线类回归窄口径直修权），全量基线恢复 0 failed；阶段按阶段机切 WORK（RR04–RR12 🟠可领）
+- 2026-10-11 02:51 RR04 🟡待合入（agent/RR04 @ f1810f9；四绿全过：tsc✅ 域18/18✅ 全量18/18 0failed✅ 变异红验两轮（基线70→10红4条/watch权重→0红3条）✅；真实夹具 golden 24.5 手算逐位吻合+B07 分布锚点；证据 task_logs/RR04_done.md；会话 S1011-0243）
+- 2026-10-11 03:14 RR04 🟢已闭环（MERGE S1011-0313：f1810f9→main 8b85206，树恒等✅；主仓复验 tsc✅ vitest 全量18/18 0failed✅；worktree/分支已拆；RR05 解锁可消费 assessResetRisk）
+- 2026-10-11 03:19 RR05 🟡待合入（agent/RR05 @ b86ee9e；四绿全过：tsc✅ 域33/33✅ 全量33/33 0failed✅ 变异红验两轮（SOFT_CAP_SLOPE 1.5→0 红5条 / p²→p¹ 红6条）✅；dashboard 双 golden 逐位吻合；证据 task_logs/RR05_done.md；会话 S1011-0313）
+- 2026-10-11 03:46 RR05 ??已闭环（MERGE S1011-0343：b86ee9e→main 7864217，树恒等✅；预审三过（探活/对账3文件+248行/patch适用）；主仓复验 tsc✅ vitest 全量33/33 0failed✅；worktree/分支已拆；RR06 解锁可领，阶段切 WORK）
+- 2026-10-11 03:51 RR06 🟡待合入（agent/RR06 @ 23a1d49；四绿全过：tsc✅ 域49/49✅ 全量49/49 0failed✅ 变异红验两轮（survival忽略hazard红3/refill阈值25→0红1）✅；13条参考断言原样全绿+3条新增自然重置日边界；适配决策D015；证据 task_logs/RR06_done.md；会话 S1011-0343）
+- 2026-10-11 04:16 RR06 🟢已闭环（MERGE S1011-0413：23a1d49→main 58ff13b，树恒等✅；预审四过（worktree探活/diffstat对账4文件+690行/patch在位/路径交集空）；主仓复验 tsc✅ vitest 全量49/49 0failed✅；worktree/分支已拆；RR07 可领，阶段切 WORK）
+- 2026-10-11 04:27 RR07 🟡待合入（agent/RR07 @ 13be6b1；四绿全过：tsc✅ 域65/65✅ 全量65/65 0failed✅ 变异红验两轮（Brier²→|·|红6/日键漏+8h红2）✅；Brier三锚0/0.25/1+B06反锚定对账+跨年周键；脚本两轮冒烟（node v22.23.1 原生type-stripping直载.ts）；契约决策D016；证据 task_logs/RR07_done.md；会话 S1011-0413）

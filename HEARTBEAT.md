@@ -23,3 +23,21 @@
 | 2026-10-11T02:14+08 | S1011-0213 | 开工 | — | — | 工位会话：STOP 区空，读五件套完毕，判定 MERGE（RR01/RR03/RR02 三张🟡，按序 RR01→RR03→RR02） |
 | 2026-10-11T02:15+08 | S1011-0213 | 领卡 | RR01+RR03+RR02 | MERGE | 占 MERGE 槽批量合入：无他人在飞（上心跳 01:50 收工）；三 worktree 探活 OK（cd9f759/cf4d0ab/c451728 与看板一致） |
 | 2026-10-11T02:31+08 | S1011-0213 | 收工 | RR01+RR03+RR02 | — | 合入闭环：838649b/93858e9/0e0f5bc 树恒等三连✅；主仓门禁全绿（tsc✅ vitest 全量 0failed✅ node:test 12/12✅ cargo check 56.9s✅ check-ci✅）；集成回归 vitest 误载 .test.mjs 以 fixup c78978c 直修（D013）；三 worktree/分支已拆；BOARD 三条目转🟢、阶段切 WORK（RR04 解锁），MERGE 槽释放 |
+| 2026-10-11T02:43+08 | S1011-0243 | 开工 | — | — | 工位会话：STOP 区空，读五件套完毕，判定 WORK（RR01-03 已闭环🟢，RR04 起可领，无他人在飞） |
+| 2026-10-11T02:46+08 | S1011-0243 | 领卡 | RR04 | LIGHT | WORK 阶段按建议顺序领 RR04（core 域首张：src/lib/risk.ts 风险模型）；建 worktree agent/RR04 开工 |
+| 2026-10-11T02:52+08 | S1011-0243 | 收工 | RR04 | — | 交付完毕：f1810f9 四绿全过（tsc✅ 域18/18✅ 全量18/18 0failed✅ 变异红验两轮✅），真实夹具 golden 24.5 手算逐位吻合，B07 分布锚点反验 D004；BOARD 转🟡、D014 已记；下一班建议先 MERGE 合入 RR04 再领 RR05；时间盒内完卡一张，槽位释放 |
+| 2026-10-11T03:13+08 | S1011-0313 | 开工 | — | — | 工位会话：STOP 区空，读五件套完毕，判定 MERGE（RR04 🟡唯一待合，无他人在飞；按 BOARD 建议合完回 WORK 领 RR05） |
+| 2026-10-11T03:14+08 | S1011-0313 | 领卡 | RR04 | MERGE | 占 MERGE 槽合入 RR04：开始预审（worktree 探活/diffstat 对账/patch 备份核对） |
+| 2026-10-11T03:15+08 | S1011-0313 | 收工 | RR04 | — | MERGE 闭环：f1810f9→main 8b85206 树恒等✅；预审三过（探活/对账3文件+288行/patch适用）；主仓复验 tsc✅ vitest 全量18/18 0failed✅；worktree/分支已拆；BOARD 转🟢、阶段保持 WORK（RR05–RR12 🟠）；MERGE 槽释放，本会话转 WORK 领 RR05 |
+| 2026-10-11T03:16+08 | S1011-0313 | 领卡 | RR05 | LIGHT | WORK 阶段按建议顺序领 RR05（core 域：planner 每日配速）；建 worktree agent/RR05 开工 |
+| 2026-10-11T03:19+08 | S1011-0313 | 收工 | RR05 | — | 交付完毕：b86ee9e 四绿全过（tsc✅ 域33/33✅ 全量33/33 0failed✅ 变异红验两轮✅），dashboard 双 golden 逐位吻合，factors 求和=suggested；BOARD 转🟡、阶段切 MERGE；下一班建议先合 RR05 再领 RR06；本会话时间盒内 MERGE 一张（RR04→main 8b85206）+完卡一张，槽位释放 |
+| 2026-10-11T03:43+08 | S1011-0343 | 开工 | — | — | 工位会话：读五件套，判定 MERGE（RR05 待合入）→ 合后转 WORK 领 RR06 |
+| 2026-10-11T03:45+08 | S1011-0343 | 领卡 | RR05 | MERGE | 占 MERGE 槽合入 RR05：开始预审（worktree 探活/diffstat 对账/patch 备份核对/路径交集）；无他人在飞（上心跳 03:19 收工） |
+| 2026-10-11T03:46+08 | S1011-0343 | 收工 | RR05 | — | MERGE 闭环：b86ee9e→main 7864217 树恒等✅；预审三过（探活/对账3文件+248行/patch适用）；主仓复验 tsc✅ vitest 33/33 0failed✅；worktree/分支已拆；BOARD 转🟢、阶段切 WORK；MERGE 槽释放，本会话转 WORK 领 RR06 |
+| 2026-10-11T03:47+08 | S1011-0343 | 领卡 | RR06 | LIGHT | WORK 阶段按建议顺序领 RR06（core 域：resetCard 重置卡规划器移植）；建 worktree agent/RR06 开工 |
+| 2026-10-11T03:52+08 | S1011-0343 | 收工 | RR06 | — | 交付完毕：23a1d49 四绿全过（tsc✅ 域49/49✅ 全量49/49 0failed✅ 变异红验两轮✅），13条参考断言原样全绿+3条新增自然重置日边界，D015已记（B06日键规避）；BOARD转🟡、阶段切MERGE→WORK；注：领卡时漏写wip（done内自记瑕疵，活性以03:47领卡心跳为准）；本会话时间盒内 MERGE一张（RR05→main 7864217）+完卡一张（RR06），槽位释放 |
+| 2026-10-11T04:13+08 | S1011-0413 | 开工 | — | — | 工位会话：STOP 区空，读五件套完毕，判定 MERGE（RR06 🟡唯一待合，无他人在飞——上心跳 03:52 收工；按 BOARD 建议合完回 WORK 领 RR07） |
+| 2026-10-11T04:14+08 | S1011-0413 | 领卡 | RR06 | MERGE | 占 MERGE 槽合入 RR06：开始预审（worktree 探活/diffstat 对账/patch 备份核对/路径交集） |
+| 2026-10-11T04:16+08 | S1011-0413 | 收工 | RR06 | — | MERGE 闭环：23a1d49→main 58ff13b 树恒等✅；预审四过（探活/对账4文件+690行/patch在位/交集空）；主仓复验 tsc✅ vitest 49/49 0failed✅；worktree/分支已拆；BOARD 转🟢、阶段切 WORK；MERGE 槽释放，本会话转 WORK 领 RR07 |
+| 2026-10-11T04:17+08 | S1011-0413 | 领卡 | RR07 | LIGHT | WORK 阶段按建议顺序领 RR07（core 域：calibration 校准器，P0 差异化核心）；建 worktree agent/RR07 开工 |
+| 2026-10-11T04:27+08 | S1011-0413 | 收工 | RR07 | — | 交付完毕：13be6b1 四绿全过（tsc✅ 域65/65✅ 全量65/65 0failed✅ 变异红验两轮：Brier²→\|·\|红6/日键漏+8h红2）+脚本两轮冒烟（node原生type-stripping直载.ts链）；Brier三锚+B06反锚定；D016已记（契约+接线）；BOARD转🟡、阶段切MERGE→WORK；下一班建议先合RR07再领RR08；本会话时间盒内 MERGE一张（RR06→main 58ff13b）+完卡一张（RR07），槽位释放 |

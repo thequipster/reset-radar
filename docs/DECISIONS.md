@@ -91,3 +91,40 @@
   追加 `scripts/**`（node:test 归 `node --test`，RR03 已约定；两套测试运行器职责正交）。
 - 依据：RUNBOOK §1.11 无人值守决策权；§8.3 要求主仓复跑门禁不得新增 failed——集成回归
   不修则合入无法闭环；ARCHITECTURE「算法唯一实现源 src/lib」未受影响（改动仅测试接线）。
+
+## D014 beijingWeekday 导出为公共工具（2026-10-11，会话 S1011-0243）
+
+- 现象：RR04 实现星期判定时，D004 的「北京零点边界」需要一个可测试、可复用的单一入口，
+  否则 RR05（planner）/RR07（校准）各自内联 +8h 逻辑会产生边界漂移（参考项目 B06 前车之鉴）。
+- 决定：`src/lib/risk.ts` 导出 `beijingWeekday(ts)`（UTC 时间戳 → 北京星期 0-6），
+  作为全项目星期判定的唯一实现源；测试用 TRUTH §2 B07 的独立核实分布锚定。
+- 依据：ARCHITECTURE「算法唯一实现源」原则在边界工具上的延伸；RUNBOOK §1.11 无人值守决策权。
+
+## D015 RR06 移植口径：日键统一 D004 + 配速依赖落位 planner.ts（2026-10-11，会话 S1011-0343）
+
+- 现象：参考实现 resetCard.ts 依赖三件外部物，直接照搬会踩 B06 或复制第二实现。
+- 决定：① estimateDailyNeedPercent 的历史日键弃用参考实现 usageDateKey（04:00 记账日，B06 陷阱），
+  统一为北京日历键 beijingCalendarDateKey（D004）；② planRemainingQuota（dq:99-118）与
+  DEFAULT_WEEKDAY_HAZARDS（dq:6）作为同源依赖移植入 planner.ts 供跨卡复用，resetCard import 消费
+  （§1.4 单一实现源）；③ 参考实现未使用的 ResetForecast import 不移植，上游宽类型收窄为
+  DailyNeedSample；卡面「决策文案留核心层外」经复核参考实现本就合规（decision 枚举 + reasons 机器键）。
+- 依据：D004 全项目唯一日边界；RUNBOOK §1.4 多目标同步；§1.11 无人值守决策权。
+
+## D016 RR07 校准器接线与接口契约（2026-10-11，会话 S1011-0413）
+
+- 现象：① RUNBOOK §9.1 固定命令 `node scripts/calibrate.mjs > docs/calibration-latest.md`，
+  但计分算法唯一实现源在 src/lib（TS）——.mjs 直 import .ts 无现成通路（vite-node/tsx 未装，
+  加依赖违背最小化）；② 卡面只给了度量定义，scorePredictions 的刻度/同日多行/未完结日/周分组键/
+  空输入语义未定，RR10（落盘器）与 RR09（UI）都要消费该契约，不定则返工。
+- 决定：
+  ① 脚本走 node ≥22.18 原生 type-stripping 直载核心层（本机 v22.23.1 实测两轮冒烟通过）；
+    代价=核心层 import 链显式带 `.ts` 扩展（node ESM 解析硬要求）+ tsconfig 增
+    `allowImportingTsExtensions`（noEmit 下合法）。不引新依赖、不改 §9.1 命令、§1.4 单一实现源保持。
+  ② 接口契约：predictedRisk 全项目 0-100 刻度（assessResetRisk().score 直传）；同日多行取首行
+    （ex-ante——当日后续补行已含当日信息，不算事前预测）；未完结北京日（dateKey ≥ as_of 日键）
+    不计分；as_of 取历史夹具 fetchedAt（数据新鲜度，与 risk.ts now 语义同源）——夹具滞后时不把
+    未覆盖日误判 realized=false；byWeek 分组键=该周周一的北京日历键（规避 ISO 周号跨年归属歧义）；
+    n=0 时 brier/hitRate=null（返回 0 会误读为完美预测）。
+  ③ `beijingCalendarDateKey` 自 resetCard.ts 导出（D014 beijingWeekday 同例——日键唯一实现源）。
+- 依据：RUNBOOK §1.4/§1.11、§9.1 固定命令；ARCHITECTURE §2 分层（脚本=IO 壳、算法在 lib）；
+  risk.ts as_of 语义先例；B06（边界漂移前车之鉴）。
