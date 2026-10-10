@@ -14,8 +14,9 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（10 张 🟠待领；RR01、RR03 🟡待合入）**
-（下一班：RR02 可领；RR04+ 依赖 RR01 合入——RR02 领完后即应进 MERGE 批量合 RR01+RR03）
+**当前阶段：MERGE（RR01、RR03、RR02 三张🟡待合入；core 域 RR04+ 全部依赖 RR01 合入）**
+（下一班：MERGE 槽按序批量合 RR01→RR03→RR02：cherry-pick+树恒等+主仓复跑全量门禁+拆 worktree；
+合完切 WORK 领 RR04，RR02 合入后 CI 生效）
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -30,6 +31,16 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 - 已落：<本会话进展>
 - →下轮：<续作指引>
 -->
+
+### [2026-10-11 01:45→01:50] RR02 | P1 | 🧱🟡待合入 | docs+发布 | 会话 S1011-0143
+- 分支/commit：agent/RR02 @ c451728（worktree ../reset-radar_wt/RR02 保留待 MERGE）
+- 已落：.github/workflows/ci.yml（windows-latest；npm ci→tsc→vitest→cargo check→tauri build→
+  artifact 上传；action 逐 SHA pin 借鉴 codex-cockpit release.yml）+ scripts/check-ci.py 结构断言器
+  + README 徽章接线（owner=thequipster，D012）。门禁（D011 等价口径）：actionlint 0 告警✅
+  PyYAML parse✅ check-ci 绿✅ RR01 基线 4/4 复核✅ 变异红验三轮（删vitest步骤/改ubuntu/撤徽章
+  均红→复原绿）✅
+- →下轮：MERGE 可与 RR01+RR03 批量合（三方路径无交集已核对，见 done）；无 runner 不声称"跑过"，
+  用户 push 后首跑见真章；node:test 纳入 CI 留给 REVIEW 立卡
 
 ### [2026-10-11 01:16→01:32] RR03 | P0 | 🎣🟡待合入 | data采集 | 会话 S1011-0113
 - 分支/commit：agent/RR03 @ cf4d0ab（worktree ../reset-radar_wt/RR03 保留待 MERGE）

@@ -1,0 +1,176 @@
+From c451728fbc2717f07559051444aacce38f1e5d0a Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 01:49:21 +0800
+Subject: [PATCH] =?UTF-8?q?ci:=20RR02=20GitHub=20Actions=20windows=20pipel?=
+ =?UTF-8?q?ine=20(npm=20ci=E2=86=92tsc=E2=86=92vitest=E2=86=92cargo=20chec?=
+ =?UTF-8?q?k=E2=86=92tauri=20build=E2=86=92artifact)=20+=20README=20badge?=
+ =?UTF-8?q?=20+=20check-ci.py=20structural=20gate?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .github/workflows/ci.yml | 56 ++++++++++++++++++++++++++++++
+ README.md                |  2 +-
+ scripts/check-ci.py      | 73 ++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 130 insertions(+), 1 deletion(-)
+ create mode 100644 .github/workflows/ci.yml
+ create mode 100644 scripts/check-ci.py
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000..daa5b2b
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,56 @@
++# CI — push/PR 全量门禁 + Windows（MSVC）产物构建（RR02）
++# 借鉴 codex-cockpit .github/workflows/release.yml（MIT）：action 逐 commit-SHA pin、
++# setup-node(cache:npm)、dtolnay/rust-toolchain、swatinem/rust-cache(src-tauri->target)、
++# upload-artifact(if-no-files-found:error)。本机 gnu 产物需带 WebView2Loader.dll（TRUTH B02）
++# 不作发布件，发布以本 CI 的 MSVC 产物为准（DECISIONS D009）。
++name: CI
++
++on:
++  push:
++    branches: [main]
++  pull_request:
++
++permissions:
++  contents: read
++
++concurrency:
++  group: ci-${{ github.ref }}
++  cancel-in-progress: true
++
++jobs:
++  windows:
++    runs-on: windows-latest
++    timeout-minutes: 60
++    steps:
++      - name: Checkout
++        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
++      - name: Setup Node
++        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
++        with:
++          node-version: '24'
++          cache: npm
++      - name: Setup Rust (stable, MSVC)
++        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
++      - name: Rust cache
++        uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
++        with:
++          workspaces: src-tauri -> target
++      - name: Install frontend deps
++        run: npm ci
++      - name: Type check (tsc)
++        run: npx tsc --noEmit
++      - name: Unit tests (vitest)
++        run: npx vitest run
++      - name: Rust check
++        run: cargo check --locked --manifest-path src-tauri/Cargo.toml
++      - name: Build desktop app (tauri)
++        run: npm run tauri build
++      - name: Upload installers
++        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
++        with:
++          name: windows-x64-installer
++          path: |
++            src-tauri/target/release/bundle/nsis/*.exe
++            src-tauri/target/release/bundle/msi/*.msi
++          if-no-files-found: error
++          retention-days: 7
+diff --git a/README.md b/README.md
+index 2c9a89f..85744d0 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,7 @@
+ > 看得见准头的 Codex 重置风险与用卡规划器。
+ > A Codex reset-risk & credit planner that **proves its own accuracy**.
+ 
+-[![CI](https://img.shields.io/badge/CI-planned-blue)](.github/workflows) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
++[![CI](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+ 
+ ## 为什么做这个
+ 
+diff --git a/scripts/check-ci.py b/scripts/check-ci.py
+new file mode 100644
+index 0000000..aa73d5d
+--- /dev/null
++++ b/scripts/check-ci.py
+@@ -0,0 +1,73 @@
++#!/usr/bin/env python3
++"""RR02 门禁断言：.github/workflows/ci.yml 步骤结构与卡面修向逐条对照 + README 徽章接线。
++
++口径来源：BACKLOG RR02 修向——windows-latest；npm ci → tsc → vitest → cargo check →
++tauri build（CI 用 MSVC 无 dll 问题，TRUTH B02/D009）→ 产物上传 artifact；README 徽章接线。
++本脚本即该验证口径的可复现实现（RR02 基于 main 无 tsc/vitest 对象，门禁等价口径见 D011）。
++依赖：python3 + PyYAML（本机 6.0.3 实测可用）。用法：python scripts/check-ci.py
++"""
++import sys
++from pathlib import Path
++
++import yaml
++
++ROOT = Path(__file__).resolve().parents[1]
++CI = ROOT / ".github" / "workflows" / "ci.yml"
++README = ROOT / "README.md"
++
++# 卡面修向规定的 run 步骤序列（checkout/setup 等动作步骤不算，逐条精确对照）
++EXPECT_RUNS = [
++    "npm ci",
++    "npx tsc --noEmit",
++    "npx vitest run",
++    "cargo check --locked --manifest-path src-tauri/Cargo.toml",
++    "npm run tauri build",
++]
++
++failures = []
++
++
++def check(cond, msg):
++    if not cond:
++        failures.append(msg)
++
++
++wf = yaml.safe_load(CI.read_text(encoding="utf-8"))
++# PyYAML 会把裸键 on 解析为布尔 True，两种都取
++on = wf.get("on") if "on" in wf else wf.get(True)
++
++check(on is not None, "缺 on 触发区")
++if on:
++    check("main" in (on.get("push") or {}).get("branches", []),
++          "on.push.branches 未包含 main")
++    check("pull_request" in on, "缺 pull_request 触发")
++check((wf.get("permissions") or {}).get("contents") == "read",
++      "permissions.contents 应为 read（最小权限）")
++
++job = wf.get("jobs", {}).get("windows")
++check(job is not None, "缺 jobs.windows")
++if job:
++    check(job.get("runs-on") == "windows-latest",
++          "jobs.windows.runs-on 应为 windows-latest")
++    steps = job.get("steps", [])
++    runs = [s["run"] for s in steps if "run" in s]
++    check(runs == EXPECT_RUNS,
++          f"run 步骤序列与卡面修向不符：期望 {EXPECT_RUNS}，实际 {runs}")
++    last = steps[-1] if steps else {}
++    check(str(last.get("uses", "")).startswith("actions/upload-artifact@"),
++          "最后一步应为 actions/upload-artifact")
++    paths = last.get("with", {}).get("path")
++    paths = paths if isinstance(paths, list) else [paths]
++    check(any("bundle/nsis" in str(p) for p in paths), "artifact path 缺 nsis 安装包")
++    check(any("bundle/msi" in str(p) for p in paths), "artifact path 缺 msi 安装包")
++    check(last.get("with", {}).get("if-no-files-found") == "error",
++          "upload-artifact 应 if-no-files-found: error（产物缺失即红）")
++
++check("actions/workflows/ci.yml/badge.svg" in README.read_text(encoding="utf-8"),
++      "README 未接线 CI 徽章（actions/workflows/ci.yml/badge.svg）")
++
++if failures:
++    for f in failures:
++        print(f"FAIL: {f}")
++    sys.exit(1)
++print(f"check-ci OK: {len(EXPECT_RUNS)} run 步骤与卡面修向一致；徽章已接线")
+-- 
+2.52.0.windows.1
+
