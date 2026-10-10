@@ -7,6 +7,9 @@
 
 import type { RiskFactor } from "./risk";
 import { beijingWeekday } from "./risk";
+// —— 以下两件为 RR06（resetCard 移植）一并引入的同源依赖，出处均为 dynamicQuota.ts ——
+// 星期强制重置风险先验（周一=0…周日=6；周二/周六为重置波 0.7）。出处 dq:6。
+export const DEFAULT_WEEKDAY_HAZARDS = [0.1, 0.7, 0.1, 0.1, 0.1, 0.7, 0.1] as const;
 
 export interface DailyUsagePlanInput {
   remaining: number; // 0-100：当前窗口剩余额度百分比
@@ -89,5 +92,57 @@ export function planDailyUsage(input: DailyUsagePlanInput): DailyUsagePlan {
     riskBoost: round1(riskBoost),
     suggestedRemaining: round1(remaining - suggestedRaw), // dq:160
     factors,
+  };
+}
+
+export interface RemainingQuotaInput {
+  remainingPercent: number; // 0-100：剩余额度（净值口径：已扣除全部历史用量）
+  daysUntilReset: number; // 距自然重置天数（允许小数；≤0 视为已到期）
+  tomorrowRiskPercent: number; // 0-100：重置风险
+  fatigueKneePercent: number; // 疲劳拐点 K
+  isWeekend: boolean;
+  todayUsedPercent?: number; // 今日已用（从软上限里扣减，缺省 0）
+  todayFractionRemaining?: number; // 今日剩余时间占比 0-1（缺省 1 = 整天可用）
+}
+
+export interface RemainingQuotaPlan {
+  suggestedUsagePercent: number; // 0-100：建议追加用量（不含今日已用）
+  suggestedRemainingPercent: number;
+  uniformPacePercent: number;
+  resetRiskBoostPercent: number;
+  softCapPercent: number;
+}
+
+/** 距自然重置每过一天所需的周额度消耗百分点；入参无效返回 null。出处 dq:89-95。 */
+export function quotaConsumptionUrgency(remainingPercent: number, daysUntilReset: number): number | null {
+  if (!Number.isFinite(remainingPercent) || !Number.isFinite(daysUntilReset) || daysUntilReset <= 0) return null;
+  return clamp(remainingPercent, 0, 100) / daysUntilReset;
+}
+
+/**
+ * 剩余额度配速（dq:99-118）：与 planDailyUsage 同族三段式，口径差异有二——
+ * ① 剩余额度是净值，均匀配速只摊「今日剩余时间片」urgent × today；
+ * ② 软上限扣减今日已用 used，返回追加用量而非当日总量。
+ * 重置卡模式（resetCard.ts RR06）把 horizon 从自然重置缩到卡日前一天后调用本函数。
+ */
+export function planRemainingQuota(input: RemainingQuotaInput): RemainingQuotaPlan {
+  const remaining = clamp(finiteOr(input.remainingPercent, 0), 0, 100); // dq:100
+  const days = Math.max(0, finiteOr(input.daysUntilReset, 0)); // dq:101
+  const today = clamp(finiteOr(input.todayFractionRemaining, 1), 0, 1); // dq:102
+  const used = clamp(finiteOr(input.todayUsedPercent, 0), 0, 100); // dq:103
+  const risk = clamp(finiteOr(input.tomorrowRiskPercent, 10), 0, 100) / 100; // dq:104
+  const knee = clamp(finiteOr(input.fatigueKneePercent, 25), 0.1, 100); // dq:105
+  const urgency = quotaConsumptionUrgency(remaining, days); // dq:106
+  const uniform = urgency === null ? 0 : Math.min(remaining, urgency * today); // dq:107
+  const boost = days > 0 ? (remaining - uniform) * risk ** 2 * today : 0; // dq:108
+  // dq:109：参考实现另有 sharedAccount 直通分支，本项目无共享账户概念，不移植
+  const cap = Math.max(0, knee * (1 + SOFT_CAP_SLOPE * risk) * (input.isWeekend ? WEEKEND_FACTOR : 1) - used);
+  const amount = days > 0 ? Math.min(remaining, uniform + boost, cap) : 0; // dq:110
+  return {
+    suggestedUsagePercent: round1(amount),
+    suggestedRemainingPercent: round1(remaining - amount),
+    uniformPacePercent: round1(uniform),
+    resetRiskBoostPercent: round1(boost),
+    softCapPercent: round1(Math.min(remaining, cap)),
   };
 }
