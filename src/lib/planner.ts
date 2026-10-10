@@ -5,8 +5,10 @@
 // 周末判定沿用 RR04 的 beijingWeekday（D004 北京零点唯一边界）。
 // 本函数为纯函数：不查网络、不读钟（now 仅用于推导周末，可显式传 isWeekend 覆盖）。
 
-import type { RiskFactor } from "./risk";
-import { beijingWeekday } from "./risk";
+// import 带 .ts 扩展：node ≥22.18 原生 type-stripping 直载脚本链所需（RR07 D016；
+// tsc 侧由 tsconfig allowImportingTsExtensions 放行，noEmit 下合法）
+import type { RiskFactor } from "./risk.ts";
+import { beijingWeekday } from "./risk.ts";
 // —— 以下两件为 RR06（resetCard 移植）一并引入的同源依赖，出处均为 dynamicQuota.ts ——
 // 星期强制重置风险先验（周一=0…周日=6；周二/周六为重置波 0.7）。出处 dq:6。
 export const DEFAULT_WEEKDAY_HAZARDS = [0.1, 0.7, 0.1, 0.1, 0.1, 0.7, 0.1] as const;

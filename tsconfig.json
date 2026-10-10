@@ -14,6 +14,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    // 允许 import 带 .ts 扩展（RR07 D016）：scripts/calibrate.mjs 经 node ≥22.18 原生
+    // type-stripping 直载核心层，扩展名是 node ESM 解析的硬要求；本项仅在 noEmit 下合法
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx"
   },
   "include": ["src"]

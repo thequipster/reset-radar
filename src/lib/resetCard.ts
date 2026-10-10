@@ -16,7 +16,7 @@
 //（校准后的明日 24h 风险替换第一天的先验）。周二/周六重置波前夜用卡会被覆写，
 // 该模型自动将其折价。
 
-import { DEFAULT_WEEKDAY_HAZARDS, planRemainingQuota } from "./planner";
+import { DEFAULT_WEEKDAY_HAZARDS, planRemainingQuota } from "./planner.ts";
 
 export const RESET_CARD_POLICY_VERSION = "reset-card-p010-v1"; // rc:22
 /** 在「今天」之后向前评估多少个候选用卡日。rc:24 */
@@ -108,8 +108,9 @@ function beijingDayStartMs(dayIndex: number): number {
   return dayIndex * DAY_MS - BEIJING_OFFSET_MS; // rc:107-109
 }
 
-/** 北京日历日期键（零点边界）；参考实现同款，本项目全项目唯一键位（D004）。rc:111-114 */
-function beijingCalendarDateKey(ms: number): string {
+/** 北京日历日期键（零点边界）；参考实现同款，本项目全项目唯一键位（D004）。rc:111-114
+ *  RR07 起导出为公共工具（D016）：校准器的对账/分组键复用此处，避免第二实现漂移（D014 同理）。 */
+export function beijingCalendarDateKey(ms: number): string {
   return new Date(ms + BEIJING_OFFSET_MS).toISOString().slice(0, 10);
 }
 
