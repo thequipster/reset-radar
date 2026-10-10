@@ -157,3 +157,19 @@
   界面显示「demo 数据」标记；demo 快照不参与任何测试断言（adapters 测试全部自构造夹具）。
 - 依据：RUNBOOK §4 域互斥本义（防并行撞路径，非禁配置归属）；ARCHITECTURE §2
   （降级壳不含业务规则）；RR08 冒烟落盘实测值复用（TRUTH §1 证据链内）。
+
+## D019 RR10 预测落盘：幂等单一源在 src/lib、落盘器走脚本而非 app（2026-10-11，会话 S1011-0743）
+
+- 现象：① 卡面「同日只在风险值变化超阈值时补行」未给阈值；② 卡域标 core+data-layer，
+  落盘执行者可选 app 内（Rust command 写文件）或脚本（node 调 src/lib）。
+- 决定：① `PREDICTION_RISK_CHANGE_THRESHOLD = 0.5`（0-100 分制）——risk.score 固定输出
+  1 位小数（risk.ts round1），0.5 即显示精度下界：漂移 >0.5 才是可感知变化，≤0.5 视为噪声；
+  严格大于才补行（恰等抑制，域测试有边界锚）。② 幂等逻辑单一源 = src/lib/predictions.ts
+  纯函数 `appendPredictionLog`；落盘器 = scripts/log-prediction.mjs 薄壳（零算法，先例
+  calibrate.mjs D016 node 直载 .ts），as_of=历史夹具 fetchedAt（与 calibrate.mjs 同口径），
+  date=as_of 北京日键（D004）。app 内落盘不接：运行时 app 只拿得到 %APPDATA% 路径，与
+  校准脚本读取的仓库内 data/predictions.jsonl 断链；证据层归档（版本化、可回测）归脚本，
+  RUNBOOK §1.5 数据锁「只由脚本追加」同向。app 内每日评估自动落盘若日后需要，由 REVIEW
+  立卡统一裁决路径汇流（如 app 写 %APPDATA% + 脚本合并归档），本卡不预铺。
+- 依据：calibrate.mjs 占位文案点名「RR10 落盘器」；ARCHITECTURE §4 数据流（落盘→校准
+  回测同一条证据链）；§2 分层（算法只在核心层，IO 是薄壳）；RUNBOOK §1.4 单一实现源。
