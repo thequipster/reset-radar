@@ -22,7 +22,8 @@ async function atomicWrite(path, contents) {
   }
 }
 
-export async function refreshCalibration({ root = defaultRoot, generatedAt = new Date(), predictionSources } = {}) {
+export async function refreshCalibration({ root = defaultRoot, generatedAt = new Date(), predictionSources,
+  summaryOutPath = null } = {}) {
   const repoRoot = resolve(root);
   const historyPath = join(repoRoot, 'data', 'resets-history.json');
   const history = JSON.parse(await readFile(historyPath, 'utf8'));
@@ -46,8 +47,13 @@ export async function refreshCalibration({ root = defaultRoot, generatedAt = new
     predictions,
     generatedAt: generatedAt.toISOString(),
   });
-  await atomicWrite(join(repoRoot, 'data', 'calibration.json'), `${JSON.stringify(artifact, null, 2)}\n`);
+  const artifactText = `${JSON.stringify(artifact, null, 2)}\n`;
+  await atomicWrite(join(repoRoot, 'data', 'calibration.json'), artifactText);
   await atomicWrite(join(repoRoot, 'docs', 'calibration-latest.md'), markdown);
+  // RR28：同一快照原子写入应用配置目录（read_calibration_summary 的只读输入），
+  // 与 canonical 预测日志同目录；测试用 summaryOutPath 重定向到临时目录。
+  const appSummaryPath = summaryOutPath ?? join(dirname(canonicalPredictionPath()), 'calibration.json');
+  await atomicWrite(appSummaryPath, artifactText);
   return artifact;
 }
 

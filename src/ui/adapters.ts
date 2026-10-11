@@ -16,6 +16,8 @@ import {
   type ResetStatusEvaluation,
   assessHistorySource,
   type HistorySourceAssessment,
+  parseCalibrationSummary,
+  type CalibrationSummaryView,
 } from "../lib";
 import type { ProviderSnapshot } from "./types";
 
@@ -45,6 +47,8 @@ export interface DashboardViewModel {
   prediction: PredictionRecord | null;
   /** 离线历史独立来源时刻/数量/过期状态，不和实时公告混成一个状态。 */
   historySource: HistorySourceAssessment | null;
+  /** RR28只读校准摘要：missing=尚未生成，invalid=坏文件需重生成，ok=真实计分（n=0=积累中）。 */
+  calibrationSummary: CalibrationSummaryView;
 }
 
 /**
@@ -57,6 +61,7 @@ export function buildDashboard(
   history: readonly string[],
   now: Date = new Date(),
   historyDocument?: unknown,
+  calibrationSummaryContent?: string | null,
 ): DashboardViewModel {
   const observedAt =
     snapshot.rateLimitSnapshot?.observedAt ?? snapshot.updatedAt;
@@ -135,6 +140,7 @@ export function buildDashboard(
     resetStatus: status != null && statusEvaluation != null ? { ...status, ...statusEvaluation } : null,
     riskEvaluatedAt: modelAsOf.toISOString(),
     historySource: historyDocument === undefined ? null : assessHistorySource(historyDocument, now),
+    calibrationSummary: parseCalibrationSummary(calibrationSummaryContent),
     prediction: buildPredictionRecord({ risk, evaluatedAt: modelAsOf.toISOString(), recordedAt: now,
       quotaStatus: snapshot.status, resetSourceState: statusEvaluation?.state ?? null }),
   };

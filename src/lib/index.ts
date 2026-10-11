@@ -12,5 +12,6 @@ export * from "./watchSignal";
 export * from "./watchCalibration";
 export * from "./calibrationWindows";
 export * from "./calibrationSnapshot";
+export * from "./calibrationSummary";
 export * from "./historyPrediction";
 export * from "./history";

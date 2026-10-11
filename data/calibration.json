@@ -1,12 +1,12 @@
 {
   "schema": "reset-radar/calibration@1",
-  "generatedAt": "2026-10-11T06:30:53.872Z",
+  "generatedAt": "2026-10-11T06:44:44.582Z",
   "state": "fresh",
   "historySource": {
     "state": "fresh",
     "fetchedAt": "2026-10-11T06:30:53.872Z",
     "asOf": "2026-10-11T06:30:53.872Z",
-    "ageDays": 0,
+    "ageDays": 0.009614699074074074,
     "totalEvents": 60,
     "quotaResetEvents": 54,
     "excludedEvents": 6
@@ -57,7 +57,7 @@
     "skipped": 0,
     "files": [
       {
-        "path": "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR17\\data\\predictions.jsonl",
+        "path": "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR28\\data\\predictions.jsonl",
         "label": "仓内归档",
         "missing": false,
         "rows": 1

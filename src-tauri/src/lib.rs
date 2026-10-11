@@ -8,6 +8,7 @@ mod models;
 mod snapshots;
 mod reset_status;
 mod predictions;
+mod calibration_summary;
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -110,7 +111,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_snapshots, refresh_snapshots, read_prediction_log, append_prediction_log])
+        .invoke_handler(tauri::generate_handler![get_snapshots, refresh_snapshots, read_prediction_log, append_prediction_log, read_calibration_summary])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -232,4 +233,11 @@ fn read_prediction_log(state: State<'_, AppState>) -> Result<predictions::LogRea
 fn append_prediction_log(state: State<'_, AppState>, expected_content: String, line: String) -> Result<predictions::AppendResult, String> {
     let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
     predictions::append_line(dir.as_ref().ok_or("application config directory unavailable")?, &expected_content, &line)
+}
+
+/// RR28只读校准摘要：固定app_config_dir，不接受调用者传路径；内容校验在TS核心。
+#[tauri::command]
+fn read_calibration_summary(state: State<'_, AppState>) -> Result<calibration_summary::SummaryRead, String> {
+    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
+    calibration_summary::read_summary(dir.as_ref().ok_or("application config directory unavailable")?)
 }
