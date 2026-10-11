@@ -190,6 +190,26 @@
   --tests（Rust 门）+ 既有测试不新增 failed。
 - 状态行：2026-10-11 🟠待领
 
+### RR21 | P1 | 🔧修卡🟠待领 | ui | 立卡 S1011-1043（用户线上反馈+D021 裁决；吸收 RR14 遗产①②）2026-10-11
+- 现象：呈现为 460×560 普通窗口——胶囊态胶囊仅占整窗 0.6%（大片深色空白，用户观感
+  "简陋"主因）；启动等待页纯文字无样式（用户"一闪而过"观感）；展开态 460 窄窗右缘
+  溢出/横向滚动/竖排单字「等/待/最」/「收起」按钮视口外（RR14 遗产①）。
+- 证据：RR14 胶囊态截图识图（0.6% 占比）；RR14_done 遗产①②③；参考实现 codex-cockpit
+  src-tauri/tauri.conf.json widget 窗口配置（TRUTH §1 来源 3）：decorations:false /
+  transparent:true / backgroundColor:#00000000 / alwaysOnTop:true / skipTaskbar:true /
+  shadow:false / focus:false / 初始 100×100 + minWidth 80/maxHeight 1200 动态尺寸。
+- 修向：对齐参考实现真·悬浮窗——①tauri.conf.json 窗口配置改造（上列字段，出处
+  codex-cockpit/src-tauri/tauri.conf.json）②胶囊态窗口收紧成悬浮条尺寸、展开态动态
+  长高（Rust set_size 或前端 invoke，UI 零业务规则不破）③自定义拖动区
+  （data-tauri-drag-region）④启动等待页样式化（与胶囊同设计语言）⑤ExpandedCard
+  窄窗自适应排版（换行/压缩列/收起按钮常驻可见）。Windows gnu 注意：transparent 与
+  已嵌 manifest 兼容性需实跑验证；若透明异常可退「无边框+不透明圆角窗口」仍达成主要
+  观感目标（降级路径卡内自裁并记 done）。
+- 验证口径：release 实跑（custom-protocol，B01）两态截图复用/适配 shot-expanded.ps1
+  + 识图子代理复验（悬浮条无空白大片/展开无右溢/收起可见）+ 门禁四绿 + cargo check
+  （动 src-tauri 必跑）。
+- 状态行：2026-10-11 🟠待领
+
 ## 状态流转区（追加行；格式 `- <日期> <状态> <sha/备注>`）
 
 - 2026-10-11 🟠待领 ×12（RR01–RR12 初始化批次，立卡会话 S1011-init）
@@ -224,3 +244,7 @@
 - 2026-10-11 10:03 RR20 🟡待合入（agent/RR20 @ 8963fd3；四绿全过：tsc✅ 域 cargo test --lib 12/12✅ 全量 vitest 86/86 0failed✅ cargo check --tests✅ 变异红验（PerMonitorV2→MUTANT 红哨兵1条）✅；实证：exe manifest 含 dpiAware、GetDpiForWindow 192、物理客户区 840×1120=2×逻辑、识图复验右缘截断消除；真值=B10/D020+tauri-build/tao 源码核实；证据 task_logs/RR20_done.md；会话 S1011-0944）
 - 2026-10-11 10:08 RR20 🟢已闭环（MERGE S1011-0944：8963fd3→main aadaed4，树恒等✅ 2路径diff 0字节；预审四过（worktree探活/单commit对账2文件+69行/patch在位/交集空）；主仓复验 tsc✅ vitest 86/86 0failed✅ cargo check --tests 4.18s✅；worktree/分支已拆（junction先拆cmd rmdir）；RR13 复验收尾解锁，阶段切 WORK）
 - 2026-10-11 10:19 RR13 🟡待合入（agent/RR13 @ a994f73 单 commit 基于 main 91a3ddf；S1011-1013 续作收尾：变基含 RR20→重建 release 实跑 GetDpiForWindow 192/物理客户区 920x1120=2x(460x560)→识图复验 PASS 右缘截断消除余量 35-40px；四绿 tsc✅ ui域 8/8✅ 全量 86/86 0failed✅ 变异不适用口径零 src 逻辑；真值=B10+D020+421px 实测；证据 task_logs/RR13_done.md；worktree 留 MERGE 班拆/junction 先 rmdir）
+- 2026-10-11 10:52 RR13 🟢已闭环（MERGE S1011-1043：a994f73→main 6dd9ed6，树恒等✅ 4路径diff 0字节；预审四过（worktree探活/单commit对账4文件+46行/patch在位36777B/交集空——91a3ddf..main仅看板文件）；主仓复验 tsc✅ vitest 86/86 0failed✅ cargo check --tests 1.26s✅；worktree git侧已拆（junction先拆cmd rmdir，主仓node_modules完好），空壳目录句柄占用暂留磁盘；ui 域胶囊右缘截断闭环，阶段切 WORK（RR14 起 🟠×7））
+- 2026-10-11 11:22 RR14 🟡待合入（agent/RR14 @ ba11e47 单 commit 基于 main 6dd9ed6；四绿全过：tsc✅ 域 src/ui 11/11✅ 全量 89/89 0failed✅〔基线86→89只升〕 变异红验✅〔精确匹配→#mutant 红1/复原绿〕；hash 入口生效实证：CDP 两跳导航+PMv2 探针，DPI 192/客户区 920×1120，展开态三块面板齐全截图落盘+胶囊态连带更新无截字+README 图引用闭环；真值=RR09_done B09 机制②+WHATWG fragment 语义+CDP 实证；证据 task_logs/RR14_done.md；worktree 留 MERGE 班拆/junction 先 rmdir；排障遗产4条留 REVIEW——含展开态 460 窄窗排版差距候选修卡）
+- 2026-10-11 11:35 RR21 🟠待领（新立：ui 域真·悬浮窗改造，用户线上反馈"简陋"+D021 裁决选项A；吸收 RR14 遗产①②；证据=RR14 截图识图 0.6% 占比+codex-cockpit tauri.conf.json widget 配置逐字段；含 transparent gnu 兼容降级路径）
+- 2026-10-11 11:15 RR14 🟢已闭环（MERGE S1011-1113：ba11e47→main e569ce1，树恒等✅ 7路径diff 0字节；预审四过（worktree探活/单commit对账7文件+149行/patch在位229081B/交集空——基即main HEAD 6dd9ed6）；主仓复验 tsc✅ vitest 全量89/89 0failed✅〔基线86→89只升〕 cargo check --tests 2.00s✅；worktree/分支已拆（junction先拆cmd rmdir，主仓node_modules完好；顺手清RR09空壳，RR13仍句柄占用暂留）；ui 域 hash 状态入口闭环，阶段切 WORK（RR21 领先））
