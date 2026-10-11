@@ -236,7 +236,7 @@ function OverviewPage({
               <span className={styles.noticeSub}>
                 {collectError
                   ? (phase === "read-error" ? readError ?? "读取失败" : vm!.message ?? "额度来源返回错误")
-                  : <>最近更新成功 · <span className={styles.timeNoWrap}>{beijingShort(vm!.observedAt) ?? "—"} 北京时间</span></>}
+                  : <>最近更新成功 <span className={styles.timeNoWrap}>· {beijingShort(vm!.observedAt) ?? "—"} 北京时间</span></>}
               </span>
             </span>
           </div>
