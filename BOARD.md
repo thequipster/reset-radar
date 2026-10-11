@@ -14,11 +14,9 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（RR13–RR19 🟠可领 ×7；另有 RR12 首轮 artifact 批 🟡待合入）**
+**当前阶段：WORK（RR13–RR19 🟠可领 ×7；RR12 首轮 artifact 批已合入闭环）**
 （下一班建议：优先领 RR13（胶囊溢出小修，ui 域快赢）；建议顺序 RR13→RR14→RR15→RR18→
-RR19→RR16→RR17（RR13/RR14 同域串行，RR17 依赖 RR15）。若先开 MERGE 槽：合 agent/RR12
-@ f15baad（单 commit，5 文件纯新增 docs/task_logs，无冲突可能；patch=task_logs/RR12.patch；
-**RR12 worktree 无 junction 可直接 remove**）。取材详单：docs/review-20261011.md）
+RR19→RR16→RR17（RR13/RR14 同域串行，RR17 依赖 RR15）。取材详单：docs/review-20261011.md）
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -27,7 +25,10 @@ RR19→RR16→RR17（RR13/RR14 同域串行，RR17 依赖 RR15）。若先开 ME
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
-### [2026-10-11 08:46→09:06] RR12 首轮 artifact 批 | P0 | 🔁🟡待合入 | docs（REVIEW 产物） | 会话 S1011-0843
+### [2026-10-11 08:46→09:16] RR12 首轮 artifact 批 | P0 | 🔁🟢已闭环 | docs（REVIEW 产物） | 会话 S1011-0843 交付 → S1011-0913 合入
+- 合入：agent/RR12 @ f15baad（单 commit）→ main **6360778**（cherry-pick，树恒等✅ 5 路径
+  diff 0 字节；worktree/分支已拆——无 junction 直接 remove）
+- 主仓复验：tsc✅ vitest 全量 86/86 0failed✅
 - 分支/commit：agent/RR12 @ **f15baad**（单 commit；基于 main ae642c0；patch 备份
   task_logs/RR12.patch）；**锚卡本体已转回🟠待领（永不🟢），此条目只跟踪本轮 artifact 批合入**
 - 已落：docs/review-20261011.md（差距 10 条零悬空定夺：立卡 RR13–RR19 共 7 张 +
@@ -36,7 +37,7 @@ RR19→RR16→RR17（RR13/RR14 同域串行，RR17 依赖 RR15）。若先开 ME
 - 门禁：代码与 main 恒等（零代码改动），tsc✅ 全量 86/86 0failed✅ 即等价口径；变异红验
   不适用（无代码可变异，理由见 done）；事故已修（junction 递归删损 node_modules→npm ci
   复原，TRUTH B09〔补记〕登记）
-- →下轮：MERGE 合入后拆 worktree（无 junction 可直接 remove）；REVIEW 第 2 轮触发=无🟠无🟡，
+- →下轮：worktree/分支已拆（本行已过时留档）；REVIEW 第 2 轮触发=无🟠无🟡，
   前置=先跑 fetch-history 刷新夹具（RR18 ②）
 
 ### [2026-10-11 08:20→08:44] RR11 | P1 | 🧱🟢已闭环 | docs+发布 | 会话 S1011-0813 交付 → S1011-0843 合入
