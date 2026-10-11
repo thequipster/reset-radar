@@ -1,0 +1,13 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR26
+
+
+ Test Files  8 passed (8)
+      Tests  89 passed (89)
+   Start at  12:00:07
+   Duration  760ms (import 46%, transform 37%, tests 11%, worker 6%)
+
+    Isolate  8 workers spawned · ~111ms startup each (spawn + environment, per file)
+             at least ~332ms faster with isolate: false — reuses workers across files instead of one per file
+
+RR26: command exit 0; baseline main bcb3b5a has 89 tests, RR21 is still pending merge.

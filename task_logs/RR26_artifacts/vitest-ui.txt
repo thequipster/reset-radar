@@ -1,0 +1,10 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR26
+
+
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  12:00:06
+   Duration  373ms (import 47%, transform 46%, tests 4%, worker 3%)
+
+RR26: command exit 0; UI domain 11/11 passed.

@@ -1,0 +1,28 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: state 05 must distinguish unknown credits from known zero
+    at file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR26/task_logs/RR26_artifacts/check-design.mjs:27:8
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: '你是一位桌面工具 UI/UX 设计师。为 reset-radar 生成一张同一工具的全状态对照设计板，说明用户在数据还没到、失效或缺失时会看到什么。\n' +
+    '\n' +
+    '场景与视角：正面平视，将六个同尺寸的小面板排成两行三列，保持同一套布局与视觉语言。\n' +
+    '\n' +
+    '区域划分：左上为首次加载，保留工具壳与结构占位，写“读取中”，无假余额或假进度；中上为空数据，额度显示“—”，写“暂无额度数据”，提供刷新额度入口；右上为首次采集失败，显示简洁可读的失败信息与重试入口，数字仍为占位。左下为数据过期stale，保留上次观测的29%余额，明确写“数据过期 / 上次观测 MM/DD HH:mm”，旧建议注明依据上次观测，刷新入口可达；中下为已知卡数零张，写“卡×0 / 无可用重置卡”，其他额度和风险继续显示；右下为卡数未知，写“无可用重置卡 / 卡 ×0”，不显示确定的无卡决策或确定用卡收益。每个小面板都保留收起/退出入口位置。\n' +
+    '\n' +
+    '交互与信息层级：加载、空数据、失败和旧数据过期在文字和结构上能区分，不能只换一个颜色。未知值不变成0，失败不抹掉可信的旧值。失败或stale可以与公告独立共存；只在真正刷新中表达“刷新中”，不要把未知状态画成实时成功。所有演示数字与时间不是当前账户数据。\n' +
+    '\n' +
+    '视觉自由：自行决定各状态的图标、插图、颜色、字体、材质与风格。若提供主界面参考图，延续它的视觉语言。请兼顾状态可识别与工具整体一致，不把错误态变成难以阅读的满屏技术异常。\n' +
+    '\n' +
+    '画幅：建议3:2横幅。输出一张六状态对照图。\n',
+  expected: /卡数未知 \/ 卡 —/,
+  operator: 'match',
+  diff: 'simple'
+}
+
+Node.js v22.23.1
