@@ -1,0 +1,12 @@
+E2E / 识图复核（第 9 轮）——通道限制如实记录
+============================================
+1) 源码恒等（新证，本班实测）：
+   git diff --stat 67494a2..HEAD -- src/ src-tauri/  → 空（0 字节）
+   git diff --stat 6f6a991..27d0e8e                  → 空（0 字节）
+   ⇒ 当前 main 27d0e8e 的 src/src-tauri 与 r7 重建 exe（03c7069 源）及 r8 复用面同源。
+2) 截图重采/识图：本班（S1011-2137，Arena Local Bridge 通道）不可达——
+   request_command 拒 pwsh/cmd（Shells and system command-string interpreters are disabled），
+   workspace_info desktop_control=false。未重采、未识图，不谎报。
+3) 继承审计：r8（S1011-2120，~1h 前）双主题新图 A–G 全 PASS（RR40 修复在位+
+   过期态诚实显示连续二轮实证），其 exe 与当前 main 源码恒等（上项 1）⇒ 审计结论对
+   27d0e8e 有效。下一班若有 shell/桌面通道，按 §9.1 补新图独立复核。

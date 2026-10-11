@@ -1,0 +1,10 @@
+$ node scripts/review-calibration.mjs   (cwd=../reset-radar_wt/RR12, 2026-10-11T13:41:25Z=21:41+08)
+exit code 0
+
+[fetch-history] 事件 60 条，跨度 2025-09-17T04:02:52Z → 2026-10-11T04:01:09Z
+北京星期分布 Mon:4 Tue:10 Wed:12 Thu:8 Fri:7 Sat:9 Sun:10
+重置历史：60 条原始事件 / 54 条额度重置（仅 regular；排除 6 条）
+预测日志：仓内 1 行 + 应用 4 行 = 5 行有效；计分窗口 0 个（n=0 如实）
+watch 同样本 n=0（暂无可计分窗口，不据此宣称 25% 权重更好）
+产物：data/resets-history.json + data/calibration.json + docs/calibration-latest.md（worktree 内三件 M）
+与 r8（21:2x）对比：60/54 同，n=0 同=如实（无新可计分窗口）

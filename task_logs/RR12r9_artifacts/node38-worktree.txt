@@ -1,0 +1,4 @@
+$ node scripts/run-node-tests.mjs   (cwd=../reset-radar_wt/RR12, base agent/RR12@27d0e8e)
+$ node --version: (bridge request_command, exit code 0)
+
+# tests 38# suites 6# pass 38# fail 0# cancelled 0# skipped 0# todo 0# duration_ms 401.4859

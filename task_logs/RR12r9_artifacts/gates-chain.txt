@@ -1,0 +1,18 @@
+七门执行链（REVIEW 第 9 轮，双班接力）
+=====================================
+[班1] S1011-2133（21:35，主仓 cwd=. @ main 6f6a991；经 Bridge request_command 实跑）：
+  npx tsc --noEmit                    → rc 0
+  npx vitest run                      → 29 files / 272 passed / 0 failed
+  npm run build (tsc && vite build)   → rc 0, built in 1.05s
+  npm run test:node                   → 38 pass / 0 fail, rc 0
+  node scripts/check-release.mjs      → OK 版本同步 0.1.0 + 13 链接可达
+  cargo check --tests (src-tauri)     → rc 0（注：cargo 须用 rustup which cargo 真实路径）
+[班2] S1011-2137（21:4x-22:0x，worktree ../reset-radar_wt/RR12 @ agent/RR12=27d0e8e）：
+  数据刷新后复跑（落库前终验，Bridge 通道降级口径*）：
+  node scripts/run-node-tests.mjs     → 38 pass / 0 fail, rc 0
+  node scripts/check-release.mjs      → OK 版本同步 0.1.0 + 13 链接可达
+  MERGE 后主仓全量复跑（§8 步骤3）：见 BOARD 🟢条目与本目录 gates-main-postmerge.txt
+* 降级说明：Bridge 通道禁 shell/解释器（pwsh/cmd 均拒），worktree 无 node_modules
+  junction 可建 → vitest/tsc/build/cargo 四门沿用班1 在 main 的实跑结果；
+  内容恒等自证：git diff 6f6a991..27d0e8e = 0 字节（21:38:46 历史重写仅元数据，
+  reflog+diff 双证）→ 班1 门禁对 27d0e8e 同等有效；合入后主仓全量复跑兜底。
