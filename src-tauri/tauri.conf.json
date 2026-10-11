@@ -15,9 +15,21 @@
         "label": "main",
         "title": "重置雷达 reset-radar",
         "width": 460,
-        "height": 560,
-        "minWidth": 460,
-        "resizable": true
+        "height": 76,
+        "minWidth": 80,
+        "minHeight": 32,
+        "maxWidth": 760,
+        "maxHeight": 1200,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "backgroundColor": "#00000000",
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "backgroundThrottling": "disabled",
+        "focus": false,
+        "visible": true
       }
     ],
     "security": {

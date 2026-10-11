@@ -1,5 +1,7 @@
 // 展开卡（RR09）：三块面板——风险雷达 / 今日建议 / 用卡规划。
 // UI 零业务规则（ARCHITECTURE §2）：本组件只做 vm 字段的排版与文案映射，不计算任何数字。
+// RR21：窄窗自适应（RR14 遗产①）——标题/指标行可换行、收起常驻可见、× 关闭悬浮窗
+// （skipTaskbar 下唯一常规退出入口）、理由链任意字符断行，消除 460 宽横滚与竖排单字。
 import type { DashboardViewModel } from "./adapters";
 import type { ResetCardDecision, RiskFactor } from "../lib";
 
@@ -26,6 +28,13 @@ const titleStyle: React.CSSProperties = {
   margin: "2px 0 6px",
 };
 
+/** 指标行公共排版：窄窗换行（RR21 自适应）。 */
+const metricsRowStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  rowGap: 8,
+};
+
 /** 可解释因子行（D006：UI 必须按 id/label/delta/note 渲染，不许只给总分）。 */
 function FactorRows({ factors }: { factors: RiskFactor[] }) {
   if (factors.length === 0) return <div style={{ color: "#9aa3b2", fontSize: 12 }}>无因子</div>;
@@ -34,7 +43,7 @@ function FactorRows({ factors }: { factors: RiskFactor[] }) {
       {factors.map((factor) => (
         <div
           key={factor.id}
-          style={{ display: "flex", gap: 8, fontSize: 12, alignItems: "baseline" }}
+          style={{ display: "flex", flexWrap: "wrap", rowGap: 2, fontSize: 12, alignItems: "baseline" }}
         >
           <span
             style={{
@@ -47,8 +56,10 @@ function FactorRows({ factors }: { factors: RiskFactor[] }) {
             {factor.delta >= 0 ? "+" : ""}
             {factor.delta.toFixed(1)}
           </span>
-          <span style={{ color: "#e8eaf0" }}>{factor.label}</span>
-          <span style={{ color: "#9aa3b2", flex: 1 }}>{factor.note}</span>
+          <span style={{ color: "#e8eaf0", margin: "0 6px 0 8px" }}>{factor.label}</span>
+          <span style={{ color: "#9aa3b2", flex: "1 1 150px", minWidth: 0, overflowWrap: "anywhere" }}>
+            {factor.note}
+          </span>
         </div>
       ))}
     </div>
@@ -66,12 +77,25 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** 标题栏按钮（收起 / ×）共用样式。 */
+const headerButtonStyle: React.CSSProperties = {
+  fontSize: 12,
+  cursor: "pointer",
+  border: "1px solid #3a3f4a",
+  borderRadius: 8,
+  background: "#262b36",
+  color: "#e8eaf0",
+  padding: "3px 10px",
+};
+
 export default function ExpandedCard({
   vm,
   onCollapse,
+  onClose,
 }: {
   vm: DashboardViewModel;
   onCollapse: () => void;
+  onClose: () => void;
 }) {
   const card = vm.cardPlan;
   return (
@@ -83,19 +107,22 @@ export default function ExpandedCard({
         color: "#e8eaf0",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, alignItems: "center", gap: 10 }}>
         <span style={{ fontSize: 15, fontWeight: 700 }}>
           {vm.displayName} · 重置雷达
         </span>
         {vm.plan != null && (
           <span style={{ fontSize: 11, color: "#9aa3b2" }}>{vm.plan}</span>
         )}
-        <span style={{ flex: 1 }} />
+        <span style={{ flex: "1 1 60px" }} />
         <span style={{ fontSize: 11, color: "#9aa3b2" }}>
           数据时刻 {vm.observedAt.slice(11, 16)}（北京+8）
         </span>
-        <button onClick={onCollapse} style={{ fontSize: 12, cursor: "pointer" }}>
+        <button onClick={onCollapse} style={headerButtonStyle}>
           收起
+        </button>
+        <button onClick={onClose} style={headerButtonStyle} title="关闭悬浮窗">
+          ×
         </button>
       </div>
 
@@ -112,7 +139,7 @@ export default function ExpandedCard({
       {/* 面板一：风险雷达 */}
       <div style={sectionStyle}>
         <div style={titleStyle}>① 风险雷达 · 未来 24h 强制重置概率</div>
-        <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 6 }}>
+        <div style={{ ...metricsRowStyle, gap: 18, alignItems: "center", marginBottom: 6 }}>
           <span style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
             {vm.risk == null ? "—" : `${vm.risk.score.toFixed(1)}%`}
           </span>
@@ -128,7 +155,7 @@ export default function ExpandedCard({
           <div style={{ fontSize: 12, color: "#9aa3b2" }}>周窗数据缺失，暂无建议</div>
         ) : (
           <>
-            <div style={{ display: "flex", gap: 18, marginBottom: 6 }}>
+            <div style={{ ...metricsRowStyle, gap: 18, marginBottom: 6 }}>
               <span style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                 +{vm.dailyPlan.suggested.toFixed(1)}
               </span>
@@ -152,7 +179,7 @@ export default function ExpandedCard({
           <div style={{ fontSize: 12, color: "#9aa3b2" }}>周窗数据缺失，暂无规划</div>
         ) : (
           <>
-            <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 6 }}>
+            <div style={{ ...metricsRowStyle, gap: 18, alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontSize: 16, fontWeight: 700 }}>
                 {DECISION_LABELS[card.decision]}
               </span>
@@ -162,7 +189,7 @@ export default function ExpandedCard({
               <Metric label="24h 碰撞" value={`${card.forcedReset24hPercent.toFixed(1)}%`} />
               <Metric label="自然重置" value={`${card.daysUntilNaturalReset.toFixed(1)}天`} />
             </div>
-            <div style={{ fontSize: 11, color: "#9aa3b2" }}>
+            <div style={{ fontSize: 11, color: "#9aa3b2", overflowWrap: "anywhere" }}>
               重置卡 {card.credits} 张 · 日需 {card.dailyNeedPercent.toFixed(1)}%/天 ·
               策略 {card.policyVersion} · 理由链 {card.reasons.join(" › ")}
             </div>
