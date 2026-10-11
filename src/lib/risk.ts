@@ -18,10 +18,12 @@ export interface RiskFactor {
 export interface ResetRisk {
   score: number; // 0-100，输出取 1 位小数
   factors: RiskFactor[]; // 逐因子累计，factors 各 delta 之和 ≈ score
+  watchComparison?: { weight: number; watchPercent: number; baselineRisk: number };
   scheduledReset?: ScheduledResetAssessment; // 与概率分列的公告信息；缺省不改变旧输出形状
 }
 
-const DAY_MS = 86_400_000;
+export const RESET_RISK_HORIZON_MS = 86_400_000; // 风险模型定义的未来24小时，唯一窗口长度
+const DAY_MS = RESET_RISK_HORIZON_MS;
 const BEIJING_OFFSET_MS = 8 * 3_600_000; // D004 唯一日边界
 const FUTURE_TOLERANCE_MS = 5 * 60_000; // rs:8 未来容差 5min（与 fetch-history.mjs 同源）
 
@@ -42,7 +44,7 @@ const WEEKDAY_SMOOTH_NUM = 2; // rs:218 星期占比 Laplace 平滑（2/14=1/7�
 const WEEKDAY_SMOOTH_DEN = 14;
 const WEEKDAY_WEIGHT = 20; // rs:219
 const WEEKDAY_CLAMP = 6; // rs:219
-const WATCH_WEIGHT = 0.25; // rs:230 上游公开 watch 信号融入权重
+export const WATCH_WEIGHT = 0.25; // rs:230；RR16复用既有权重，不新增可调参数
 const SCORE_MIN = 2; // rs:239 最终输出夹紧下限
 const SCORE_MAX = 95; // rs:239 最终输出夹紧上限
 
@@ -150,7 +152,11 @@ export function assessResetRisk(
   }
 
   // 上游公开 watch 信号（rs:229-238）：以 25% 权重向 watch 概率拉近
+  let watchComparison: ResetRisk["watchComparison"];
   if (typeof watchPercent === "number" && Number.isFinite(watchPercent)) {
+    if (watchPercent >= 0 && watchPercent <= 100) {
+      watchComparison = { weight: WATCH_WEIGHT, watchPercent, baselineRisk: round1(clamp(probability, SCORE_MIN, SCORE_MAX)) };
+    }
     const delta = (watchPercent - probability) * WATCH_WEIGHT;
     probability += delta;
     factors.push({
@@ -177,5 +183,6 @@ export function assessResetRisk(
   return {
     score: round1(clamp(probability, SCORE_MIN, SCORE_MAX)), factors,
     ...(announcement ? { scheduledReset: announcement } : {}),
+    ...(watchComparison ? { watchComparison } : {}),
   };
 }

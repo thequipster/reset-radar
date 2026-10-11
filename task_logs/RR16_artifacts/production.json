@@ -1,0 +1,57 @@
+{
+  "ownedPid": 26612,
+  "startedAt": "2026-10-11T05:59:31.5821976+00:00",
+  "beforeBytes": 361,
+  "afterBytes": 361,
+  "beforeHash": "4A5553BEC97067F643FDC4A8C97888EB4023BEA908C3519E3630FBF705268673",
+  "afterHash": "4A5553BEC97067F643FDC4A8C97888EB4023BEA908C3519E3630FBF705268673",
+  "bytesPreserved": true,
+  "lockExists": false,
+  "snapshot": {
+    "provider": "codex",
+    "displayName": "CODEX",
+    "plan": "PLUS",
+    "shortWindow": {
+      "remainingPercent": 8.0,
+      "resetsAt": "2026-10-11T08:57:14+00:00",
+      "windowSeconds": 18000
+    },
+    "weeklyWindow": {
+      "remainingPercent": 86.0,
+      "resetsAt": "2026-10-18T03:57:14+00:00",
+      "windowSeconds": 604800
+    },
+    "resetCredits": 3,
+    "rateLimitSnapshot": {
+      "source": "app-server",
+      "usedPercent": 14.0,
+      "windowDurationMins": 10080,
+      "resetsAt": "2026-10-18T03:57:14+00:00",
+      "observedAt": "2026-10-11T05:59:34.508923+00:00"
+    },
+    "updatedAt": "2026-10-11T05:59:34.508923+00:00",
+    "status": "ok",
+    "message": null,
+    "resetStatus": {
+      "scheduledReset": null,
+      "activeWatch": null,
+      "latestReset": {
+        "announced_at": "2026-10-11T04:01:09.000Z",
+        "id": "2109132167112782291",
+        "reset_type": "regular",
+        "source": {
+          "author": "thsottiaux",
+          "type": "x_post",
+          "url": "https://x.com/thsottiaux/status/2109132167112782291"
+        },
+        "text": "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj"
+      },
+      "fetchedAt": "2026-10-11T05:59:33.172935300Z",
+      "freshUntil": "2026-10-11T06:14:33.172935300Z",
+      "generatedAt": "2026-10-11T05:59:26.585Z",
+      "lastAttemptAt": "2026-10-11T05:59:32.469227300Z",
+      "status": "ok",
+      "message": null
+    }
+  }
+}

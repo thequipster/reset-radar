@@ -1,0 +1,9 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
+
+
+ Test Files  6 passed (6)
+      Tests  36 passed (36)
+   Start at  13:52:08
+   Duration  671ms (import 52%, transform 37%, tests 6%, worker 4%)
+

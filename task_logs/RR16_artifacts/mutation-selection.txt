@@ -1,0 +1,42 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
+
+ ❯ src/lib/__tests__/watch.comparison.test.ts (6 tests | 1 failed) 10ms
+   ❯ compareWatchPredictions 前瞻同样本校准 (6)
+     × 同日先选有效窗口首行；首行无 watch 时不以之后补行替代 5ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+   Start at  13:58:22
+   Duration  292ms (transform 48%, import 45%, tests 6%, worker 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/watch.comparison.test.ts > compareWatchPredictions 前瞻同样本校准 > 同日先选有效窗口首行；首行无 watch 时不以之后补行替代
+AssertionError: expected [ { dateKey: '2026-10-08', …(4) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "baselineRisk": 20,
++     "dateKey": "2026-10-08",
++     "predictedRisk": 80,
++     "realized": false,
++     "watchPercent": 85,
++   },
++ ]
+
+ ❯ src/lib/__tests__/watch.comparison.test.ts:49:71
+     47|     const completed = new Date("2026-10-09T01:00:00Z");
+     48|     expect(joinProspectivePredictions([later], [], completed)).toHaveL…
+     49|     expect(joinProspectivePredictions([first, later], [], completed)).…
+       |                                                                       ^
+     50|   });
+     51|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

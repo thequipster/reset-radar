@@ -52,3 +52,8 @@ app已从统一VM获取纯核心候选，真实成功评估自动记录到Tauri�
 ## RR19脚本CI
 
 CI与发布构建共用npm run test:node，递归包含顶层与预测日志嵌套文件；空套件和失败不能假绿。结构/YAML/版本/tsc/147前端核心/34Node与4类变异红恢复均通过；配置未推远端，不声称GitHub runner已跑。详docs/ci-node-20261011.md；下一RR16 watch联通。
+
+
+## RR16 watch接线
+
+有效watch通过纯核心校验后输入已有25%风险融合，adapter和CLI共用核心，规划沿风险同参；预测附带评估窗口与同次无watch基线。校准报告新增0%/25%同样本列，当前真实active_watch:null、paired n=0，空指标保留null。旧记录不补写，通用24h回测迁移仍交RR17。最终门禁与生产验证见RR16_done及docs/watch-calibration-20261011.md；下一RR17→RR28→RR27。

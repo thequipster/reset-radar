@@ -9,6 +9,7 @@
 
 import { beijingCalendarDateKey } from "./resetCard.ts";
 import type { RiskFactor, ResetRisk } from "./risk.ts";
+import { RESET_RISK_HORIZON_MS } from "./risk.ts";
 
 /** 同日补行阈值（0-100 分制）。依据：risk.score 输出固定 1 位小数（risk.ts round1），
  *  0.5=显示精度下界——漂移超 0.5 才是可感知变化，≤0.5 视为噪声不补行。AI 裁决 D019。 */
@@ -20,6 +21,9 @@ export interface PredictionRecord {
   predictedRisk: number; // 0-100，assessResetRisk().score 直传
   factorsDigest: string; // 因子摘要（digestFactors 生成），人可读对账留痕
   fetchedAt: string; // ISO 串，评估执行时刻（溯源）
+  windowStart?: string; // RR16前瞻评估窗口，旧四字段日志保持原字节
+  windowEnd?: string;
+  watchComparison?: ResetRisk["watchComparison"];
 }
 
 /** 幂等追加结果：lines=追加后完整日志（输入不被修改）；reason 供脚本输出与人读。 */
@@ -114,5 +118,8 @@ export function buildPredictionRecord(input: {
     predictedRisk: input.risk.score,
     factorsDigest: digestFactors(input.risk.factors),
     fetchedAt: input.recordedAt.toISOString(),
+    windowStart: new Date(evaluatedMs).toISOString(),
+    windowEnd: new Date(evaluatedMs + RESET_RISK_HORIZON_MS).toISOString(),
+    ...(input.risk.watchComparison ? { watchComparison: input.risk.watchComparison } : {}),
   };
 }

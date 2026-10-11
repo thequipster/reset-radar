@@ -13,7 +13,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { appendPredictionLog, digestFactors, predictionDateKey } from "../src/lib/predictions.ts";
+import { appendPredictionLog, buildPredictionRecord } from "../src/lib/predictions.ts";
+import { assessWatchSignal } from "../src/lib/watchSignal.ts";
 import { assessResetRisk } from "../src/lib/risk.ts";
 import { assessHistorySource, selectQuotaResetHistory } from "../src/lib/history.ts";
 import { appendPredictionFile, canonicalPredictionPath, parsePredictionPathArg } from "./prediction-files.mjs";
@@ -32,13 +33,11 @@ if (source.state === "stale") console.error("[log-prediction] 历史已过期：
 const announcedAt = selectQuotaResetHistory(history.events);
 const asOf = new Date(source.asOf);
 
-const risk = assessResetRisk(announcedAt, asOf);
-const candidate = {
-  date: predictionDateKey(asOf),
-  predictedRisk: risk.score,
-  factorsDigest: digestFactors(risk.factors),
-  fetchedAt: new Date().toISOString(),
-};
+const watch = assessWatchSignal(history.status?.active_watch, new Date(), source.state === "fresh");
+const risk = assessResetRisk(announcedAt, asOf, watch.percent ?? undefined);
+const candidate = buildPredictionRecord({ risk, evaluatedAt: asOf.toISOString(), recordedAt: new Date(),
+  quotaStatus: "ok", resetSourceState: null });
+if (!candidate) throw new Error("预测候选无效");
 
 const outcome = appendPredictionFile(logPath, (existing) => appendPredictionLog(existing, candidate));
 

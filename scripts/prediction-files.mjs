@@ -63,6 +63,9 @@ export function readPredictionFiles(sources) {
         const obj = JSON.parse(text);
         if (typeof obj?.date === "string" && Number.isFinite(obj?.predictedRisk)) {
           rows.push({ date: obj.date, predictedRisk: obj.predictedRisk, fetchedAt: obj.fetchedAt,
+            ...(obj.windowStart !== undefined ? { windowStart: obj.windowStart } : {}),
+            ...(obj.windowEnd !== undefined ? { windowEnd: obj.windowEnd } : {}),
+            ...(obj.watchComparison !== undefined ? { watchComparison: obj.watchComparison } : {}),
             source: source.label, sourceIndex, rowIndex: count });
           count += 1;
         } else skipped += 1;

@@ -70,7 +70,7 @@ export function buildDashboard(
   // 无公告来源字段时保持旧golden；来源成功时用本次评估时刻与最新确认事件。
   const modelAsOf = statusEvaluation?.state === "ok" ? now : asOf;
   const effectiveHistory = status == null ? history : historyWithResetStatus(history, status, now);
-  const risk = assessResetRisk(effectiveHistory, modelAsOf, undefined,
+  const risk = assessResetRisk(effectiveHistory, modelAsOf, statusEvaluation?.watch.percent ?? undefined,
     statusEvaluation?.state === "ok" ? status?.scheduledReset : null);
   const planningAsOf = status == null ? asOf : now;
   const scheduledReset = statusEvaluation?.actionableReset ?? null;

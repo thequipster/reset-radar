@@ -2,6 +2,7 @@
 import { resolve } from "node:path";
 import { joinPredictionsWithResets, scorePredictions } from "../src/lib/calibration.ts";
 import { assessHistorySource, selectQuotaResetHistory, HISTORY_STALE_DAYS } from "../src/lib/history.ts";
+import { compareWatchPredictions } from "../src/lib/watchCalibration.ts";
 
 export function generateCalibrationReport({ history, predictions, generatedAt }) {
   const lines = [];
@@ -45,6 +46,17 @@ export function generateCalibrationReport({ history, predictions, generatedAt })
     `- 重置历史：data/resets-history.json —— ${source.totalEvents} 条原始事件 / ${announcedAt.length} 条额度重置（仅regular；排除 ${source.excludedEvents} 条）（fetchedAt ${history.fetchedAt ?? "缺失"}）`,
   );
   emit(`- as_of（数据新鲜度时刻）= 夹具 fetchedAt：${asOf.toISOString()}`);
+  const comparison = compareWatchPredictions(predictions.rows, announcedAt, asOf);
+  emit();
+  emit("## Watch同样本比较（前瞻24h窗口）");
+  emit();
+  emit("| 策略 | watch权重 | 同样本 n | Brier | 命中率 |");
+  emit("|---|---|---|---|---|");
+  emit(`| 不含watch | 0% | ${comparison.pairedSamples} | ${fmt(comparison.withoutWatch.brier, (v) => v.toFixed(3))} | ${fmt(comparison.withoutWatch.hitRate, pct)} |`);
+  emit(`| 公开watch | ${comparison.weight * 100}% | ${comparison.pairedSamples} | ${fmt(comparison.withWatch.brier, (v) => v.toFixed(3))} | ${fmt(comparison.withWatch.hitRate, pct)} |`);
+  emit();
+  emit("- 仅同一次预先留存的baseline与watch预测配对，窗口(start,end]已被历史覆盖；不从当前watch或四舍五入因子倒填旧预测。样本不足时指标为空，不能据此宣称25%权重更好。");
+  emit();
 
   if (noPredictionFiles) {
     emit(`- 预测日志来源：${predictionPathSummary}`);

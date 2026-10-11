@@ -1,5 +1,6 @@
 // RR23：公告来源的可用性判断在核心，adapter只透传，React不再做一份清仓规则。
 import { assessScheduledReset, type ScheduledReset, type ScheduledResetAssessment } from "./scheduledReset.ts";
+import { assessWatchSignal, type WatchSignalAssessment } from "./watchSignal.ts";
 
 /** Rust reset_status::ResetStatusSnapshot camelCase契约，旧缓存允许没有整个字段。 */
 export interface ResetStatusSnapshot {
@@ -18,6 +19,7 @@ export interface ResetStatusEvaluation {
   state: "ok" | "stale" | "error";
   announcement: ScheduledResetAssessment | null;
   actionableReset: ScheduledReset | null;
+  watch: WatchSignalAssessment;
 }
 
 /** 失败与stale保留公告信息供展示，停止把它当有效规划输入。精确有效期边界即过期。 */
@@ -31,6 +33,7 @@ export function evaluateResetStatus(snapshot: ResetStatusSnapshot, now: Date): R
   const announcement = assessScheduledReset(snapshot.scheduledReset, now);
   return {
     state, announcement,
+    watch: assessWatchSignal(snapshot.activeWatch, now, state === "ok"),
     actionableReset: state === "ok" && announcement?.state === "planned" && announcement.appliesToQuota
       ? announcement.announcement : null,
   };

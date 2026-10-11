@@ -172,3 +172,9 @@
 ### 2026-10-11 RR19 脚本门禁实证
 - CI/release都新增npm run test:node，入口递归发现5个测试文件（包含scripts/tests/prediction-log.node.mjs），本机Nodev22.23.1真实34/34通过；既有CI Node24配置未改，官方类型擦除文档登记§1。清单node-inventory.json，原文node-restored.txt。
 - 两YAML actionlint1.7.12退出0，check-ci/release结构守卫通过；删除步骤/软失败/遗漏嵌套/吞退出码4变异均红且原字节恢复复绿，mutation-proof.txt。前端/核心147/147与tsc退出0。版本保持0.1.0、13个README相对链接有效；没有远端runner运行或发布动作。
+
+
+### RR16 watch来源复核（2026-10-11）
+- MIT reset_forecast.rs:8,76-83,229-265定义5min容差、watch字段、25%融合和active校验；本卡src/lib/watchSignal.ts复用源约束，risk.ts仅导出既有weight并保存counterfactual，不增加新权重。
+- /api/v1/status现场原文见task_logs/RR16_artifacts/status-live.json，fetchedAt记录实际抓取，active_watch:null；合成80%测试不能作为生产watch证据。当前watch同样本比较n=0，两列指标null。
+- 前瞻窗口来自本项目risk.ts未来24h定义；旧四字段日志没有窗口/无watch基线，禁止倒填。通用旧calendar join待RR17修复，不据本卡报告宣称历史权重提升。

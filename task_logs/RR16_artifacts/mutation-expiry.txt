@@ -1,0 +1,31 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
+
+ ❯ src/lib/__tests__/watch.validity.test.ts (15 tests | 1 failed) 10ms
+   ❯ active_watch 有效性 (15)
+     × 到期精确边界为 expired 4ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed (15)
+   Start at  13:58:00
+   Duration  194ms (transform 49%, import 35%, tests 12%, worker 4%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/watch.validity.test.ts > active_watch 有效性 > 到期精确边界为 expired
+AssertionError: expected 'active' to be 'expired' // Object.is equality
+
+Expected: "expired"
+Received: "active"
+
+ ❯ src/lib/__tests__/watch.validity.test.ts:23:85
+     21|
+     22|   it("到期精确边界为 expired", () => {
+     23|     expect(assessWatchSignal(signal({ expires_at: NOW.toISOString() })…
+       |                                                                                     ^
+     24|   });
+     25|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

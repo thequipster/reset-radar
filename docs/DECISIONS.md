@@ -242,3 +242,10 @@
 - RR19要求补Node测试；现有日志测试位于scripts/tests/*.node.mjs，单顶层glob会漏掉。用无依赖Node入口递归发现scripts内*.test.mjs与*.node.mjs并把绝对文件列表交node --test；空清单、启动错误、进程终止和失败测试均非零，不出现无测试假绿。
 - CI和tag发布构建都在Vitest之后跑npm run test:node；两条结构守卫要求该步不可跳过、不可continue-on-error，防止发布路径绕过脚本测试。仅修改配置，不发tag/不push/不触发Release；版本仍0.1.0。
 - D013的Vitest scripts/**排除不改；CI既有Node24不改，支持纯核心.ts原生加载，Node官方文档已登记TRUTH来源。远端GitHub runner未运行，验收边界为本地同入口真实测试+两份YAML/actionlint/结构守卫与红验，不冒称远端绿。
+
+
+## D028 RR16 watch有效期门控与事前同样本比较（2026-10-11）
+- 复用risk.ts已有25%权重，源校验沿MIT reset_forecast.rs:8,76-83,246-265；成功来源且level/时间/概率有效才传入，不给缺失概率补数，不新增可调模型参数。
+- 风险生成时保存独立无watch baseline、watch百分比、权重和24h评估窗口；旧行保持原字节。比较只消费事前留存记录，按北京日先选首条有效窗口，再判断watch，避免挑后补的有利样本；两列调用同一scorePredictions，regular事件在(start,end]中算命中。
+- fetchedAt晚于windowStart或窗口未被历史as_of覆盖都不计分；不从当前watch或已取整digest反推旧baseline。当前真实watch为null、paired n=0，指标null，不能宣称25%更优。
+- 本卡严格配对口径不改变旧通用按日回测，RR17须将通用回测迁移到正确24h目标窗口，并统一CLI评估/记录时刻。CLI当前沿历史fetchedAt评估，后写入的候选不具备严格事前配对资格。
