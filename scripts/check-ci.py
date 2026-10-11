@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """RR02 门禁断言：.github/workflows/ci.yml 步骤结构与卡面修向逐条对照 + README 徽章接线。
 
-口径来源：BACKLOG RR02 修向——windows-latest；npm ci → tsc → vitest → cargo check →
+口径来源：BACKLOG RR02/RR19 修向——windows-latest；npm ci → tsc → vitest → node:test → cargo check →
 tauri build（CI 用 MSVC 无 dll 问题，TRUTH B02/D009）→ 产物上传 artifact；README 徽章接线。
 本脚本即该验证口径的可复现实现（RR02 基于 main 无 tsc/vitest 对象，门禁等价口径见 D011）。
 依赖：python3 + PyYAML（本机 6.0.3 实测可用）。用法：python scripts/check-ci.py
@@ -20,6 +20,7 @@ EXPECT_RUNS = [
     "npm ci",
     "npx tsc --noEmit",
     "npx vitest run",
+    "npm run test:node",
     "cargo check --locked --manifest-path src-tauri/Cargo.toml",
     "npm run tauri build",
 ]
@@ -53,6 +54,9 @@ if job:
     runs = [s["run"] for s in steps if "run" in s]
     check(runs == EXPECT_RUNS,
           f"run 步骤序列与卡面修向不符：期望 {EXPECT_RUNS}，实际 {runs}")
+    node_tests = [s for s in steps if s.get("run") == "npm run test:node"]
+    check(len(node_tests) == 1 and not node_tests[0].get("continue-on-error") and not node_tests[0].get("if"),
+          "node:test 必须无条件运行且失败阻断流水线")
     last = steps[-1] if steps else {}
     check(str(last.get("uses", "")).startswith("actions/upload-artifact@"),
           "最后一步应为 actions/upload-artifact")

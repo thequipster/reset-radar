@@ -1,0 +1,111 @@
+TAP version 13
+# 未发现 scripts 下的 Node 测试文件。
+# 未发现 scripts 下的 Node 测试文件。
+# TAP version 13
+# \# Subtest: 故意失败
+# not ok 1 - 故意失败
+#   ---
+#   duration_ms: 0.4561
+#   type: 'test'
+#   location: 'C:\\\\Users\\\\slsjz\\\\AppData\\\\Local\\\\Temp\\\\reset-radar-node-runner-test-zS8q9q\\\\scripts\\\\broken.test.mjs:1:31'
+#   failureType: 'testCodeFailure'
+#   error: 'expected failure'
+#   code: 'ERR_TEST_FAILURE'
+#   stack: |-
+#     TestContext.<anonymous> (file:///C:/Users/slsjz/AppData/Local/Temp/reset-radar-node-runner-test-zS8q9q/scripts/broken.test.mjs:1:58)
+#     Test.runInAsyncScope (node:async_hooks:214:14)
+#     Test.run (node:internal/test_runner/test:1047:25)
+#     Test.start (node:internal/test_runner/test:944:17)
+#     startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+#   ...
+# 1..1
+# \# tests 1
+# \# suites 0
+# \# pass 0
+# \# fail 1
+# \# cancelled 0
+# \# skipped 0
+# \# todo 0
+# \# duration_ms 66.5088
+# Subtest: 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
+not ok 1 - 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
+  ---
+  duration_ms: 6.6871
+  type: 'test'
+  location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\run-node-tests.test.mjs:25:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+    -   'C:\\Users\\slsjz\\AppData\\Local\\Temp\\reset-radar-node-runner-test-LDqBnK\\scripts\\nested\\deep\\a.node.mjs',
+        'C:\\Users\\slsjz\\AppData\\Local\\Temp\\reset-radar-node-runner-test-LDqBnK\\scripts\\z.test.mjs'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'C:\\Users\\slsjz\\AppData\\Local\\Temp\\reset-radar-node-runner-test-LDqBnK\\scripts\\nested\\deep\\a.node.mjs'
+    1: 'C:\\Users\\slsjz\\AppData\\Local\\Temp\\reset-radar-node-runner-test-LDqBnK\\scripts\\z.test.mjs'
+  actual:
+    0: 'C:\\Users\\slsjz\\AppData\\Local\\Temp\\reset-radar-node-runner-test-LDqBnK\\scripts\\z.test.mjs'
+  operator: 'deepStrictEqual'
+  stack: |-
+    file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:34:12
+    withTempRoot (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:15:5)
+    TestContext.<anonymous> (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:26:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: 空清单拒绝启动 Node 子进程
+ok 2 - 空清单拒绝启动 Node 子进程
+  ---
+  duration_ms: 1.5519
+  type: 'test'
+  ...
+# Subtest: 透传子进程退出码及启动失败、信号失败
+not ok 3 - 透传子进程退出码及启动失败、信号失败
+  ---
+  duration_ms: 1.8355
+  type: 'test'
+  location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\run-node-tests.test.mjs:50:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1 !== 7
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 7
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:54:12
+    withTempRoot (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:15:5)
+    TestContext.<anonymous> (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:51:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: 真实 Node 测试进程失败时入口返回非零
+ok 4 - 真实 Node 测试进程失败时入口返回非零
+  ---
+  duration_ms: 119.2881
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 2
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 206.0857

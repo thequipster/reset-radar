@@ -1,0 +1,8 @@
+ci-step: red exit=1
+ci-step: restored SHA256=bf7648992460905f9ff54c65bcd76ca6a32e0f2af38fe45e9db443683f52a1cd
+release-soft-fail: red exit=1
+release-soft-fail: restored SHA256=760b200c3187894d9c4530c9f202a0079587d823683238006b03fd2557a69dc6
+nested-discovery: red exit=1
+nested-discovery: restored SHA256=0599a2421a49a1d041ab57ad29e1f62b91f3246c8e06074bb00e969882ffe441
+failure-propagation: red exit=1
+failure-propagation: restored SHA256=0599a2421a49a1d041ab57ad29e1f62b91f3246c8e06074bb00e969882ffe441

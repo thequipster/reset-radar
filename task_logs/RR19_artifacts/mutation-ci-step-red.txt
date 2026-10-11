@@ -1,0 +1,2 @@
+FAIL: run 步骤序列与卡面修向不符：期望 ['npm ci', 'npx tsc --noEmit', 'npx vitest run', 'npm run test:node', 'cargo check --locked --manifest-path src-tauri/Cargo.toml', 'npm run tauri build']，实际 ['npm ci', 'npx tsc --noEmit', 'npx vitest run', 'cargo check --locked --manifest-path src-tauri/Cargo.toml', 'npm run tauri build']
+FAIL: node:test 必须无条件运行且失败阻断流水线

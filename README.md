@@ -61,7 +61,8 @@ Tauri 2 · React · TypeScript（核心算法为零依赖纯函数，100% 单测
 ```bash
 npm install
 npm run tauri dev     # 开发运行
-npx vitest run        # 全量测试（86 条）
+npx vitest run        # 前端与纯核心测试
+npm run test:node     # scripts顶层与嵌套Node测试；与CI/发布流水线同入口
 npm run tauri build   # 构建（注意：gnu 本机构建需 custom-protocol 特性，见 RUNBOOK §10）
 ```
 
@@ -69,7 +70,7 @@ npm run tauri build   # 构建（注意：gnu 本机构建需 custom-protocol �
 
 ```bash
 node scripts/check-release.mjs         # 版本两处同步 + README 链接可达
-python scripts/check-ci.py             # ci.yml 结构（RR02）
+python scripts/check-ci.py             # ci.yml 结构与Node测试必跑（RR02/RR19）
 python scripts/check-release-wf.py     # release.yml 结构（RR11）
 ```
 

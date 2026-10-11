@@ -11,6 +11,7 @@
 | codex-resets.com 公开历史 | `https://codex-resets.com/api/v1/resets?limit=100&order=desc` 与 `/api/v1/status` | 强制重置历史日期（announced_at 字符串数组）——风险校准的数据源 |
 | 参考实现（MIT） | `C:\Users\slsjz\.zcode\workspace\default\quota-analysis\codex-cockpit`（HouSiyuan2001/codex-cockpit v0.3.0-beta.5 完整源码） | 借鉴算法思路时的出处仓。重点文件：`src-tauri/src/reset_forecast.rs`（风险因子）、`src/lib/dynamicQuota.ts`（配速公式）、`src/lib/resetCard.ts` + `docs/reset-card-planner.md`（重置卡规划器，初始化会话亲手写的，可直接移植）、`src-tauri/src/codex.rs`（app-server 握手） |
 | 本机工具链事实 | 见 §2 锚点 B01–B05 | 构建环境实测结论，夜间会话必读 |
+| Node官方文档 | https://nodejs.org/docs/latest-v24.x/api/typescript.html 与 https://nodejs.org/api/cli.html#--test | Node24内置类型擦除与node:test命令；CI配置沿既有Node24，脚本实测另记 |
 | 用户裁决 | 本文件 §U 各条 | 最高层级，覆盖一切推断 |
 
 ## §2 已确认锚点
@@ -167,3 +168,7 @@
 - 采集前原始59条夹具原字节复制src/lib/__tests__/fixtures/resets-history-20261010.json，SHA256=D3E54A8F986FC8E0E214DF5D2F4A089AA0EF4FD80E7BA1F1BFD3FD8A27F347D5，旧golden统计不因联网更新而重写。
 - 当前calibrate双源各1行、今日未完结计分n=0；7日严格边界/非法覆盖/排除banked的实际报告测试通过。说明docs/history-refresh-20261011.md、D026；门禁与生产实证最终见RR18_done。
 - RR18生产补验：GNU custom-protocol ownedPID26652，新来源fetchedAt=2026-10-11T05:36:33.524549900Z、quota/source均ok；只读CDP风险32.1%、hook=ok。输入变化后自然追加32.1，日志188→361字节，44的旧行及原前缀不变，无锁残留， owned进程已关闭。最终报告归档1+应用2行仍n=0；production-history-verified.json、production-dom-fresh.json。
+
+### 2026-10-11 RR19 脚本门禁实证
+- CI/release都新增npm run test:node，入口递归发现5个测试文件（包含scripts/tests/prediction-log.node.mjs），本机Nodev22.23.1真实34/34通过；既有CI Node24配置未改，官方类型擦除文档登记§1。清单node-inventory.json，原文node-restored.txt。
+- 两YAML actionlint1.7.12退出0，check-ci/release结构守卫通过；删除步骤/软失败/遗漏嵌套/吞退出码4变异均红且原字节恢复复绿，mutation-proof.txt。前端/核心147/147与tsc退出0。版本保持0.1.0、13个README相对链接有效；没有远端runner运行或发布动作。

@@ -1,0 +1,1 @@
+release.yml 结构门禁通过：11 步、4 个 action 全 SHA pin

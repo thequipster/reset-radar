@@ -237,3 +237,8 @@
 - banked发卡不等于额度回满（D022/D024）；原始采集两类保留且按类型窗口去重，风险/脚本日志/校准共享纯核心regular筛选。旧算法golden移至采集前原字节归档，新生产数据由真实脚本生成，不手改数值。
 - 超过7日标stale且保留历史as_of；缺失/非法/未来时间标invalid，不用当前墙钟制造“未重置”观测。UI适配器新增historySource，区别于quota与实时status来源，后续照图UI无需自己判断7日。
 - REVIEW入口先采集再校准，刷新失败不继续；采集时间在完整成功后记录。仅新增载体及review文档，不改运行协议。现在n=0为真实无已完结样本，目标窗与预测时点审计交RR17。
+
+## D027 RR19 CI与发布构建共用Node测试入口（2026-10-11）
+- RR19要求补Node测试；现有日志测试位于scripts/tests/*.node.mjs，单顶层glob会漏掉。用无依赖Node入口递归发现scripts内*.test.mjs与*.node.mjs并把绝对文件列表交node --test；空清单、启动错误、进程终止和失败测试均非零，不出现无测试假绿。
+- CI和tag发布构建都在Vitest之后跑npm run test:node；两条结构守卫要求该步不可跳过、不可continue-on-error，防止发布路径绕过脚本测试。仅修改配置，不发tag/不push/不触发Release；版本仍0.1.0。
+- D013的Vitest scripts/**排除不改；CI既有Node24不改，支持纯核心.ts原生加载，Node官方文档已登记TRUTH来源。远端GitHub runner未运行，验收边界为本地同入口真实测试+两份YAML/actionlint/结构守卫与红验，不冒称远端绿。

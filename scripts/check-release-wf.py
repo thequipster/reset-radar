@@ -51,6 +51,9 @@ joined = "\n".join(runs)
 check("node scripts/check-release.mjs --tag" in joined, "缺版本/tag 一致性守卫步骤")
 check("npx tsc --noEmit" in joined, "缺 tsc 门禁")
 check("npx vitest run" in joined, "缺 vitest 门禁")
+node_tests = [s for s in steps if s.get("run") == "npm run test:node"]
+check(len(node_tests) == 1 and not node_tests[0].get("continue-on-error") and not node_tests[0].get("if"),
+      "node:test 必须无条件运行且失败阻断发布构建")
 check("npm run tauri build" in joined, "缺 tauri 构建")
 check("gh release create" in joined, "缺 gh release create（产物挂 Release）")
 check("--verify-tag" in joined, "gh release create 必须带 --verify-tag")

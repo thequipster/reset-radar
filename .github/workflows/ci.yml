@@ -41,6 +41,8 @@ jobs:
         run: npx tsc --noEmit
       - name: Unit tests (vitest)
         run: npx vitest run
+      - name: Script tests (node:test)
+        run: npm run test:node
       - name: Rust check
         run: cargo check --locked --manifest-path src-tauri/Cargo.toml
       - name: Build desktop app (tauri)

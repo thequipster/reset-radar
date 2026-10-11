@@ -47,6 +47,8 @@ jobs:
         run: npx tsc --noEmit
       - name: Unit tests (vitest)
         run: npx vitest run
+      - name: Script tests (node:test)
+        run: npm run test:node
       - name: Build desktop app (tauri)
         run: npm run tauri build
       - name: Create release with installers

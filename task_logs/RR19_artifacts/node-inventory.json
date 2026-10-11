@@ -1,0 +1,10 @@
+{
+  "node": "v22.23.1",
+  "files": [
+    "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\calibration-report.test.mjs",
+    "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\fetch-history.test.mjs",
+    "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\review-calibration.test.mjs",
+    "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\run-node-tests.test.mjs",
+    "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\tests\\prediction-log.node.mjs"
+  ]
+}
