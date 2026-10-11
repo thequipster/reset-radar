@@ -173,3 +173,16 @@
   立卡统一裁决路径汇流（如 app 写 %APPDATA% + 脚本合并归档），本卡不预铺。
 - 依据：calibrate.mjs 占位文案点名「RR10 落盘器」；ARCHITECTURE §4 数据流（落盘→校准
   回测同一条证据链）；§2 分层（算法只在核心层，IO 是薄壳）；RUNBOOK §1.4 单一实现源。
+
+## D020 RR13 修法裁决：窗宽 460 方案因 DPI 无感知根因作废，转 RR20 manifest 修复 + RR13 复验收尾（2026-10-11，会话 S1011-0913）
+- 背景：卡面修向二选一（窗宽 420→460 或压内边距）。执行会话先裁 460+minWidth（胶囊设计
+  语言完整、位宽余量、D018 先例），但 release 截图识图复验收**否决**：截断未消除。
+- 证据链（详见 TRUTH B10 / RR13_wip）：IAB 浏览器实测胶囊自然宽 421 CSS px（460 窗口本应
+  放得下）；注册表 AppliedDPI=192（200%）；exe 内嵌 manifest dump 无 dpiAware → DPI 无感知
+  → CSS 视口=窗宽/2=230px → 两轮截图切点与模型逐字符吻合。
+- 决定：①卡面两修向在本机缩放下均不能根治，作废（不撤回事实，撤回裁决）；②真根因在
+  src-tauri/build.rs 的 B08 manifest 未含 dpiAware——立 RR20（data-layer 🔧修卡）补
+  PerMonitorV2；③RR13 保持🟠在飞，续作口径改为「RR20 合入后 460 窗宽复验截图无截断 +
+  README 换图收尾」，width 460+minWidth 的 conf 改动保留在 agent/RR13 WIP（1482ca9）。
+- 依据：ARCHITECTURE §2 分层（DPI 感知属窗口铬/构建域非 UI 展示层）；证据铁律（装进项目
+  前回源核实——识图复验收即回源）；时间盒纪律（不硬撑不跳门禁）。

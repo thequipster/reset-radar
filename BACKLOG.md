@@ -176,6 +176,20 @@
 - 验证口径：check-ci 结构门禁 + yaml 校验（沿 RR02 口径）。
 - 状态行：2026-10-11 🟠待领
 
+### RR20 | P1 | 🔧修卡🟠待领 | data-layer | 立卡 S1011-0913（RR13 排障转立；TRUTH B10/D020）2026-10-11
+- 现象：gnu 自建 exe DPI 无感知——本机 200% 缩放下 CSS 视口=窗宽/2，460 窗口实际 230px，
+  胶囊（自然宽 421 CSS px）必然右截断；RR13 卡面两修向（加宽/压边距）均不能根治。
+- 证据：TRUTH §2 B10（exe 内嵌 manifest dump 无 dpiAware；AppliedDPI=192；两轮截图切点
+  与 210/230 视口模型逐字符吻合）；RR13_wip 证据链节。
+- 修向：src-tauri/build.rs 的 B08 manifest（compile_for_everything 所嵌资源）补
+  `<asmv3:application><windowsSettings><dpiAware>true/PM</dpiAware>
+  <dpiAwareness>PerMonitorV2,PerMonitor</dpiAwareness></windowsSettings>`（保留 Common-Controls
+  v6 依赖，勿丢 B08 成果）；重建后 exe 需实跑验证：同窗宽下 CSS 视口=窗宽（截图内容完整度
+  或 GetClientRect×DPI 复核）。**解锁 RR13 复验收尾。**
+- 验证口径：manifest dump 含 dpiAware + release 实跑截图对比（RR13 协同）+ cargo check
+  --tests（Rust 门）+ 既有测试不新增 failed。
+- 状态行：2026-10-11 🟠待领
+
 ## 状态流转区（追加行；格式 `- <日期> <状态> <sha/备注>`）
 
 - 2026-10-11 🟠待领 ×12（RR01–RR12 初始化批次，立卡会话 S1011-init）
@@ -205,3 +219,5 @@
 - 2026-10-11 09:04 RR12 第 1 轮完成（首轮 REVIEW，会话 S1011-0843）：四类 artifact 齐（vitest 86/86 / vite build / cargo check / 校准报告+胶囊截图）；差距 10 条全定夺（立卡 RR13–RR19 共 7 张，3 条不立卡理由见 docs/review-20261011.md）；报告 docs/review-20261011.md；artifact 批支 agent/RR12 🟡待合入（见 BOARD）；**锚卡转回 🟠待领（永不🟢）**
 - 2026-10-11 09:04 RR13–RR19 🟠待领 ×7（首轮 REVIEW 新卡批次，立卡会话 S1011-0843；建议顺序 RR13→RR14→RR15→RR18→RR19→RR16→RR17，RR13/RR14 同域串行，RR17 依赖 RR15）
 - 2026-10-11 09:16 RR12 首轮 artifact 批 🟢已闭环（MERGE S1011-0913：f15baad→main 6360778，树恒等✅ 5路径 diff 0字节；预审四过（worktree探活/diffstat对账5文件+190行/patch在位/交集空）；主仓复验 tsc✅ vitest 全量86/86 0failed✅；worktree/分支已拆（无junction直接remove）；锚卡 RR12 本体保持🟠待领永不🟢，REVIEW 第2轮滚动）
+- 2026-10-11 09:55 RR20 🟠待领（新立：data-layer manifest 补 dpiAware，RR13 排障转立，TRUTH B10/D020）
+- 2026-10-11 09:55 RR13 🟠在飞→🟠待领（留证续作，会话 S1011-0913 时间盒到点：460 复验被识图否决，根因=DPI 无感知（B10）；WIP=agent/RR13 @ 1482ca9，门禁前三绿；续作前置=RR20 合入，指引在 task_logs/RR13_wip.md；转待领避免 LIGHT 槽死锁——D020 决定③的执行细化）

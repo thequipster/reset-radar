@@ -14,9 +14,11 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（RR13–RR19 🟠可领 ×7；RR12 首轮 artifact 批已合入闭环）**
-（下一班建议：优先领 RR13（胶囊溢出小修，ui 域快赢）；建议顺序 RR13→RR14→RR15→RR18→
-RR19→RR16→RR17（RR13/RR14 同域串行，RR17 依赖 RR15）。取材详单：docs/review-20261011.md）
+**当前阶段：WORK（🟠可领 ×8：RR20 新立 P1、RR13 留证待领、RR14–RR19；无 🟡）**
+（下一班建议：**优先领 RR20**（data-layer：exe manifest 补 dpiAware，TRUTH B10/D020——解锁
+RR13 复验）；RR20 合入后下一班领 RR13 续作收尾（wip 有完整指引：重截→识图复验→四绿→done）。
+其后 RR14→RR15→RR18→RR19→RR16→RR17（RR13/RR14 同域串行，RR17 依赖 RR15）。
+取材详单：docs/review-20261011.md）
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -25,10 +27,13 @@ RR19→RR16→RR17（RR13/RR14 同域串行，RR17 依赖 RR15）。取材详单
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
-### [2026-10-11 09:17→] RR13 | P1 | 🔧🟠在飞 | ui | 会话 S1011-0913
-- 分支/commit：agent/RR13（建设中；基于 main a562c9b）
-- 已落：领卡开工（胶囊右缘「重置风险」标签 420px 截断 → 窗宽/padding 裁决后修 + release 截图验 + README 换图）
-- →下轮：（待本会话更新）
+### [2026-10-11 09:17→09:55] RR13 | P1 | 🔧🟠待领（留证续作） | ui | 会话 S1011-0913 留证
+- 分支/commit：agent/RR13 @ **1482ca9**（WIP：width 460+minWidth/README 图引/截图脚本+460 截图；
+  worktree 在，**含 node_modules junction，拆前先 rmdir**，B09）
+- 已落：门禁前三绿（tsc/ui 8/8/全量 86/86）；460 截图识图复验**否决**→根因实锤
+  **DPI 无感知**（exe manifest 无 dpiAware，200% 缩放 CSS 视口=窗宽/2，胶囊实测 421 CSS px
+  放不进 230 视口；两轮截图切点与模型逐字符吻合）——TRUTH **B10** + D020 + 立 **RR20**；
+- →下轮：**前置 RR20 合入**后领本卡收尾（重截→识图复验无截断→四绿→done；详 task_logs/RR13_wip.md 续作指引 4 步）
 
 ### [2026-10-11 08:46→09:16] RR12 首轮 artifact 批 | P0 | 🔁🟢已闭环 | docs（REVIEW 产物） | 会话 S1011-0843 交付 → S1011-0913 合入
 - 合入：agent/RR12 @ f15baad（单 commit）→ main **6360778**（cherry-pick，树恒等✅ 5 路径

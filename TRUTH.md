@@ -107,6 +107,18 @@
   正确拆除顺序：①确认/拆除 junction（cmd rmdir，只删链接）②杀经 junction 加载模块的进程
   ③`git worktree remove`。事故已当场修复（npm ci 重装，86/86+tsc 复绿）。
 
+### B10 gnu 自建 exe 内嵌 manifest 无 dpiAware 声明——200% 缩放下 CSS 视口=窗宽/2（RR13 会话实测 2026-10-11）
+- 机制：B08 正规化所嵌的 manifest 只含 Common-Controls v6 依赖，未保留 Tauri 默认 manifest 的
+  `dpiAware`（PerMonitorV2）声明 → 进程 DPI 无感知 → 窗口按**物理像素**创建，WebView2 的
+  CSS 视口 = 窗宽 ÷ 系统缩放比。本机 AppliedDPI=192（200%）：`width:460` 的窗口 CSS 视口
+  仅 230px，胶囊（浏览器实测自然宽 421 CSS px）必然右截断；420/460 两窗宽截图的切点位置
+  与 210/230 CSS 视口模型逐字符吻合（识图子代理两轮实证）。
+- 推论：任何"窗宽 X 能放下胶囊"的裁决在缩放比 ≠100% 的机器上都不成立，UI 尺寸问题先查
+  本锚点再谈像素；根治=manifest 补 dpiAware（RR20，data-layer 域）。
+- 排查工具链：IAB 浏览器 vite preview 实测组件自然宽（注入文案量 scrollWidth）+ 注册表
+  AppliedDPI + exe 内嵌 manifest 直接 dump（python 读 `<assembly` 段）。
+- 出处：RR13 会话 S1011-0913 实测（task_logs/RR13_wip.md 证据链节）。
+
 ## §8 黑名单（已证伪/已知坑——绝不重踩）
 
 > 以下均初始化会话实测踩过，任何会话不得以任何理由重新引入；确有新证据要翻案，先立挖卡。
