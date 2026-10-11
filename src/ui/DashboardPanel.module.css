@@ -363,7 +363,7 @@
 
 .suggestionSub {
   font-size: 11px;
-  color: rgba(196, 181, 253, 0.85);
+  color: var(--banner-sub);
 }
 
 .suggestionSubPlain {
@@ -649,7 +649,7 @@
   height: 30px;
   border-radius: 999px;
   background: rgba(250, 204, 21, 0.15);
-  color: #facc15;
+  color: var(--decision-icon);
   display: inline-flex;
   align-items: center;
   justify-content: center;

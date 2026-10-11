@@ -16,7 +16,10 @@ param(
   # RR27：截图前把展开面板滚到底（底栏按钮/校准行在折叠线下方，需滚动佐证可达）
   [switch]$ScrollBottom,
   # RR29：导航后先点击该文字的页签按钮（如"用卡"），拍指定页视口（credits-zero 决策卡等）
-  [string]$ClickTab = ""
+  [string]$ClickTab = "",
+  # RR34：预设主题（reset-radar.theme localStorage）——先导航 base 落键再两跳重挂，
+  # App 挂载时读到的即目标主题；不指定则沿用现有存储（默认 dark）
+  [ValidateSet("", "dark", "light", "system")][string]$Theme = ""
 )
 
 Add-Type -AssemblyName System.Drawing
@@ -85,6 +88,16 @@ function Recv-Until([int]$id) {
 }
 Send-Cdp 1 "Page.navigate" '{"url":"about:blank"}'
 Recv-Until 1 | Out-Null
+if ($Theme -ne "") {
+  # 落主题键须在应用 origin 下：先去 base 写 localStorage，再回 about:blank 后两跳重挂
+  Send-Cdp 9 "Page.navigate" ('{"url":"' + $base + '"}')
+  Recv-Until 9 | Out-Null
+  $tJson = @{ expression = "localStorage.setItem('reset-radar.theme','" + $Theme + "'); localStorage.getItem('reset-radar.theme')"; returnByValue = $true } | ConvertTo-Json -Compress
+  Send-Cdp 10 "Runtime.evaluate" $tJson
+  "ThemePreset($Theme): $(Recv-Until 10)"
+  Send-Cdp 11 "Page.navigate" '{"url":"about:blank"}'
+  Recv-Until 11 | Out-Null
+}
 Send-Cdp 2 "Page.navigate" ('{"url":"' + $base + $Hash + '"}')
 $nav = Recv-Until 2
 "Navigate: $nav"

@@ -36,10 +36,13 @@
   --glow-purple: 0 6px 28px rgba(147, 51, 234, 0.40);
   --shadow-panel: 0 12px 40px rgba(0, 0, 0, 0.55);
   --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.35);
-  --purple-banner-a: #a855f7;
+  /* RR34：a 段 #a855f7→#9333ea（白字 3.96→5.38 达标）；banner 副文案/决策图标 token 化。 */
+  --purple-banner-a: #9333ea;
   --purple-banner-b: #7c3aed;
   --purple-banner-c: #4c1d95;
   --suggestion-number: #ffffff;
+  --banner-sub: #f3e8ff;
+  --decision-icon: #facc15;
   /* RR32 品牌 logo token：深色用交付正稿「精密蓝」（icons-20261011/reset-radar-mark.svg）。 */
   --logo-ring-main: #46e4f4;
   --logo-ring-inner: #179bf1;
@@ -72,7 +75,7 @@
   --success: #16a34a;
   --success-deep: #059669;
   --success-dim: rgba(22, 163, 74, 0.10);
-  --warn: #d97706;
+  --warn: #b45309;
   --warn-text: #b45309;
   --warn-dim: #fef3c7;
   --danger: #dc2626;
@@ -82,10 +85,14 @@
   --glow-purple: 0 6px 20px rgba(147, 51, 234, 0.15);
   --shadow-panel: 0 8px 24px rgba(20, 40, 80, 0.14);
   --shadow-card: 0 1px 3px rgba(20, 40, 80, 0.08);
-  --purple-banner-a: #ede4ff;
-  --purple-banner-b: #e6dcff;
-  --purple-banner-c: #e0e7ff;
-  --suggestion-number: #7c3aed;
+  /* RR34：横幅浅紫渐变白字 1.23–1.51 实锤缺陷 → 换深紫渐变（与深色统一，紫语义保持）；
+     大数字紫→白；--warn 提深一档（状态点 2.99→4.71，与 --warn-text 同值语义）。 */
+  --purple-banner-a: #9333ea;
+  --purple-banner-b: #7c3aed;
+  --purple-banner-c: #4c1d95;
+  --suggestion-number: #ffffff;
+  --banner-sub: #f3e8ff;
+  --decision-icon: #854d0e;
   /* RR32 浅色主题 logo 走 02-glass 配色（handoff：勿将亮色透明标放白底）。 */
   --logo-ring-main: #0277c8;
   --logo-ring-inner: #30b7ef;

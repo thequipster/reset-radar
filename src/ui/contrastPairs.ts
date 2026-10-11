@@ -10,19 +10,24 @@ import { THEME_VARIABLES, type ResolvedTheme } from "./theme.ts";
 /** widget.css 独有 token（theme.ts 表未收录；与 CSS 对齐由域测试解析 widget.css 锁定）。 */
 export const CSS_ONLY_TOKENS: Record<string, string> = {
   "--bg-header": "#0c1622", // 深浅两值在 widget.css 分块，见 CSS_ONLY_TOKENS_LIGHT
-  "--purple-banner-a": "#a855f7",
+  "--purple-banner-a": "#9333ea", // RR34：#a855f7→#9333ea（白字 3.96→5.38 达标）
   "--purple-banner-b": "#7c3aed",
   "--purple-banner-c": "#4c1d95",
   "--suggestion-number": "#ffffff",
+  "--banner-sub": "#f3e8ff", // RR34：副文案 token 化（原 rgba(196,181,253,.85) 2.14→4.56）
+  "--decision-icon": "#facc15",
 };
 
 /** 上述 token 的浅色值（[data-theme=light] 块）。 */
 export const CSS_ONLY_TOKENS_LIGHT: Record<string, string> = {
   "--bg-header": "#f5f8fc",
-  "--purple-banner-a": "#ede4ff",
-  "--purple-banner-b": "#e6dcff",
-  "--purple-banner-c": "#e0e7ff",
-  "--suggestion-number": "#7c3aed",
+  // RR34：浅紫渐变白字 1.23–1.51 缺陷 → 深紫渐变与深色统一；大数字紫→白。
+  "--purple-banner-a": "#9333ea",
+  "--purple-banner-b": "#7c3aed",
+  "--purple-banner-c": "#4c1d95",
+  "--suggestion-number": "#ffffff",
+  "--banner-sub": "#f3e8ff",
+  "--decision-icon": "#854d0e",
 };
 
 /** 配对定义。fg/bg 既可写 token 名（"--text-primary"）也可写 CSS 字面色值（含 rgba）。 */
@@ -70,7 +75,7 @@ export const CONTRAST_PAIRS: ContrastPair[] = [
   { id: "warn-text-on-warn-dim", fg: "--warn-text", bgStack: ["--warn-dim", "--bg-card"], level: "normal", source: "DP.noticeCardAnnouncement/.stateBannerWarn/.pacingIconWarn/.riskBadgeMid" },
   { id: "danger-text-on-danger-dim", fg: "--danger-text", bgStack: ["--danger-dim", "--bg-card"], level: "normal", source: "DP.noticeCardError/.stateBannerError/.riskIconBox/.riskBadgeHigh, CB.riskIconBox" },
   { id: "success-on-success-dim", fg: "--success", bgStack: ["--success-dim", "--bg-card"], level: "normal", source: "DP.riskBadgeLow/.decisionTitle" },
-  { id: "decision-icon", fg: "#facc15", bgStack: ["rgba(250, 204, 21, 0.15)", "--success-dim", "--bg-card"], level: "graphic", source: "DP.decisionIcon" },
+  { id: "decision-icon", fg: "--decision-icon", bgStack: ["rgba(250, 204, 21, 0.15)", "--success-dim", "--bg-card"], level: "graphic", source: "DP.decisionIcon" },
   // ── 紫色建议横幅（渐变三色各一行，labelOpacity/tail 半透明白）──
   { id: "white-on-banner-a", fg: "#ffffff", bgStack: ["--purple-banner-a"], level: "normal", source: "DP.suggestionBanner 主文案" },
   { id: "white-on-banner-b", fg: "#ffffff", bgStack: ["--purple-banner-b"], level: "normal", source: "同上（渐变中点）" },
@@ -80,8 +85,8 @@ export const CONTRAST_PAIRS: ContrastPair[] = [
   { id: "number-on-banner-a", fg: "--suggestion-number", bgStack: ["--purple-banner-a"], level: "large", source: "DP.suggestionNumber(22px/800 粗大字)" },
   { id: "number-on-banner-b", fg: "--suggestion-number", bgStack: ["--purple-banner-b"], level: "large", source: "同上（渐变中点）" },
   { id: "number-on-banner-c", fg: "--suggestion-number", bgStack: ["--purple-banner-c"], level: "large", source: "同上（渐变深端）" },
-  { id: "sub-on-banner-a", fg: "rgba(196, 181, 253, 0.85)", bgStack: ["--purple-banner-a"], level: "normal", source: "DP.suggestionSub(11px)", note: "RR32 识图遗产：浅色主题淡紫压浅紫重点核验面" },
-  { id: "sub-on-banner-b", fg: "rgba(196, 181, 253, 0.85)", bgStack: ["--purple-banner-b"], level: "normal", source: "同上（渐变中点）" },
+  { id: "sub-on-banner-a", fg: "--banner-sub", bgStack: ["--purple-banner-a"], level: "normal", source: "DP.suggestionSub(11px)", note: "RR32 识图遗产：浅色主题淡紫压浅紫重点核验面" },
+  { id: "sub-on-banner-b", fg: "--banner-sub", bgStack: ["--purple-banner-b"], level: "normal", source: "同上（渐变中点）" },
   { id: "tail-on-banner-a", fg: "rgba(255, 255, 255, 0.65)", bgStack: ["--purple-banner-a"], level: "normal", source: "DP.suggestionTail" },
   { id: "banner-icon", fg: "#ffffff", bgStack: ["rgba(255, 255, 255, 0.18)", "--purple-banner-a"], level: "graphic", source: "DP.suggestionIcon" },
   // ── 胶囊状态点（纯色圆点，图形可见性）──

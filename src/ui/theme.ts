@@ -72,7 +72,7 @@ export const THEME_VARIABLES: Record<ResolvedTheme, Record<string, string>> = {
     "--success": "#16a34a",
     "--success-deep": "#059669",
     "--success-dim": "rgba(22, 163, 74, 0.10)",
-    "--warn": "#d97706",
+    "--warn": "#b45309",
     "--warn-text": "#b45309",
     "--warn-dim": "#fef3c7",
     "--danger": "#dc2626",

@@ -72,10 +72,10 @@ describe("全配对数值快照（42对×2主题，计算口径见 contrastPairs
       "tertiary-on-header": 3.64, "primary-on-card-hover": 13.52, "blue-bright-on-card-hover": 6.84,
       "white-on-accent-blue": 3.94, "white-on-blue-gradient": 3.94, "warn-text-on-warn-dim": 8.31,
       "danger-text-on-danger-dim": 5.33, "success-on-success-dim": 8.09, "decision-icon": 6.15,
-      "white-on-banner-a": 3.96, "white-on-banner-b": 5.7, "white-on-banner-c": 10.95,
-      "label-on-banner-a": 3.96, "label-on-banner-b": 5.7, "number-on-banner-a": 3.96,
-      "number-on-banner-b": 5.7, "number-on-banner-c": 10.95, "sub-on-banner-a": 2.14,
-      "sub-on-banner-b": 3.09, "tail-on-banner-a": 3.96, "banner-icon": 3.06,
+      "white-on-banner-a": 5.38, "white-on-banner-b": 5.7, "white-on-banner-c": 10.95,
+      "label-on-banner-a": 5.38, "label-on-banner-b": 5.7, "number-on-banner-a": 5.38,
+      "number-on-banner-b": 5.7, "number-on-banner-c": 10.95, "sub-on-banner-a": 4.56,
+      "sub-on-banner-b": 4.83, "tail-on-banner-a": 5.38, "banner-icon": 4,
       "dot-success-on-panel": 11.26, "dot-warn-on-panel": 8.48, "dot-danger-on-panel": 4.96,
     },
     light: {
@@ -87,12 +87,12 @@ describe("全配对数值快照（42对×2主题，计算口径见 contrastPairs
       "success-on-card": 3.3, "secondary-on-inset": 4.81, "blue-bright-on-inset": 3.27,
       "tertiary-on-header": 2.82, "primary-on-card-hover": 14.24, "blue-bright-on-card-hover": 3.33,
       "white-on-accent-blue": 5.17, "white-on-blue-gradient": 5.17, "warn-text-on-warn-dim": 4.51,
-      "danger-text-on-danger-dim": 3.95, "success-on-success-dim": 2.95, "decision-icon": 1.3,
-      "white-on-banner-a": 1.23, "white-on-banner-b": 1.31, "white-on-banner-c": 1.23,
-      "label-on-banner-a": 1.23, "label-on-banner-b": 1.31, "number-on-banner-a": 4.65,
-      "number-on-banner-b": 4.35, "number-on-banner-c": 4.63, "sub-on-banner-a": 1.51,
-      "sub-on-banner-b": 1.41, "tail-on-banner-a": 1.23, "banner-icon": 1.18,
-      "dot-success-on-panel": 3.09, "dot-warn-on-panel": 2.99, "dot-danger-on-panel": 4.53,
+      "danger-text-on-danger-dim": 3.95, "success-on-success-dim": 2.95, "decision-icon": 5.81,
+      "white-on-banner-a": 5.38, "white-on-banner-b": 5.7, "white-on-banner-c": 10.95,
+      "label-on-banner-a": 5.38, "label-on-banner-b": 5.7, "number-on-banner-a": 5.38,
+      "number-on-banner-b": 5.7, "number-on-banner-c": 10.95, "sub-on-banner-a": 4.56,
+      "sub-on-banner-b": 4.83, "tail-on-banner-a": 5.38, "banner-icon": 4,
+      "dot-success-on-panel": 3.09, "dot-warn-on-panel": 4.71, "dot-danger-on-panel": 4.53,
     },
   };
 
@@ -115,17 +115,13 @@ describe("全配对数值快照（42对×2主题，计算口径见 contrastPairs
         .map((p) => p.id)
         .sort();
     expect(failIds("dark")).toEqual([
-      "label-on-banner-a", "sub-on-banner-a", "sub-on-banner-b", "tail-on-banner-a",
-      "tertiary-on-card", "tertiary-on-header", "tertiary-on-panel",
-      "white-on-accent-blue", "white-on-banner-a",
+      "tertiary-on-card", "tertiary-on-header", "tertiary-on-panel", "white-on-accent-blue",
     ]);
     expect(failIds("light")).toEqual([
-      "banner-icon", "blue-bright-on-card", "blue-bright-on-card-hover", "blue-bright-on-inset",
-      "blue-bright-on-panel", "cyan-on-card", "danger-text-on-danger-dim", "decision-icon",
-      "dot-warn-on-panel", "label-on-banner-a", "label-on-banner-b", "sub-on-banner-a",
-      "sub-on-banner-b", "success-on-card", "success-on-success-dim", "tail-on-banner-a",
-      "tertiary-on-card", "tertiary-on-header", "tertiary-on-panel",
-      "white-on-banner-a", "white-on-banner-b", "white-on-banner-c",
+      "blue-bright-on-card", "blue-bright-on-card-hover", "blue-bright-on-inset",
+      "blue-bright-on-panel", "cyan-on-card", "danger-text-on-danger-dim",
+      "success-on-card", "success-on-success-dim", "tertiary-on-card",
+      "tertiary-on-header", "tertiary-on-panel",
     ]);
   });
 
