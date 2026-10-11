@@ -9,6 +9,7 @@ mod snapshots;
 mod reset_status;
 mod predictions;
 mod calibration_summary;
+mod shell;
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -77,6 +78,17 @@ async fn refresh_snapshots_in_background(app: &AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // RR43：退出闸门常驻——关窗只收起，彻底退出由托盘菜单置位后才真关（见 shell.rs）。
+        .manage(shell::ShellState::default())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let quitting = window.state::<shell::ShellState>().quitting();
+                if !quitting {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
             let handle = app.handle().clone();
             let config_dir = app.path().app_config_dir().ok();
@@ -102,6 +114,11 @@ pub fn run() {
                 }
             }
             app.manage(state);
+            // RR43：系统托盘常驻（关窗仅收起 / 展开 / 形态 / 迷你圆指标 / 彻底退出）。
+            // 托盘不可用时只写 stderr 不阻断——降级不静默，悬浮窗本体仍可用。
+            if let Err(error) = shell::build_tray(app.handle()) {
+                eprintln!("[reset-radar] tray unavailable: {error}");
+            }
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(BACKGROUND_FIRST_REFRESH_DELAY).await;
                 loop {
@@ -111,7 +128,10 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_snapshots, refresh_snapshots, read_prediction_log, append_prediction_log, read_calibration_summary])
+        .invoke_handler(tauri::generate_handler![
+            get_snapshots, refresh_snapshots, read_prediction_log, append_prediction_log, read_calibration_summary,
+            shell::shell_geometry, shell::shell_set_bounds, shell::shell_set_visible, shell::shell_is_visible, shell::shell_quit
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

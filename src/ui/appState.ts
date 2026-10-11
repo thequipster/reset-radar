@@ -2,6 +2,12 @@
 // 不触发业务重算（02-spec §5）。hover/focus/click/Escape 全部走纯函数 nextDisplayState，
 // 定时器壳在组件层；时序常量集中此处，域测试锁定。
 export type DisplayState = "collapsed" | "peek" | "expanded";
+
+/** 收起态的两种形态（RR43）：orb=迷你圆（新，默认）；bar=悬浮条胶囊（RR09 既有，保留）。 */
+export type RestForm = "orb" | "bar";
+
+/** 默认收起形态 = 迷你圆（用户点单：展开态收起后缩成圆）。悬浮条仍是可选形态，不删除。 */
+export const DEFAULT_REST_FORM: RestForm = "orb";
 export type DisplayEvent =
   | "pointer-enter" // 指针进入悬浮条（350ms 后由组件层发 open-peek）
   | "peek-open" // 悬停计时到点（条→预览）
@@ -11,11 +17,20 @@ export type DisplayEvent =
   | "blur" // 焦点离开组件（预览收回）
   | "activate" // 点击/Enter/Space 展开钮 → 锁定展开
   | "collapse" // 收起按钮 / Escape（展开→收起）
-  | "escape-peek"; // 预览态 Escape（预览→收起）
+  | "escape-peek" // 预览态 Escape（预览→收起）
+  | "auto-collapse"; // RR43：展开态失焦/闲置到点 → 收起（落到 restForm 指定的形态）
 
 /** 悬停展开/收回时序（02-spec §5：350ms 出现、200ms 收回）。 */
 export const PEEK_OPEN_DELAY_MS = 350;
 export const PEEK_CLOSE_DELAY_MS = 200;
+
+/** RR43 自动缩圆时序：失焦宽限（点在面板内会有瞬时失焦，给一点缓冲）与空闲时长。 */
+export const AUTO_COLLAPSE_BLUR_DELAY_MS = 600;
+export const AUTO_COLLAPSE_IDLE_MS = 45_000;
+
+/** RR43 贴边时序：鼠标离开后重新收回去的延迟；弹回滑入动画时长（reduced-motion 下由 CSS 兜底）。 */
+export const DOCK_REDOCK_DELAY_MS = 700;
+export const DOCK_POP_DURATION_MS = 140;
 
 /** hash 段集合：#expanded&demo=stale → ["expanded","demo=stale"]（组合入口，RR27 截图用）。 */
 export function hashSegments(hash: string): string[] {
@@ -47,6 +62,7 @@ export function nextDisplayState(state: DisplayState, event: DisplayEvent): Disp
     case "activate":
       return "expanded";
     case "collapse":
+    case "auto-collapse": // RR43：与显式收起同终点，差别只在组件层是否把焦点交回入口
       return "collapsed";
   }
 }
@@ -56,4 +72,18 @@ export function escapeEvent(state: DisplayState): DisplayEvent | null {
   if (state === "expanded") return "collapse";
   if (state === "peek") return "escape-peek";
   return null;
+}
+
+/** hash → 收起形态（form=orb|bar 段，缺省迷你圆）。可与 #expanded 组合：#expanded&form=bar。 */
+export function initialRestForm(hash: string): RestForm {
+  for (const segment of hashSegments(hash)) {
+    if (segment === "form=bar") return "bar";
+    if (segment === "form=orb") return "orb";
+  }
+  return DEFAULT_REST_FORM;
+}
+
+/** 只有展开态响应“失焦/闲置自动缩圆”（RR43）：收起态与预览态本来就是小的，不动。 */
+export function shouldAutoCollapse(state: DisplayState): boolean {
+  return state === "expanded";
 }

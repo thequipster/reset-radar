@@ -1,29 +1,48 @@
-// 应用根（RR09 → RR27 三态重构）：collapsed / peek / expanded 展示分层 + 主题记忆 +
-// 数据生命周期接线。UI 层零业务规则（ARCHITECTURE §2）——数字与建议一律产自
-// adapters 视图模型；hover/focus/click 只改展示状态，不触发业务重算（02-spec §5）。
+// 应用根（RR09 → RR27 三态重构 → RR43 悬浮外壳：托盘常驻 + 迷你圆 + 贴边停靠）。
+// collapsed / peek / expanded 展示分层 + 主题记忆 + 数据生命周期接线。
+// UI 层零业务规则（ARCHITECTURE §2）——数字与建议一律产自 adapters 视图模型；
+// hover/focus/click 只改展示状态，不触发业务重算（02-spec §5）。
 // RR14 hash 入口延续：#expanded / #peek 起始态；#demo=<场景> 注入演示快照（带演示标识）。
+// RR43 追加：#form=orb|bar 指定收起形态（默认迷你圆），偏好存 localStorage（本地优先）。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildDashboard } from "./ui/adapters";
 import {
-  PEEK_CLOSE_DELAY_MS, PEEK_OPEN_DELAY_MS, escapeEvent, initialDisplayState, nextDisplayState,
-  type DisplayEvent, type DisplayState,
+  AUTO_COLLAPSE_BLUR_DELAY_MS, AUTO_COLLAPSE_IDLE_MS, DOCK_REDOCK_DELAY_MS, PEEK_CLOSE_DELAY_MS,
+  PEEK_OPEN_DELAY_MS, escapeEvent, hashSegments, initialDisplayState, initialRestForm,
+  nextDisplayState, shouldAutoCollapse, type DisplayEvent, type DisplayState, type RestForm,
 } from "./ui/appState";
 import CompactBar from "./ui/CompactBar";
 import PeekCard from "./ui/PeekCard";
 import DashboardPanel from "./ui/DashboardPanel";
+import Orb from "./ui/Orb";
+import {
+  DOCK_SNAP_DISTANCE, dockedPosition, nearestDockEdge, poppedPosition, type DockEdge, type Rect,
+} from "./ui/dockGeometry";
+import { nextOrbMetric, type OrbMetric } from "./ui/orbMetric";
 import { RESET_HISTORY_ANNOUNCED_AT, RESET_HISTORY_SOURCE } from "./ui/history";
 import { usePredictionLog } from "./ui/usePredictionLog";
 import { useSnapshots } from "./ui/useSnapshots";
 import { useCalibrationSummary } from "./ui/useCalibrationSummary";
-import { applyWidgetSize, closeWidget } from "./ui/widgetWindow";
+import { ORB_SIZE, applyWidgetSize, closeWidget, targetWidgetSize } from "./ui/widgetWindow";
+import {
+  onShellAction, onShellFocusChanged, readShellPrefs, shellGeometry, shellIsVisible, shellQuit,
+  shellSetBounds, shellSetVisible, writeShellPrefs, type ShellPrefs,
+} from "./ui/shellBridge";
 import {
   initialThemeOverride, readThemePreference, resolveTheme, writeThemePreference, type ThemePreference,
 } from "./ui/theme";
 import { demoScenarioSnapshot, parseDemoScenario } from "./ui/demoScenarios";
 import "./ui/widget.css";
 
+/** 拖拽/贴边共用的窗口尺寸（迷你圆形态下窗口恒为 72×72）。 */
+const ORB_BOX = { width: ORB_SIZE.width, height: ORB_SIZE.height };
+
 export default function App() {
   const [display, setDisplay] = useState<DisplayState>(() => initialDisplayState(window.location.hash));
+  const [form, setForm] = useState<RestForm>(() => initialRestForm(window.location.hash));
+  const [metric, setMetric] = useState<OrbMetric>(() => readShellPrefs(window.localStorage).metric);
+  const [dockEdge, setDockEdge] = useState<DockEdge | null>(null);
+  const [popped, setPopped] = useState(false);
   const [themePref, setThemePref] = useState<ThemePreference>(() => readThemePreference(window.localStorage));
   const [systemDark, setSystemDarkBase] = useState(
     () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true,
@@ -34,6 +53,25 @@ export default function App() {
   const { snapshots, live, phase, readError, subscriptionError, refreshing, refresh } = useSnapshots();
   const calibration = useCalibrationSummary();
   const expandButtonRef = useRef<HTMLButtonElement | null>(null);
+  const orbRef = useRef<HTMLButtonElement | null>(null);
+
+  // 外壳状态的最新值镜像：异步回调（拖拽/贴边/托盘）里避免闭包读到旧值。
+  const formRef = useRef(form);
+  const displayRef = useRef(display);
+  const dockEdgeRef = useRef<DockEdge | null>(dockEdge);
+  const poppedRef = useRef(popped);
+  const boundsRef = useRef<{ x: number; y: number } | null>(null);
+  const monitorRef = useRef<Rect | null>(null);
+  const dragOrigin = useRef<{ x: number; y: number } | null>(null);
+  const hasFormSegment = useMemo(
+    () => hashSegments(window.location.hash).some((segment) => segment.startsWith("form=")),
+    [],
+  );
+
+  formRef.current = form;
+  displayRef.current = display;
+  dockEdgeRef.current = dockEdge;
+  poppedRef.current = popped;
 
   const scenario = useMemo(() => parseDemoScenario(window.location.hash), []);
   const demo = !live || scenario != null;
@@ -53,10 +91,56 @@ export default function App() {
     writeThemePreference(window.localStorage, pref);
   }, []);
 
-  // 窗口尺寸跟展示态走（浏览器降级 no-op，失败不阻塞渲染）。
+  /** 把「形态 + 展示态 + 贴边状态」折算成实际窗口坐标并落屏（浏览器降级 no-op）。 */
+  const applyGeometry = useCallback(async (): Promise<void> => {
+    const geo = await shellGeometry();
+    if (geo == null) return;
+    monitorRef.current = geo.monitor;
+    const size = targetWidgetSize(displayRef.current, formRef.current);
+    await applyWidgetSize(displayRef.current, formRef.current);
+    const edge = dockEdgeRef.current;
+    let position = { x: geo.x, y: geo.y };
+    if (edge != null) {
+      position = poppedRef.current
+        ? poppedPosition(edge, geo.monitor, size, position)
+        : dockedPosition(edge, geo.monitor, size, position);
+    }
+    boundsRef.current = position;
+    await shellSetBounds(position.x, position.y, size.width, size.height);
+  }, []);
+
+  // 启动：恢复偏好（形态/指标/贴边/位置）→ 上屏。hash 显式指定 form 时不覆盖它。
   useEffect(() => {
-    applyWidgetSize(display).catch(() => {});
-  }, [display]);
+    let cancelled = false;
+    const prefs: ShellPrefs = readShellPrefs(window.localStorage);
+    if (!hasFormSegment) setForm(prefs.form);
+    setMetric(prefs.metric);
+    setDockEdge(prefs.dockEdge);
+    formRef.current = hasFormSegment ? formRef.current : prefs.form;
+    dockEdgeRef.current = prefs.dockEdge;
+    void (async () => {
+      const geo = await shellGeometry();
+      if (cancelled || geo == null) return;
+      monitorRef.current = geo.monitor;
+      const size = targetWidgetSize(displayRef.current, formRef.current);
+      if (prefs.dockEdge != null) {
+        const docked = dockedPosition(prefs.dockEdge, geo.monitor, size, { x: geo.x, y: geo.y });
+        boundsRef.current = docked;
+        await shellSetBounds(docked.x, docked.y, size.width, size.height);
+      } else if (prefs.x != null && prefs.y != null) {
+        boundsRef.current = { x: prefs.x, y: prefs.y };
+        await shellSetBounds(prefs.x, prefs.y, size.width, size.height);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasFormSegment]);
+
+  // 窗口尺寸跟展示态走；形态/贴边变化时重算坐标（贴边位随窗口大小变）。
+  useEffect(() => {
+    void applyGeometry().catch(() => {});
+  }, [display, form, dockEdge, popped, applyGeometry]);
 
   // 展示态转移 + Escape（展开→收起、预览→收起；焦点回到展开入口，02-spec §5）。
   const openTimer = useRef<number | null>(null);
@@ -72,12 +156,15 @@ export default function App() {
   }, []);
   const activate = useCallback(() => {
     clearTimers();
+    setPopped(true); // 展开面板必须完整可见，贴边圆先弹回来
     dispatch("activate");
   }, [clearTimers, dispatch]);
   const collapse = useCallback(() => {
     clearTimers();
     dispatch("collapse");
-    expandButtonRef.current?.focus();
+    setPopped(false); // 收起后回到贴边位（未贴边时此值无副作用）
+    if (formRef.current === "orb") orbRef.current?.focus();
+    else expandButtonRef.current?.focus();
   }, [clearTimers, dispatch]);
   useEffect(() => clearTimers, [clearTimers]);
 
@@ -88,11 +175,53 @@ export default function App() {
       if (transition == null) return;
       clearTimers();
       setDisplay(nextDisplayState(display, transition));
-      expandButtonRef.current?.focus();
+      setPopped(false);
+      if (formRef.current === "orb") orbRef.current?.focus();
+      else expandButtonRef.current?.focus();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [clearTimers, display]);
+
+  // RR43 自动缩圆：展开态失焦（600ms 宽限）或闲置到点 → 收起成圆。
+  useEffect(() => {
+    if (!shouldAutoCollapse(display)) return;
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    let blurTimer: number | null = null;
+    let idleTimer: number | null = window.setTimeout(() => dispatch("auto-collapse"), AUTO_COLLAPSE_IDLE_MS);
+    const resetIdle = (): void => {
+      if (idleTimer != null) window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(() => dispatch("auto-collapse"), AUTO_COLLAPSE_IDLE_MS);
+    };
+    void onShellFocusChanged((focused) => {
+      if (focused) {
+        if (blurTimer != null) window.clearTimeout(blurTimer);
+        blurTimer = null;
+        resetIdle();
+        return;
+      }
+      blurTimer = window.setTimeout(() => dispatch("auto-collapse"), AUTO_COLLAPSE_BLUR_DELAY_MS);
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlisten = fn;
+    });
+    // 面板内的任何操作都算“在用”，重置闲置计时。
+    const activity = ["pointerdown", "pointermove", "keydown", "wheel"] as const;
+    for (const name of activity) window.addEventListener(name, resetIdle);
+    return () => {
+      cancelled = true;
+      unlisten?.();
+      if (idleTimer != null) window.clearTimeout(idleTimer);
+      if (blurTimer != null) window.clearTimeout(blurTimer);
+      for (const name of activity) window.removeEventListener(name, resetIdle);
+    };
+  }, [dispatch, display]);
+
+  // 自动缩圆落地后：贴边状态复位（回到贴边半圆），未贴边时此值无副作用。
+  useEffect(() => {
+    if (display === "collapsed") setPopped(false);
+  }, [display]);
 
   // 悬停预览时序（02-spec §5）：进条 350ms 开预览；离整个区域 200ms 收，移回取消。
   const onPointerEnterBar = () => {
@@ -106,6 +235,110 @@ export default function App() {
     closeTimer.current = window.setTimeout(() => dispatch("peek-close"), PEEK_CLOSE_DELAY_MS);
   };
   const onPointerEnterPeek = clearTimers; // 移入预览区：取消收回计时，不闪退
+
+  // —— 迷你圆：拖拽 / 贴边 / 换指标 ——
+  const redockTimer = useRef<number | null>(null);
+  const onOrbDragMove = useCallback((dx: number, dy: number) => {
+    if (dragOrigin.current == null) dragOrigin.current = boundsRef.current;
+    const origin = dragOrigin.current;
+    if (origin == null) return;
+    void shellSetBounds(origin.x + dx, origin.y + dy, ORB_BOX.width, ORB_BOX.height).catch(() => {});
+  }, []);
+  const onOrbDragEnd = useCallback((dx: number, dy: number, moved: boolean) => {
+    const origin = dragOrigin.current ?? boundsRef.current;
+    dragOrigin.current = null;
+    if (!moved || origin == null) return;
+    const dropped = { x: origin.x + dx, y: origin.y + dy };
+    void (async () => {
+      const geo = await shellGeometry();
+      if (geo == null) return;
+      const edge = nearestDockEdge(
+        { ...dropped, width: ORB_BOX.width, height: ORB_BOX.height },
+        geo.monitor,
+        DOCK_SNAP_DISTANCE,
+      );
+      const target = edge == null
+        ? dropped
+        : dockedPosition(edge, geo.monitor, ORB_BOX, dropped);
+      boundsRef.current = target;
+      setDockEdge(edge);
+      setPopped(false);
+      writeShellPrefs(window.localStorage, { dockEdge: edge, x: dropped.x, y: dropped.y });
+      await shellSetBounds(target.x, target.y, ORB_BOX.width, ORB_BOX.height);
+    })();
+  }, []);
+  const onOrbEnter = useCallback(() => {
+    if (redockTimer.current != null) {
+      window.clearTimeout(redockTimer.current);
+      redockTimer.current = null;
+    }
+    if (dockEdgeRef.current != null && !poppedRef.current) setPopped(true);
+  }, []);
+  const onOrbLeave = useCallback(() => {
+    if (dockEdgeRef.current == null) return;
+    if (redockTimer.current != null) window.clearTimeout(redockTimer.current);
+    redockTimer.current = window.setTimeout(() => {
+      setPopped(false);
+      redockTimer.current = null;
+    }, DOCK_REDOCK_DELAY_MS);
+  }, []);
+  const onCycleMetric = useCallback(() => {
+    setMetric((current) => {
+      const next = nextOrbMetric(current);
+      writeShellPrefs(window.localStorage, { metric: next });
+      return next;
+    });
+  }, []);
+
+  // —— 托盘菜单动作（Rust shell.rs 发出；关窗只收起，彻底退出唯一入口在托盘）——
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    void onShellAction((action) => {
+      if (action === "quit") {
+        void shellQuit();
+        return;
+      }
+      if (action === "toggle") {
+        void (async () => {
+          const visible = await shellIsVisible();
+          await shellSetVisible(visible === false);
+        })();
+        return;
+      }
+      if (action === "expand") {
+        void (async () => {
+          await shellSetVisible(true);
+          activate();
+        })();
+        return;
+      }
+      if (action.startsWith("form:")) {
+        const next = action.slice("form:".length) as RestForm;
+        setForm(next);
+        writeShellPrefs(window.localStorage, { form: next });
+        if (next === "bar") {
+          // 悬浮条不做贴边（460 宽的条贴边会挡住内容），回到自由摆放。
+          setDockEdge(null);
+          setDisplay((current) => (current === "peek" ? "collapsed" : current));
+          writeShellPrefs(window.localStorage, { dockEdge: null });
+        }
+        return;
+      }
+      if (action.startsWith("metric:")) {
+        const next = action.slice("metric:".length) as OrbMetric;
+        setMetric(next);
+        writeShellPrefs(window.localStorage, { metric: next });
+      }
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlisten = fn;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [activate]);
 
   // 演示场景注入（02-spec §6 末行）：仅替换显示快照并带演示标识，不触数据夹具；
   // empty/loading 场景本身无快照——以空数组和 phase 覆盖表达（不是“无覆盖”）。
@@ -129,6 +362,9 @@ export default function App() {
   return (
     <main
       data-prediction-log-state={predictionLog.status}
+      data-shell-form={form}
+      data-shell-dock={dockEdge ?? "free"}
+      data-shell-popped={popped ? "true" : "false"}
       style={{
         height: "100vh",
         overflow: "hidden",
@@ -138,7 +374,7 @@ export default function App() {
         background: "transparent",
       }}
     >
-      {display !== "expanded" && (
+      {display !== "expanded" && form === "bar" && (
         <div
           onPointerEnter={display === "collapsed" ? onPointerEnterBar : undefined}
           onPointerLeave={display === "collapsed" ? onPointerLeaveWidget : undefined}
@@ -146,7 +382,22 @@ export default function App() {
           <CompactBar vm={vm} phase={effectivePhase} demo={demo} onExpand={activate} expandRef={expandButtonRef} />
         </div>
       )}
-      {display === "peek" && (
+      {display !== "expanded" && form === "orb" && (
+        <Orb
+          vm={vm}
+          metric={metric}
+          dockEdge={dockEdge}
+          popped={popped}
+          orbRef={orbRef}
+          onExpand={activate}
+          onCycleMetric={onCycleMetric}
+          onDragMove={onOrbDragMove}
+          onDragEnd={onOrbDragEnd}
+          onPointerEnter={onOrbEnter}
+          onPointerLeave={onOrbLeave}
+        />
+      )}
+      {display === "peek" && form === "bar" && (
         <div onPointerEnter={onPointerEnterPeek} onPointerLeave={onPointerLeaveWidget} className="rr-fade-in">
           <PeekCard vm={vm} phase={effectivePhase} demo={demo} onOpen={activate} />
         </div>
