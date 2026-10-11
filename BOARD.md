@@ -14,11 +14,14 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（RR40/RR41 🟠可领——REVIEW 第 5 轮已闭环产物批落库；RR30 依赖用户 CI 首跑）**
-（REVIEW 第 5 轮已闭环（S1011-2000）：报告 docs/review-20261011-round5.md——七门全绿
-〔vitest 269/269/tsc/build/cargo/node 38/38/check-release 13/校准 fresh n=0 如实〕+识图
-3 图 1 PASS 2 FAIL：RR37 深色胶囊门面图确认修复到位；RR38「·」行首顶格换形态残留→立
-RR40；README:110 状态行过时→立 RR41；不立卡 5 条附理由。下一班建议 RR40 → RR41。）
+**当前阶段：REVIEW 第 6 轮已闭环（S1011-2040）零新卡——用户门控期维持（D031）：RR30 等 CI 首跑、v0.3 等点单；下一班无🟠无🟡则 REVIEW 第 7 轮照 §9.1 全量执行**
+（REVIEW 第 6 轮已闭环（S1011-2040）：报告 docs/review-20261011-round6.md——七门全绿
+〔vitest 272/272〔刷新后复跑同〕/tsc/build/cargo/node 38/38/check-release 13/校准 fresh n=0
+如实〕+识图 2 图双 PASS：RR40 双主题图修复确认到位（无「·」/断点干净/时间段整段/无回归）
++RR41 README:110 实读确认；差距 10 条零悬空零新卡（环心灰调沿 D031 点单池/横幅「·」
+设计内保留+防御注记/8px 缩进=预期渲染/下半留白审美/v0.3 D031 留点单/n=0 运行时积累/
+空壳句柄延续观察/RR30 既有🟣）。产物批落库 main（round6 报告+刷新数据三件+artifact
+八件+done+收编 RR40/41 未跟踪 done/patch 四件）。）
 （REVIEW 第 4 轮已闭环（S1011-1910）：报告 docs/review-20261011-round4.md——七门全绿+识图
 4 图 3 PASS 1 FAIL（深色胶囊门面图 IHDR 460×76 半分辨率坏档），立卡 RR37/RR38/RR39，不立卡
 4 条附理由；D031 登记用户门控期。下一班建议：RR37 → RR38 → RR39（RR37/RR39 同域 docs+发布
@@ -33,6 +36,27 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 - MERGE：×1（主仓合入互斥，同一时刻只有一人写主仓代码）
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
+
+### [2026-10-11 21:00:00] RR12第6轮REVIEW | 🧱🟢本轮闭环（锚卡转回🟠待领，永不🟢） | review | S1011-2040
+- base main 354ce7d 七门全绿（tsc✅ vitest 272/272 0failed✅〔数据刷新后复跑同〕vite build✅ cargo check --tests✅ node 38/38✅ check-release 13链接✅ 校准 fresh n=0 如实✅）；artifact 八件 task_logs/RR12r6_artifacts/；识图独立复核 RR40 双图 920×1380 全 PASS（修复确认到位）+RR41 README:110 实读确认；差距 10 条零悬空**本轮零新卡**（不立卡理由见报告；v0.3 沿 D031 用户门控期留点单）。产物批落库（round6 报告+刷新数据三件+artifact+done+收编 RR40/41 未跟踪档四件）。→无🟠无🟡，下一班 REVIEW 第 7 轮照 §9.1 全量执行；RR30 仍等用户 CI 首跑。MERGE 释放，本会话收工。
+
+### [2026-10-11 20:43:00] RR41 | P3 | 🔧🟢已闭环 | docs | S1011-2030 MERGE
+- 454710a→main 354ce7d 树恒等✅（README.md 单路径 diff 0字节）；预审四过（探活 454710a/diffstat 1文件+1/−1 对账/patch 在位 1.3KB/交集空——main 工作树仅看板协调文件）；主仓复验 tsc✅ vitest 全量272/272 0failed✅ check-release 13链接✅ test:node 38/38✅（Rust 不适用：未触 src-tauri/，树恒等已证）；junction 先拆 worktree 移除无残留、branch 归档（archive/RR41-merged-354ce7d）。→无🟠无🟡（RR30 仍等用户 CI 首跑），阶段切 REVIEW 第 6 轮（取材提示：v0.3 留点单 D031 用户门控期；RR40 双主题新截图 docs/screenshots/20261011-rr40-* 可入识图复核）。MERGE 释放，本会话收工。
+
+### [2026-10-11 20:37:00] RR41 | P3 | 🔧🟡待合入（已闭环，见上行） | docs | S1011-2030 交付
+- 454710a（base main 918caf8，1文件+1/−1，patch 对 main 干净适用✅1.3KB）：①README:110 状态行「RR01–RR35 …REVIEW 已 3 轮」→「RR01–RR40 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 已 5 轮」（区间沿 RR36 先例排除本卡自身；5 轮=review 报告五份实数）；②版本叙述 0.1.0 全文 5 处不动（§6 版本戳只许发布卡变）。门禁：tsc✅/全量272/272 0failed✅（=基线）/**变异红验真做**（状态行 RUNBOOK 链接改坏 RUNBOOKX→门红 exit1 两项「链接不可达」→git checkout 复原无残留→复绿 13 链接 exit0）/test:node 38/38✅；Rust 不适用（未触 src-tauri/，diffstat 单路径自证）。详见 task_logs/RR41_done.md。本会话时间盒余量充足，续占 MERGE 槽自合入（预审开始：探活/diffstat 对账/patch 在位/交集核）。
+
+### [2026-10-11 20:33:00] RR41 | P3 | 🔧🟠在飞→已被顶部 20:37 🟡交付条目吸收 | docs | S1011-2030
+- base main 918caf8；README:110 状态行刷新为执行时实况：「RR01–RR35 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 已 3 轮」→「RR01–RR40 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 已 5 轮」（区间沿 RR36 先例写到最新已闭环卡号、排除本卡自身；5 轮=docs/review-20261011{,-round2..round5}.md 实数）；版本叙述 0.1.0 两处不动（RUNBOOK §6 版本戳只许发布卡变）；门禁 tsc/全量 0 新增 failed/check-release 13 链接/变异红验沿 RR36/RR39 口径真做（状态行链接改坏→门红 exit1→复原复绿）；docs 级零代码变更 Rust 不适用。建 worktree agent/RR41。
+
+### [2026-10-11 20:28:00] RR40 | P3 | 🔧🟢已闭环 | ui | S1011-2010 MERGE
+- f0f44f0→main 918caf8 树恒等✅（5路径含2二进制截图 diff 0字节）；预审四过（探活 f0f44f0/diffstat 5文件+36/−10 对账/patch 在位 310KB/交集空——main 工作树仅看板协调文件）；主仓复验 tsc✅ vitest 全量272/272 0failed✅ check-release 13链接✅（Rust 不适用：未触 src-tauri/，树恒等已证）；双 junction 先拆 worktree 移除无残留（RR13/RR21/RR26 为既有遗留非本卡）、branch 归档（archive/RR40-merged-918caf8）。→RR41 待领（下一班，docs：README:110 状态行刷新），RR30 仍等用户 CI 首跑。MERGE 释放，本会话收工。
+
+### [2026-10-11 20:24:00] RR40 | P3 | 🔧🟡待合入（已闭环，见上行） | ui | S1011-2010 交付
+- f0f44f0（base main 133c0a7，5文件+36/−10，patch 对 main 干净适用✅310KB）：①采集状态卡副文案去「·」改间距（nowrap 段缩回纯时间段，「成功」后空格留作干净断点）②`.noticeSub .timeNoWrap` padding-left 4px 作用域间距（quotaSub 不受影响）③RR38 锁测试口径升级 6 条（既不悬挂行尾也不顶格行首双向锁）。门禁：tsc✅/UI域115/115✅/全量272/272 0failed✅（基线269只升）/**变异红验两轮真做**（「·」放回段首→3红指向行首形态；CSS 作用域改坏→间距锁1红；复原复绿）；Rust 不适用（未触 src-tauri/）；release 双主题截图 920×1380（PMv2 192/IHDR 字节核验）识图子代理独立复核双图全 PASS（无「·」/行首间距+数字/北京时间整段/周额度卡+横幅箭头无回归）。详见 task_logs/RR40_done.md。本会话时间盒余量充足，续占 MERGE 槽自合入。
+
+### [2026-10-11 20:14:00] RR40 | P3 | 🔧🟠在飞→已被顶部 20:24 🟡交付条目吸收 | ui | S1011-2010
+- base main 133c0a7；「·」行首避头：候选修向①「·」与前文以不换行空格绑定（最近更新成功&nbsp;·）+ nowrap 段缩回纯时间段，或②去「·」改间距/等效分隔样式，落码时按渲染实证定夺；两主题同修；RR38 锁测试 ui.hanging-dot.test.ts 口径同步（锁「·」既不悬挂行尾也不顶格行首）；DashboardPanel.tsx:306「自然重置」无「·」不涉及；门禁四绿+release 双主题展开态截图识图复核。建 worktree agent/RR40。
 
 ### [2026-10-11 20:21:00] RR12第5轮REVIEW | 🧱🟢本轮闭环（锚卡转回🟠待领，永不🟢） | review | S1011-2000
 - base main 8b476a4 七门全绿（tsc✅ vitest 269/269 0failed✅ vite build✅ cargo check --tests✅ node 38/38✅ check-release 13链接✅ 校准管线 fresh 60 事件 n=0 如实✅；数据刷新后复跑 vitest 269/269+node 38/38 双绿）；artifact 八件 task_logs/RR12r5_artifacts/；识图独立复核 3 图：rr37-capsule-dark 920×152 PASS（RR37 修复确认到位）、rr38 双主题 920×1380 **FAIL×2**（「·」并入 timeNoWrap 段后断点前移→行首顶格，避头尾缺陷换形态）；差距 7 条零悬空：立 RR40（P3「·」行首避头）/RR41（P3 README:110 状态行刷新），不立卡 5 条附理由（环心偏淡 D031 点单池/下半留白审美/v0.3 留点单 D031/RR13+RR21 空壳句柄 rc=32 延续观察+RR26 有意保留/RR30 既有🟣）。产物批落库 main（round5 报告+两卡+脚本刷新数据三件+artifact+done+收编 RR37/38/39 未跟踪 done/patch 六件）。阶段切 WORK（建议 RR40→RR41）。
@@ -459,9 +483,9 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 
 ## 建议领取顺序
 
-1. RR40（🔧 ui P3：「·」行首避头——与「成功」绑定或去点改间距，锁测试口径同步，双主题截图识图）
-2. RR41（🔧 docs P3：README:110 状态行刷新为执行时实况，check-release 门）
-3. RR30（🎣 挖卡，依赖用户 CI 首跑，不可领）；v0.3 维持留点单见 D031 用户门控期
+1. 无🟠可领、无🟡待合 → REVIEW 第 7 轮（RUNBOOK §9.1 全量执行，D031 不减省 artifact 义务）
+2. RR30（🎣 挖卡，依赖用户 CI 首跑，不可领）；v0.3 维持留点单见 D031 用户门控期
+3. 用户动作解锁项：push 触发 CI 首跑（→RR30 可领）/ v0.3 三条点单（系统通知/配速联动开关/窗口布局记忆）/ 发布三步（push/tag/release 永远留用户）
 
 
 

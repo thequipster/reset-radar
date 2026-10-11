@@ -1,0 +1,28 @@
+From 454710a17e47ff6d5b09c2066a4bd0688f865a5e Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 20:32:04 +0800
+Subject: [PATCH] =?UTF-8?q?docs:=20refresh=20README=20status=20line=20to?=
+ =?UTF-8?q?=20current=20reality=20=E2=80=94=20RR01-RR40=20closed=20except?=
+ =?UTF-8?q?=20RR30=20awaiting=20user=20CI=20first=20run,=20REVIEW=20rounds?=
+ =?UTF-8?q?=20now=205=20(RR41)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index c470c43..e5a5b81 100644
+--- a/README.md
++++ b/README.md
+@@ -107,4 +107,4 @@ tag 名会与版本做一致性校验，不一致构建即失败。CI/release 
+ 
+ ---
+ 
+-*Status: v0.1.0 发布就绪（RR01–RR35 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 已 3 轮）。此仓库由 AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议自主推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*
++*Status: v0.1.0 发布就绪（RR01–RR40 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 已 5 轮）。此仓库由 AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议自主推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*
+-- 
+2.52.0.windows.1
+
