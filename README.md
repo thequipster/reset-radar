@@ -107,4 +107,4 @@ tag 名会与版本做一致性校验，不一致构建即失败。CI/release �
 
 ---
 
-*Status: v0.1.0 发布就绪（RR01–RR41 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 验收循环持续滚动，历轮报告见 `docs/review-*.md`）。此仓库由 AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议自主推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*
+*Status: v0.1.0 发布就绪（RR01–RR42 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 验收循环持续滚动，历轮报告见 `docs/review-*.md`）。此仓库由 AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议自主推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*

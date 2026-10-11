@@ -1,0 +1,29 @@
+From 25251d555c72d28e344f7db0386dd250a0f3cc26 Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 21:13:39 +0800
+Subject: [PATCH] =?UTF-8?q?docs:=20make=20README=20status=20line=20anti-st?=
+ =?UTF-8?q?ale=20per=20D032=20=E2=80=94=20closed-card=20range=20to=20RR01-?=
+ =?UTF-8?q?RR41=20(RR30=20still=20user-gated),=20hardcoded=20review-round?=
+ =?UTF-8?q?=20counter=20replaced=20by=20rolling=20pointer=20to=20docs/revi?=
+ =?UTF-8?q?ew-*.md=20inline=20code=20(RR42)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index e5a5b81..ada987d 100644
+--- a/README.md
++++ b/README.md
+@@ -107,4 +107,4 @@ tag 名会与版本做一致性校验，不一致构建即失败。CI/release 
+ 
+ ---
+ 
+-*Status: v0.1.0 发布就绪（RR01–RR40 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 已 5 轮）。此仓库由 AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议自主推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*
++*Status: v0.1.0 发布就绪（RR01–RR41 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 验收循环持续滚动，历轮报告见 `docs/review-*.md`）。此仓库由 AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议自主推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*
+-- 
+2.52.0.windows.1
+

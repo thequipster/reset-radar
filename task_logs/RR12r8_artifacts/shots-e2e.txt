@@ -1,0 +1,29 @@
+=== E2E dark 21:23:59 ===
+ProbePMv2: True
+CDP page: http://tauri.localhost/
+Nav base: http://tauri.localhost/
+HWND: 35390224  PID: 1560
+ThemePreset(dark): {"id":10,"result":{"result":{"type":"string","value":"dark"}}}
+Navigate: {"id":2,"result":{"frameId":"D2EE06899DD90F3665383267B99328D9","loaderId":"2023BA9022591CA354B916F25F4798D9","isDownload":false}}
+GetDpiForWindow: 192   (ÆÚÍû 192=PMv2 ÉúĞ§£¬B10 ĞŞ¸´ÔÚ)
+ClientRect(ÎïÀí): W=920 H=1380   (ÆÚÍû 2x Âß¼­ 460x560 ¡ú 920x1120)
+PrintWindow(3): True
+Saved: C:\Users\slsjz\Desktop\reset-radar\docs\screenshots\20261011-r8-expanded-dark.png  size=920x1380
+dark exit=0
+=== E2E light 21:24:04 ===
+ProbePMv2: True
+CDP page: http://tauri.localhost/
+Nav base: http://tauri.localhost/
+HWND: 21694838  PID: 6480
+ThemePreset(light): {"id":10,"result":{"result":{"type":"string","value":"light"}}}
+Navigate: {"id":2,"result":{"frameId":"8C7DAD1D402137CBA9C5F8FF47558A7E","loaderId":"C9FC7DC0D58FFCCEFBE3C9C9A6ABA38D","isDownload":false}}
+GetDpiForWindow: 192   (ÆÚÍû 192=PMv2 ÉúĞ§£¬B10 ĞŞ¸´ÔÚ)
+ClientRect(ÎïÀí): W=920 H=1380   (ÆÚÍû 2x Âß¼­ 460x560 ¡ú 920x1120)
+PrintWindow(3): True
+Saved: C:\Users\slsjz\Desktop\reset-radar\docs\screenshots\20261011-r8-expanded-light.png  size=920x1380
+light exit=0
+docs/screenshots/20261011-r8-expanded-dark.png: IHDR 152x100  pHYs 135ppm = DPI 3  (156013 bytes)
+docs/screenshots/20261011-r8-expanded-light.png: IHDR 152x100  pHYs 135ppm = DPI 3  (145160 bytes)
+docs/screenshots/20261011-r8-expanded-dark.png: IHDR 920x1380  pHYs 7559ppm = DPI 192  (156013 bytes)
+docs/screenshots/20261011-r8-expanded-light.png: IHDR 920x1380  pHYs 7559ppm = DPI 192  (145160 bytes)
+[errata] ä¸Šé¢é¦–æ¬¡ IHDR è§£æä¸¤è¡Œï¼ˆ152x100/DPI 3ï¼‰ä¸ºè§£æè„šæœ¬ byte æˆªæ–­ bug äº§ç‰©ï¼Œä½œåºŸï¼›ä¿®æ­£è§£æï¼ˆint æå‡ï¼‰è§ä¸Šæ–¹ 920x1380/DPI 192 ä¸¤è¡Œâ€”â€”æ¢é’ˆæœ¬èº«ï¼ˆSaved 920x1380ï¼‰è‡ªå§‹æ­£ç¡®ã€‚
