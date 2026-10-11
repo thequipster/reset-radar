@@ -236,7 +236,7 @@ function OverviewPage({
               <span className={styles.noticeSub}>
                 {collectError
                   ? (phase === "read-error" ? readError ?? "读取失败" : vm!.message ?? "额度来源返回错误")
-                  : `最近更新成功 · ${beijingShort(vm!.observedAt) ?? "—"} 北京时间`}
+                  : <>最近更新成功 · <span className={styles.timeNoWrap}>{beijingShort(vm!.observedAt) ?? "—"} 北京时间</span></>}
               </span>
             </span>
           </div>
@@ -303,7 +303,7 @@ function OverviewPage({
                 <span className={styles.quotaSub}>
                   {vm!.remainingPercent == null
                     ? "周窗缺失 · 暂无数据"
-                    : `自然重置 ${beijingShort(vm!.resetsAt) ?? "—"} 北京时间`}
+                    : <>自然重置 <span className={styles.timeNoWrap}>{beijingShort(vm!.resetsAt) ?? "—"} 北京时间</span></>}
                 </span>
               </span>
             </div>

@@ -15,6 +15,7 @@ export const CSS_ONLY_TOKENS: Record<string, string> = {
   "--purple-banner-c": "#4c1d95",
   "--suggestion-number": "#ffffff",
   "--banner-sub": "#f3e8ff", // RR34：副文案 token 化（原 rgba(196,181,253,.85) 2.14→4.56）
+  "--banner-tail": "rgba(255, 255, 255, 0.9)", // RR35：尾箭头 token 化（0.65→0.9 提视觉权重）
   "--decision-icon": "#facc15",
 };
 
@@ -27,6 +28,7 @@ export const CSS_ONLY_TOKENS_LIGHT: Record<string, string> = {
   "--purple-banner-c": "#4c1d95",
   "--suggestion-number": "#ffffff",
   "--banner-sub": "#f3e8ff",
+  "--banner-tail": "rgba(255, 255, 255, 0.9)",
   "--decision-icon": "#854d0e",
 };
 
@@ -87,7 +89,7 @@ export const CONTRAST_PAIRS: ContrastPair[] = [
   { id: "number-on-banner-c", fg: "--suggestion-number", bgStack: ["--purple-banner-c"], level: "large", source: "同上（渐变深端）" },
   { id: "sub-on-banner-a", fg: "--banner-sub", bgStack: ["--purple-banner-a"], level: "normal", source: "DP.suggestionSub(11px)", note: "RR32 识图遗产：浅色主题淡紫压浅紫重点核验面" },
   { id: "sub-on-banner-b", fg: "--banner-sub", bgStack: ["--purple-banner-b"], level: "normal", source: "同上（渐变中点）" },
-  { id: "tail-on-banner-a", fg: "rgba(255, 255, 255, 0.65)", bgStack: ["--purple-banner-a"], level: "normal", source: "DP.suggestionTail" },
+  { id: "tail-on-banner-a", fg: "--banner-tail", bgStack: ["--purple-banner-a"], level: "normal", source: "DP.suggestionTail(22px/700，RR35 提视觉权重)" },
   { id: "banner-icon", fg: "#ffffff", bgStack: ["rgba(255, 255, 255, 0.18)", "--purple-banner-a"], level: "graphic", source: "DP.suggestionIcon" },
   // ── 胶囊状态点（纯色圆点，图形可见性）──
   { id: "dot-success-on-panel", fg: "--success", bgStack: ["--bg-panel"], level: "graphic", source: "CB 状态圆点(success)" },

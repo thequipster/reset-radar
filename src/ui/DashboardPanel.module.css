@@ -188,6 +188,12 @@
   overflow-wrap: anywhere;
 }
 
+/* RR35：副文案「…北京时间」孤字换行——时间段整体不断行。采集状态卡（noticeSub）与
+   周额度剩余卡（quotaSub，识图复核顺带挖出的同类拆行）两处共用（两主题共用）。 */
+.timeNoWrap {
+  white-space: nowrap;
+}
+
 /* ── 区块标题 ──────────────────────────────────────────── */
 .sectionHead {
   display: flex;
@@ -372,7 +378,11 @@
 
 .suggestionTail {
   flex: 0 0 auto;
-  color: rgba(255, 255, 255, 0.65);
+  /* RR35：识图复核「箭头过小过淡」——与主数字同量级（22px/700）+ token 化提不透明度。 */
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--banner-tail);
 }
 
 .suggestionTailPlain {

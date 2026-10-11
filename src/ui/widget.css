@@ -42,6 +42,7 @@
   --purple-banner-c: #4c1d95;
   --suggestion-number: #ffffff;
   --banner-sub: #f3e8ff;
+  --banner-tail: rgba(255, 255, 255, 0.9); /* RR35：尾箭头 0.65→0.9 + 22px/700 提视觉权重 */
   --decision-icon: #facc15;
   /* RR32 品牌 logo token：深色用交付正稿「精密蓝」（icons-20261011/reset-radar-mark.svg）。 */
   --logo-ring-main: #46e4f4;
@@ -92,6 +93,7 @@
   --purple-banner-c: #4c1d95;
   --suggestion-number: #ffffff;
   --banner-sub: #f3e8ff;
+  --banner-tail: rgba(255, 255, 255, 0.9); /* RR35：与深色同值（RR34 起渐变两主题统一） */
   --decision-icon: #854d0e;
   /* RR32 浅色主题 logo 走 02-glass 配色（handoff：勿将亮色透明标放白底）。 */
   --logo-ring-main: #0277c8;
