@@ -1,11 +1,11 @@
 {
   "schema": "reset-radar/calibration@1",
-  "generatedAt": "2026-10-11T07:34:13.520Z",
+  "generatedAt": "2026-10-11T10:40:50.391Z",
   "state": "fresh",
   "historySource": {
     "state": "fresh",
-    "fetchedAt": "2026-10-11T07:34:13.520Z",
-    "asOf": "2026-10-11T07:34:13.520Z",
+    "fetchedAt": "2026-10-11T10:40:50.391Z",
+    "asOf": "2026-10-11T10:40:50.391Z",
     "ageDays": 0,
     "totalEvents": 60,
     "quotaResetEvents": 54,
@@ -16,7 +16,7 @@
     "legacy": 3,
     "invalid": 0,
     "late": 1,
-    "pending": 0,
+    "pending": 1,
     "outside-history": 0,
     "duplicate": 0
   },
@@ -53,7 +53,7 @@
   },
   "outcomes": [],
   "predictionSources": {
-    "read": 4,
+    "read": 5,
     "skipped": 0,
     "files": [
       {
@@ -66,7 +66,7 @@
         "path": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\predictions.jsonl",
         "label": "应用日志",
         "missing": false,
-        "rows": 3
+        "rows": 4
       }
     ]
   }

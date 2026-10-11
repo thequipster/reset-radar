@@ -14,9 +14,9 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：REVIEW 第 3 轮（S1011-1836 执行中；RR34 已合入 main ba7d0e8；RR30 依赖用户 CI 首跑）**
-（本班 REVIEW 产物（review-20261011-round3 + artifact + 新卡）落地后回 WORK。
-下一班建议：若 REVIEW 第 3 轮已闭环→按新立 🟠 卡顺序进 WORK；RR30 仍等用户 CI 首跑。
+**当前阶段：WORK（RR35/RR36 🟠可领；RR30 依赖用户 CI 首跑）**
+（REVIEW 第 3 轮已闭环（S1011-1836）：报告 docs/review-20261011-round3.md，立卡 RR35/RR36。
+下一班建议：按建议顺序领 RR35（ui 打磨）→ RR36（docs）；RR30 仍等用户 CI 首跑。
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -24,6 +24,9 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 - MERGE：×1（主仓合入互斥，同一时刻只有一人写主仓代码）
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
+
+### [2026-10-11 19:08:00] RR12第3轮REVIEW | 🧱🟢本轮闭环 | review | S1011-1836
+- 主仓 ba7d0e8 全绿：tsc✅ vitest 262/262 0failed✅ Node 38/38✅ vite build✅ cargo check --tests✅ check-release（版本同步+14链接）✅ 校准管线 fresh✅（artifact 六件 task_logs/RR12r3_artifacts/）；RR34 双主题截图派 Explore 识图子代理**独立复核**（非复用交付结论）：RR34 修复确认到位，挖出跨主题共性 2 处（横幅尾部箭头视觉权重弱+「北京时间」孤字换行→立 RR35）+README 状态行过时（→立 RR36）；不立卡 4 条附理由（环心数字=浅色语义色列用户点单池实证注脚/ROADMAP v0.3 留点单/RR13+RR21 空壳仍 busy/校准 n=0 运行时积累）；报告 docs/review-20261011-round3.md。阶段切 WORK。
 
 ### [2026-10-11 18:45:00] RR34 | P2 | 🔧🟢已闭环 | ui | S1011-1836 MERGE
 - 4b395cb→main ba7d0e8 树恒等✅（涉及10路径逐字节核对全 OK，树间差异仅看板协调文件）；预审四过（探活 4b395cb✅/diffstat 10文件+203/−77✅/patch 在位 345KB✅/交集空✅）；主仓复验 tsc✅ vitest 全量262/262 0failed✅（Rust 不适用：未触 src-tauri/，树恒等已证）；顺带删交付遗留 task_logs/RR34_wip.md（未跟踪，上班漏删）；双 junction 先拆 worktree 移除无残留、branch 归档（agent/RR34 保留）。MERGE 释放，本会话转 REVIEW 第 3 轮。

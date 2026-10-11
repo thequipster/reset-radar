@@ -1,13 +1,13 @@
 {
   "schema": "reset-radar/resets-history@1",
-  "fetchedAt": "2026-10-11T07:34:13.520Z",
+  "fetchedAt": "2026-10-11T10:40:50.391Z",
   "sources": {
     "resets": "https://codex-resets.com/api/v1/resets?limit=100&order=desc",
     "status": "https://codex-resets.com/api/v1/status"
   },
   "upstream": {
     "apiVersion": "v1",
-    "generatedAt": "2026-10-11T07:33:13.692Z",
+    "generatedAt": "2026-10-11T10:39:59.121Z",
     "pagination": {
       "has_more": false,
       "next_cursor": null
@@ -30,7 +30,7 @@
     "stats": {
       "total": 60,
       "last_reset_at": "2026-10-11T04:01:09.000Z",
-      "days_since_last": 0.1,
+      "days_since_last": 0.3,
       "avg_interval_days": 6.6
     }
   },
