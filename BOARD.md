@@ -14,13 +14,14 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（🟠可领 ×8：RR13 复验收尾 P1 优先、RR14–RR19；无 🟡）**
-（下一班建议：**优先领 RR13 续作收尾**（前置 RR20 已合入 main aadaed4；task_logs/
-RR13_wip.md 4 步指引：worktree 重建（npm run build + release --features
-tauri/custom-protocol）→shot-capsule.ps1 重截→识图复验无截断→四绿→done；其 worktree
-含 node_modules junction **拆前先 rmdir**；RR20 探针脚本 shot-rr20.ps1 可复用）。
-其后 RR14→RR15→RR18→RR19→RR16→RR17（RR13/RR14 同域串行，RR17 依赖 RR15）。
-取材详单：docs/review-20261011.md + RR20_done 注记（MSVC 发行路径 DPI 覆盖））
+**当前阶段：MERGE（RR13 🟡唯一待合；🟠可领 ×7：RR14–RR19 + RR12 锚卡）**
+（下一班建议：**先占 MERGE 槽合 RR13**（a994f73 单 commit / 4 文件 / patch 在位 /
+对 main 干净；**拆 worktree 前先 rmdir node_modules junction**，B09）→ 合完回 WORK
+领 **RR14**（展开态截图：复用 task_logs/RR20_artifacts/shot-rr20.ps1 探针——探针自设
+PMv2 才不会被 200% 缩放虚拟化，RR13 done 遗产④；hash 状态入口两条路径见 RR09_done）。
+其后 RR15→RR18→RR19→RR16→RR17（RR17 依赖 RR15）。
+取材详单：docs/review-20261011.md + RR20_done 注记（MSVC 发行路径 DPI 覆盖）+
+RR13_done 排障遗产①–③（换行生硬/卡×N 竖排/胶囊态滚动条））
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -28,6 +29,21 @@ tauri/custom-protocol）→shot-capsule.ps1 重截→识图复验无截断→四
 - MERGE：×1（主仓合入互斥，同一时刻只有一人写主仓代码）
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
+
+### [2026-10-11 10:15→10:19] RR13 | P1 | 🔧🟡待合入 | ui | 会话 S1011-0913 留证 → S1011-1013 续作交付
+- 分支/commit：agent/RR13 @ **a994f73**（单 commit；基于 main 91a3ddf 含 RR20；先变基
+  --onto 重放纯代码 commit 再并入新截图 amend；patch 备份 task_logs/RR13.patch）
+- 已落：tauri.conf.json width 460+minWidth 460（防拖窄回归）+ README 换无截断真图
+  （20261011-capsule-460.png 本轮重截）+ shot-capsule.ps1 截图脚本（RR14 复用素材）
+- 复验收尾实证（release 实跑，shot-rr20.ps1 探针）：**GetDpiForWindow 96病灶→192**、
+  物理客户区 **920×1120=2×(460×560)**；识图子代理 **PASS**——胶囊完整无右缘截断，
+  「重置风险 25.4%」「卡×3」完整，右端余量 35–40px（421px 自然宽+460 视口模型吻合），
+  真实数据 29% 端到端
+- 门禁：tsc✅ 域 ui **8/8**✅ 全量 **86/86 0failed**✅（=基线）变异红验不适用口径
+  （零 src 逻辑改动；行为级红证=420 截断→460 无 DPI 仍截断→460+DPI 完整，三轮截图演进）
+- worktree **保留给 MERGE 班拆**（含 node_modules junction，拆前先 cmd //c rmdir，B09）
+- 证据件：task_logs/RR13_done.md（真值出处=B10+D020+421px 实测；排障遗产①–③留
+  REVIEW 取材：换行生硬/卡×N 竖排/胶囊态滚动条）
 
 ### [2026-10-11 09:46→10:08] RR20 | P1 | 🔧🟢已闭环 | data-layer | 会话 S1011-0944 交付 → 同会话合入
 - 合入：agent/RR20 @ 8963fd3（单 commit）→ main **aadaed4**（cherry-pick，树恒等✅
