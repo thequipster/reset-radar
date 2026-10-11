@@ -1,0 +1,34 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR22
+
+ ❯ src/lib/__tests__/scheduledReset.core.test.ts (15 tests | 1 failed) 14ms
+   ❯ scheduled reset integration (15)
+     × 北京 23:00 的 regular 计划跨零点后仍允许零点当天作为计划前候选 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/scheduledReset.core.test.ts > scheduled reset integration > 北京 23:00 的 regular 计划跨零点后仍允许零点当天作为计划前候选
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/lib/__tests__/scheduledReset.core.test.ts:161:88
+    159|     expect(plan).not.toBeNull();
+    160|     expect(plan!.outlook.map((day) => day.localDate)).toEqual(["2026-1…
+    161|     expect(plan!.outlook.every((day) => day.expectedGainPercent <= 12 …
+       |                                                                                        ^
+    162|     expect(["2026-10-11", "2026-10-12"]).toContain(plan!.bestDayLocalD…
+    163|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed (15)
+   Start at  12:40:18
+   Duration  244ms (transform 45%, import 42%, tests 11%, worker 3%)
+

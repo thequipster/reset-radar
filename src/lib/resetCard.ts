@@ -17,6 +17,7 @@
 // 该模型自动将其折价。
 
 import { DEFAULT_WEEKDAY_HAZARDS, planRemainingQuota } from "./planner.ts";
+import { upcomingQuotaResetAt, type ScheduledReset } from "./scheduledReset.ts";
 
 export const RESET_CARD_POLICY_VERSION = "reset-card-p010-v1"; // rc:22
 /** 在「今天」之后向前评估多少个候选用卡日。rc:24 */
@@ -36,6 +37,7 @@ export type ResetCardDecision =
   | "no-credits"
   | "hold-until-depleted"
   | "hold-until-natural-reset"
+  | "hold-until-scheduled-reset"
   | "use-today"
   | "wait-for-best-day"; // rc:39-44
 
@@ -72,6 +74,7 @@ export interface ResetCardPlan {
   /** 给 UI 的机器键理由，最重要的在前。rc:77 */
   reasons: string[];
   outlook: ResetCardDayOutlook[];
+  planningResetAt?: string; // 有此值时收益为公告如期执行情景；碰撞概率仍为统计模型
 }
 
 export interface ResetCardPlannerInput {
@@ -90,6 +93,7 @@ export interface ResetCardPlannerInput {
   /** 校准后的未来 24h 强制重置风险 0-100（assessResetRisk().score 直传）。rc:98 */
   tomorrowRiskPercent: number | null;
   now?: Date;
+  scheduledReset?: ScheduledReset | null;
 }
 
 /** 历史日消耗样本（estimateDailyNeedPercent 入参契约，收窄自参考实现的上游宽类型）。 */
@@ -201,10 +205,12 @@ function evaluateUseDay(
   remainingAtUse: number,
   naturalResetAt: number,
   needPerDay: number,
+  truncateAtPlan = false,
 ): DayEvaluation {
   const refill = clamp(100 - remainingAtUse, 0, 100); // rc:208
   const useDay = beijingDayIndex(useAt);
-  const firstFraction = clamp((beijingDayStartMs(useDay + 1) - useAt) / DAY_MS, 0, 1);
+  const firstEnd = truncateAtPlan ? Math.min(beijingDayStartMs(useDay + 1), naturalResetAt) : beijingDayStartMs(useDay + 1);
+  const firstFraction = clamp((firstEnd - useAt) / DAY_MS, 0, 1);
   const capacityBy = (elapsedMs: number) => clamp(needPerDay * (elapsedMs / DAY_MS), 0, 100);
   // 相对「不用卡」的增量消耗：用卡时刻已有的余额本就可消耗，超出部分才算卡的增益。rc:211-214
   const consumed = (limitMs: number) => Math.min(Math.max(0, capacityBy(Math.max(0, limitMs - useAt)) - remainingAtUse), refill);
@@ -213,7 +219,7 @@ function evaluateUseDay(
   // 落点未知时的无偏中点，刻意不让「重置波当日用卡」显得更划算；自然重置按精确时刻定价。rc:216-220
   let expected = 0;
   let survival = survivalFraction(schedule.at(useDay), firstFraction);
-  expected += (1 - survivalFraction(schedule.at(useDay), firstFraction)) * consumed(beijingDayStartMs(useDay + 1));
+  expected += (1 - survivalFraction(schedule.at(useDay), firstFraction)) * consumed(firstEnd);
   const lastDay = beijingDayIndex(naturalResetAt);
   for (let day = useDay + 1; day <= lastDay && day - useDay < RESET_CARD_MAX_HORIZON_DAYS + 2; day += 1) {
     const dayStart = beijingDayStartMs(day);
@@ -247,11 +253,16 @@ export function planResetCard(input: ResetCardPlannerInput): ResetCardPlan | nul
   const credits = input.resetCredits == null ? 0 : Math.max(0, Math.trunc(input.resetCredits)); // rc:254
   const creditExpiryAt = input.creditExpiresAt == null || !Number.isFinite(Date.parse(input.creditExpiresAt)) ? null : Date.parse(input.creditExpiresAt); // rc:255
   const daysUntilNaturalReset = (naturalResetAt - nowMs) / DAY_MS;
+  const scheduledAt = upcomingQuotaResetAt(input.scheduledReset, now);
+  const planningResetAt = scheduledAt != null && scheduledAt < naturalResetAt ? scheduledAt : naturalResetAt;
+  const useAnnouncement = planningResetAt < naturalResetAt;
   const daysUntilCreditExpiry = creditExpiryAt == null ? null : Math.max(0, (creditExpiryAt - nowMs) / DAY_MS);
 
   // 候选日：今天 → 自然重置前最后一个整天（那之后补给免费，归下个周期），
   // 再被卡自身过期与评估视野夹住。rc:259-264
-  const naturalBound = Math.max(0, Math.ceil(daysUntilNaturalReset) - 1);
+  const naturalBound = useAnnouncement
+    ? Math.max(0, beijingDayIndex(planningResetAt - 1) - beijingDayIndex(nowMs)) // D004；精确边界前的所有北京候选日
+    : Math.max(0, Math.ceil(daysUntilNaturalReset) - 1); // 无公告保持旧golden
   const expiryBound = daysUntilCreditExpiry == null ? Number.POSITIVE_INFINITY : Math.floor(daysUntilCreditExpiry);
   const lastDay = Math.min(RESET_CARD_MAX_HORIZON_DAYS, naturalBound, expiryBound);
 
@@ -261,10 +272,11 @@ export function planResetCard(input: ResetCardPlannerInput): ResetCardPlan | nul
   const evaluations: DayEvaluation[] = [];
   for (let offset = 0; offset <= lastDay; offset += 1) {
     const useAt = offset === 0 ? nowMs : todayStart + offset * DAY_MS;
+    if (useAnnouncement && useAt >= planningResetAt) break; // 不假定公告后已免费回满，也不评估届时用卡
     const remainingAtUse = offset === 0
       ? remaining
       : clamp(remaining - needPerDay * todayRemainingFraction - needPerDay * (offset - 1), 0, 100); // rc:272-274
-    const evaluation = evaluateUseDay(schedule, useAt, offset, remainingAtUse, naturalResetAt, needPerDay);
+    const evaluation = evaluateUseDay(schedule, useAt, offset, remainingAtUse, planningResetAt, needPerDay, useAnnouncement);
     evaluations.push(evaluation);
     outlook.push({
       localDate: beijingCalendarDateKey(useAt),
@@ -284,6 +296,7 @@ export function planResetCard(input: ResetCardPlannerInput): ResetCardPlan | nul
     : 0;
 
   const reasons: string[] = [];
+  if (useAnnouncement) reasons.push("scheduled-reset-scenario");
   let decision: ResetCardDecision;
   if (credits <= 0) {
     decision = "no-credits"; // rc:296-298
@@ -293,8 +306,9 @@ export function planResetCard(input: ResetCardPlannerInput): ResetCardPlan | nul
     reasons.push("quota-plentiful");
     if (daysUntilWorthwhile > 0.5) reasons.push("wait-for-depletion");
   } else if (best.gain < RESET_CARD_MIN_USEFUL_GAIN_PERCENT) {
-    decision = "hold-until-natural-reset"; // rc:303-305 撑得到自然重置，无需烧卡
+    decision = useAnnouncement ? "hold-until-scheduled-reset" : "hold-until-natural-reset"; // D022 计划情景与自然周期分开
     reasons.push("gain-below-threshold");
+    if (useAnnouncement) reasons.push("wait-for-scheduled-reset-confirmation");
   } else if (best.dayOffset === 0 || today.gain >= best.gain * RESET_CARD_USE_TODAY_TOLERANCE) {
     decision = "use-today"; // rc:306-308
     reasons.push(today.reset24h >= 0.5 ? "today-high-collision-risk" : "today-optimal");
@@ -321,6 +335,7 @@ export function planResetCard(input: ResetCardPlannerInput): ResetCardPlan | nul
     dailyNeedPercent: round1(needPerDay),
     reasons,
     outlook,
+    ...(useAnnouncement ? { planningResetAt: input.scheduledReset!.scheduledFor } : {}),
   };
 }
 

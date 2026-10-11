@@ -9,17 +9,19 @@
 // tsc 侧由 tsconfig allowImportingTsExtensions 放行，noEmit 下合法）
 import type { RiskFactor } from "./risk.ts";
 import { beijingWeekday } from "./risk.ts";
+import { upcomingQuotaResetAt, type ScheduledReset } from "./scheduledReset.ts";
 // —— 以下两件为 RR06（resetCard 移植）一并引入的同源依赖，出处均为 dynamicQuota.ts ——
 // 星期强制重置风险先验（周一=0…周日=6；周二/周六为重置波 0.7）。出处 dq:6。
 export const DEFAULT_WEEKDAY_HAZARDS = [0.1, 0.7, 0.1, 0.1, 0.1, 0.7, 0.1] as const;
 
 export interface DailyUsagePlanInput {
   remaining: number; // 0-100：当前窗口剩余额度百分比
-  daysToReset: number; // 距自然重置的整天数（0=今日到期）
+  daysToReset: number; // 距自然重置天数（允许小数，内部截整；0=今日到期）
   risk: number; // 0-100：重置风险分（assessResetRisk().score 直传）
   kneePercent?: number; // 疲劳拐点 K，dq:7 默认 25
   isWeekend?: boolean; // 显式覆盖周末判定；缺省由 now 按北京时区推导
   now?: Date; // 周末推导基准时刻；缺省当前时刻（不影响除周末外的任何输出）
+  scheduledReset?: ScheduledReset | null;
 }
 
 export interface DailyUsagePlan {
@@ -29,6 +31,7 @@ export interface DailyUsagePlan {
   riskBoost: number; // 风险平方前拉量（dq:155）
   suggestedRemaining: number; // 建议执行后剩余（dq:160）
   factors: RiskFactor[]; // D006 可解释因子，各 delta 之和 = suggested
+  planningResetAt?: string; // 按公告计划准备的情景边界，不代表实际已重置
 }
 
 // —— 以下常量出处均为 dynamicQuota.ts ——
@@ -52,9 +55,14 @@ export function planDailyUsage(input: DailyUsagePlanInput): DailyUsagePlan {
   const remaining = clamp(finiteOr(input.remaining, 0), 0, 100); // dq:150
   const risk = clamp(finiteOr(input.risk, RISK_DEFAULT), 0, 100) / 100; // dq:151
   const knee = clamp(finiteOr(input.kneePercent, KNEE_DEFAULT), 0.1, 100); // dq:152
-  const daysLeft = Math.trunc(clamp(finiteOr(input.daysToReset, 0), 0, DAYS_CLAMP_MAX)); // dq:153
+  const now = input.now ?? new Date();
+  const scheduledAt = upcomingQuotaResetAt(input.scheduledReset, now);
+  const scheduledDays = scheduledAt == null ? null : (scheduledAt - now.getTime()) / 86_400_000; // ms→天
+  const useAnnouncement = scheduledDays != null && scheduledDays < finiteOr(input.daysToReset, 0);
+  const horizon = useAnnouncement ? scheduledDays! : finiteOr(input.daysToReset, 0);
+  const daysLeft = Math.trunc(clamp(horizon, 0, DAYS_CLAMP_MAX)); // dq:153；公告提前结束旧额度使用情景(D022)
   const isWeekend =
-    input.isWeekend ?? [0, 6].includes(beijingWeekday((input.now ?? new Date()).getTime())); // dq:156 语义，边界改用 D004
+    input.isWeekend ?? [0, 6].includes(beijingWeekday(now.getTime())); // dq:156 语义，边界改用 D004
 
   const uniformPace = remaining / (daysLeft + 1); // dq:154 含今天在内平摊
   const riskBoost = Math.max(0, remaining - uniformPace) * risk ** 2; // dq:155 风险平方前拉
@@ -87,6 +95,10 @@ export function planDailyUsage(input: DailyUsagePlanInput): DailyUsagePlan {
       : `软上限 ${round1(softCap)}%，未构成约束。`,
   });
 
+  if (useAnnouncement) factors.push({
+    id: "scheduled-horizon", label: "公告计划配速", delta: 0,
+    note: `按公告计划 ${input.scheduledReset!.scheduledFor} 前准备用量；软上限仍保留，计划可能变更。`,
+  });
   return {
     suggested: round1(suggestedRaw),
     cap: round1(Math.min(remaining, softCap)), // dq:163
@@ -94,6 +106,7 @@ export function planDailyUsage(input: DailyUsagePlanInput): DailyUsagePlan {
     riskBoost: round1(riskBoost),
     suggestedRemaining: round1(remaining - suggestedRaw), // dq:160
     factors,
+    ...(useAnnouncement ? { planningResetAt: input.scheduledReset!.scheduledFor } : {}),
   };
 }
 

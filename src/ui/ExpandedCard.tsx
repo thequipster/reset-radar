@@ -10,6 +10,7 @@ const DECISION_LABELS: Record<ResetCardDecision, string> = {
   "no-credits": "无可用重置卡",
   "hold-until-depleted": "额度尚多 · 暂缓用卡",
   "hold-until-natural-reset": "撑得到自然重置 · 不必烧卡",
+  "hold-until-scheduled-reset": "按公告计划暂缓用卡 · 待核实执行",
   "use-today": "建议今天用卡",
   "wait-for-best-day": "等待最佳用卡日",
 };

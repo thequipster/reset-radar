@@ -203,3 +203,17 @@
 - 依据：用户原始倾向（"之前那个悬浮窗也不错"）；证据铁律（TRUTH §1 登记源，配置逐字段
   回源核实过）；ARCHITECTURE §2 分层（窗口铬属 Tauri 配置域，业务层零改动）；体验-成本
   比（Tauri 原生能力，无新依赖）。
+
+## D022 RR22 公告优先用于规划，不伪造概率；精确边界与证据分离（2026-10-11，S1011-design4）
+- 依据：已批准02-spec的公告/模型分列及到期待核实语义；TRUTH B07公开/status；本轮原文task_logs/RR22_artifacts/status-live.json。
+- 当前接口2026-10-11T04:33:44Z返回latest_reset时间04:01:09Z，scheduled_reset/active_watch均null；历史卡面的15:00计划不能当当前实况。静态测试公告是注入场景，不修改真实夹具。
+- 取消RR22旧卡面“确定性覆盖概率”的推断：第三方计划没有校准可靠性，不能伪造成100%。risk保留统计score，独立返回scheduledReset状态并加delta=0说明；未来有效regular计划优先截短daily与card使用horizon。既有watch25%权重保持单一实现，不新增重复因子。
+- 同日2h公告把均匀配速提高到剩余全部份额，但保留原软上限与追加口径；零业务IO。到时/过时只标awaiting-confirmation，不继续清仓、不自动当免费回满、不给公告之后的用卡候选。自然重置时间与统计24h/48h碰撞仍保留原义。
+- 卡收益按“公告如期执行”情景计算，planningResetAt明确标记；低收益新增hold-until-scheduled-reset，避免错误称为自然重置。精确计划时刻截断第一日概率质量/消耗，候选日按北京零点边界筛选；无公告分支保持原golden逐字段一致。
+- regular=立即额度重置；banked=需手动兑换的卡，不能猜成自动回满，其他未知类型仅展示。事实出处：https://codex-resets.com/ 首页banked解释；来源时效/采集失败交RR23处理，RR22不自设TTL常数。
+- RR23适配契约：ScheduledReset{id,status,resetType,announcedAt,scheduledFor,text,source}（camelCase），status仅scheduled参与；取消/非法/尚未发布不采用。未来公告是planned，到精确时刻即awaiting-confirmation；输入now必须显式来自对应数据时间，避免旧额度观测时刻使公告倒计时冻结。watch原第三参数保持后向兼容。
+
+## D023 阶段4参考图采纳与保存（2026-10-11，S1011-design4）
+- 用户授权继续阶段4，六张图放在RR26 worktree的ref目录；Luna只读逐图识别，选择纵向展开图为主、横向6:1条为紧凑态，其他补预览/主题/状态/组件，详见docs/design/04-progress.md。
+- 图稿只提供布局/视觉依据；数字、日期、风险等级与因子归属不从图抄入产品。保留用户原名并原字节复制到RR22/ref，SHA256对账一致，随卡版本化，以免拆RR26时丢用户素材。
+- MERGE后暂保留RR21/RR26 worktree（junction及用户未跟踪素材），不执行递归强拆。后续安全清理另作协调动作，发布仍留用户。

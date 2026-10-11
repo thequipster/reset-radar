@@ -143,3 +143,8 @@
 - 效力：阶段3提示词只约定UI内容、层级、交互、状态与数据语义；具体配色hex、字体、材质、圆角及风格由图AI探索，选中参考图后才确定实施视觉；覆盖原任务要求的具体配色hex与风格词。
 - 阶段4范围：用户先前新增授权“除了改前端，其他卡片的任务也由你来执行”，按看板依赖逐卡执行；仍遵守一次一卡、槽位互斥、参考图停点和不push。
 - 文档：docs/design/01-proposals.md、02-spec.md、03-image-prompts.md（agent/RR26统一落档；前两份先前独立审阅草稿保持原件）。
+
+### 2026-10-11 阶段4授权及公告核验（RR22）
+- 用户原文：“继续第四阶段”；六张参考PNG已到RR26/ref。本轮复制入RR22/ref，原名/字节保留，逐文件SHA256相等。
+- B07回源：task_logs/RR22_artifacts/status-live.json，2026-10-11T04:33:44.170Z；latest_reset.id=2109132167112782291，announced_at=04:01:09Z，reset_type=regular；scheduled_reset与active_watch均null。旧公告不能作为当前计划继续清仓。
+- https://codex-resets.com/ 首页解释banked为需主动兑换的保存卡，不自动回满额度；regular未来公告可作为规划情景，未确认落地不能写已重置。决策D022；以API响应原文为当前事实，搜索索引上的旧计划不覆盖它。

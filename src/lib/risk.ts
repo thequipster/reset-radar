@@ -6,6 +6,8 @@
 // 已做去重/未来过滤）；本函数仍保留解析容错与未来容差防御（与 rs:110-114 同源）。
 // now 语义 = as_of 数据新鲜度时刻（参考实现取 meta.generated_at 而非墙钟）。
 
+import { assessScheduledReset, type ScheduledReset, type ScheduledResetAssessment } from "./scheduledReset.ts";
+
 export interface RiskFactor {
   id: string; // D006 强制接口：UI 依 id/label/delta/note 渲染可解释因子行
   label: string;
@@ -16,6 +18,7 @@ export interface RiskFactor {
 export interface ResetRisk {
   score: number; // 0-100，输出取 1 位小数
   factors: RiskFactor[]; // 逐因子累计，factors 各 delta 之和 ≈ score
+  scheduledReset?: ScheduledResetAssessment; // 与概率分列的公告信息；缺省不改变旧输出形状
 }
 
 const DAY_MS = 86_400_000;
@@ -56,11 +59,13 @@ export function beijingWeekday(ts: number): number {
  * @param history 已清洗的 announcedAt ISO 串（最新在前或乱序均可，内部排序）
  * @param now as_of 数据新鲜度时刻
  * @param watchPercent 上游 codex-resets.com watch 概率（0-100），缺省视为无信号
+ * @param scheduledReset 公告计划独立状态；不伪造概率，规划器按情景调整horizon
  */
 export function assessResetRisk(
   history: readonly string[],
   now: Date,
   watchPercent?: number,
+  scheduledReset?: ScheduledReset | null,
 ): ResetRisk {
   const asOf = now.getTime();
   // 解析容错 + 未来容差防御 + 降序（最新在前），与 rs:110-114 同源
@@ -156,5 +161,21 @@ export function assessResetRisk(
     });
   }
 
-  return { score: round1(clamp(probability, SCORE_MIN, SCORE_MAX)), factors };
+  const announcement = assessScheduledReset(scheduledReset, now);
+  if (announcement) {
+    factors.push({
+      id: "scheduled-reset",
+      label: announcement.state === "planned" ? "已发布重置计划" : "公告待核实",
+      delta: 0, // 没有公告可靠性校准证据；不把计划伪装成100%概率（D022）。
+      note: announcement.state === "planned"
+        ? announcement.appliesToQuota
+          ? `公告计划于 ${announcement.announcement.scheduledFor} 重置；规划优先按计划边界准备，模型概率另列。`
+          : `公告计划于 ${announcement.announcement.scheduledFor} 发布${announcement.announcement.resetType}重置；仅展示公告，不调整周额度规划。`
+        : `公告计划时刻 ${announcement.announcement.scheduledFor} 已过，尚未确认执行；不继续清仓。`,
+    });
+  }
+  return {
+    score: round1(clamp(probability, SCORE_MIN, SCORE_MAX)), factors,
+    ...(announcement ? { scheduledReset: announcement } : {}),
+  };
 }

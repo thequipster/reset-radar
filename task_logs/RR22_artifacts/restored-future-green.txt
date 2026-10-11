@@ -1,0 +1,9 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR22
+
+
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  12:40:05
+   Duration  240ms (transform 45%, import 44%, tests 8%, worker 2%)
+
