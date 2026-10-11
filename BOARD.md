@@ -47,7 +47,18 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
-### [2026-10-11 22:23:27] RR43 | 🧱🟠在飞 | shell(ui+data-layer) | S1011-2223
+### [2026-10-11 23:20:00] RR44 | 🧱🟠在飞 | core | S1011-2223
+- 用户在线点单（承接 RR43 同一班）：严格按「reset-radar 核心算法 v2 实现规格」重写后端算法。
+- base main 6a2c0fa；worktree ../reset-radar_wt/RR44（分支 agent/RR44）。已交付：beijing.ts + resetState.ts
+  （唯一状态转换 + 派生视图 + 删失标签）+ riskV2.ts（收缩发生率/分段积分/watch 四项匹配/顺序归因）+
+  plannerV2.ts（28 完整日中位数与 75 分位 + log 效用分配）+ resetCardV2.ts（成对路径、统一视野 H/H2、
+  ε=1 决策表、需求 0.75/1/1.25 与 keep/roll 敏感性）+ 76 条域测试。旧三模块暂留，切换与删除在 RR45。
+- 门禁：tsc rc0 / 全量 vitest 386/386 / 变异红验 3 处全 RED 后还原 76/76 绿。修掉真 bug 一处：自然重置
+  落在北京午夜时被日界事件挤掉（用例 4 由 Δ=80 修正为 Δ=0，用例 5 Δ=10 与规格数值一致）。
+- 遗留（RR45 接）：UI 未接线（adapters.ts 仍走旧函数）、日耗观测无落盘来源（v2 会诚实显示「需求未知」）、
+  §7.1/§7.3 日志字段未落、docs/design/02-spec.md:166 关窗语义未更新。wip=task_logs/RR44_wip.md。
+
+### [2026-10-11 22:23:27] RR43 | 🧱🟢已闭环（合入 main 6a2c0fa） | shell(ui+data-layer) | S1011-2223
 - 用户在线点单两行（ROADMAP「用户在线点单」区）：①托盘后台常驻——关窗仅收起、驻留 Windows 系统托盘（参考 codex-cockpit 形式），彻底退出走托盘菜单；②迷你圆形态——比现有胶囊更小的圆形悬浮只显示一个最关键数字，展开态失焦/闲置自动缩圆，拖到屏幕边缘收贴边半圆隐藏、鼠标靠近弹回。
 - base main bbfed86；worktree ../reset-radar_wt/RR43（分支 agent/RR43）。范围：src-tauri/src（托盘 + 关窗拦截 + 贴边停靠 + 壳状态持久化）+ src/ui（新 Orb 形态、缩圆时序、停靠交互、widgetWindow/appState 扩展）+ 新增域测试。硬约束：保留展开面板四页签、本地优先（状态只落 app_config_dir）、无遥测。wip=task_logs/RR43_wip.md。
 - 本班降级口径：Bridge 通道禁 pwsh/命令串（实测 run_task["pwsh","-NoProfile","-Command",…] 返「Shells and system command-string interpreters are disabled」），门禁以 npx/cargo/node argv 直调替代，不使用 shell 管道。

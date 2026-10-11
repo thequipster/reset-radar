@@ -7,6 +7,35 @@
 
 ## 卡片区（新卡追加在状态区上方）
 
+### RR45 | P0 | 🧱建卡🟠待领 | ui+data-layer | 立卡 S1011-2223（RR44 续作）
+- 现象：RR44 已交付 v2 纯函数（resetState/riskV2/plannerV2/resetCardV2 + 76 条域测试），但 UI 仍走旧
+  `assessResetRisk / planDailyUsage / planResetCard`（唯一缝 `src/ui/adapters.ts`），旧公式与新规格并存。
+- 证据：RR44 commit（agent/RR44）+ task_logs/RR44_wip.md；`src/ui/adapters.ts:63-120` 仍调用旧三函数。
+- 修向：① adapters.ts 改喂 v2（history→事件流、snapshot→QuotaState/CycleRules、watch→WatchSignal），
+  视图模型新增 riskV2/paceV2/cardV2 字段并保留旧字段过渡；② 同步改 UI 受影响的 golden 测试
+  （ui.adapters / ui.reset-status / ui.copy-summary / ui.orb-metric）；③ 删除旧 risk.ts/planner.ts/
+  resetCard.ts 及其测试，连同引用它们的 calibration.ts / historyPrediction.ts / predictions.ts 一并收敛；
+  ④ 补日耗观测日志（相邻快照 remaining% 差值按北京日聚合，落 app_config_dir），否则需求永远「未知」；
+  ⑤ 落 §7.1 预测日志字段（predictionId/inputSnapshotId/trainingDataCutoff/stateBeforePrediction/factorSteps/
+  dataQuality/assumptions）与 §7.3 用卡建议日志；⑥ 更新 docs/design/02-spec.md:166 关窗语义（RR43 遗留）。
+- 验证口径：tsc rc0；全量 vitest 无新增失败（旧测试随切换同步改写，不得靠 skip 掩盖）；变异红验 ≥3 处 RED；
+  UI 四件套测试数值随 v2 重算并逐条注明口径变化；冷启动/平台口径/需求未知三种降级态在 UI 有可见文案。
+- 状态行：2026-10-11 🟠待领
+
+### RR44 | P0 | 🧱建卡🟠在飞→🟡待合入 | core | 立卡 S1011-2223（用户在线点单：算法 v2 重写）
+- 现象：旧算法有五条无概率含义的硬规则（周二/周六固定 70%、36h 内强行抬到 40%、近 30 天频次 +12、
+  星期偏离再加一轮、最终夹到 2–95%），用卡层还有「补给不足 25 点/收益不足 8 点/今天 85%」三条固定阈值；
+  且没有统一事件流与周期状态机，风险/配速/用卡各自维护重置逻辑。
+- 证据：用户给定「reset-radar 核心算法 v2 实现规格」（§1–§10，含 12 条验收用例）；
+  旧实现真值出处 `src/lib/risk.ts:38-50`（常量块）、`src/lib/planner.ts:DEFAULT_WEEKDAY_HAZARDS`、
+  `src/lib/resetCard.ts:RESET_CARD_MIN_USEFUL_GAIN_PERCENT=8 / MIN_USEFUL_REFILL_PERCENT=25 / USE_TODAY_TOLERANCE=0.85`。
+- 修向：按规格 §10 顺序实现 —— ① 事件类型/去重/周期状态转换（resetState.ts）② 历史派生视图与删失标签
+  ③ 风险发生率/存续曲线/逐步解释（riskV2.ts）④ 需求估计与配速（plannerV2.ts）⑤ 不用卡/用卡成对模拟
+  （resetCardV2.ts）⑥ 敏感性检查与决策规则；输出类型严格对齐 §8 三模块契约。
+- 验证口径：tsc rc0 / 全量 vitest 386/386（新增域测试 76）/ 变异红验 3 处注入全 RED 后还原绿；
+  §9 用例 1/2/3/7/8/9/12（状态机）与 4/5/6/11（用卡）逐条对应用例，用例 4 实测 Δ=0、用例 5 实测 Δ=10。
+- 状态行：2026-10-11 🟡待合入（worktree ../reset-radar_wt/RR44，分支 agent/RR44；wip=task_logs/RR44_wip.md）
+
 ### RR01 | P0 | 🧱建卡🟠待领 | core+ui+data-layer | 立卡 S1011-init 2026-10-11
 - 现象：仓库只有看板与文档，无任何可运行代码。
 - 证据：主仓根目录现状（无 package.json）；架构定稿要求 Tauri2+React+TS+vite+vitest（ARCHITECTURE §2/§3）。
