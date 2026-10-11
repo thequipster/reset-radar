@@ -1,14 +1,16 @@
 // 应用根（RR09）：胶囊态 / 展开卡两态切换。UI 层零业务规则（ARCHITECTURE §2）——
 // 组件只排版 adapters 视图模型，数字与建议一律产自 src/lib 纯核心。
+// RR14：起始态由 hash 决定（#expanded 起始展开，截图/验收可复现入口）。
 import { useState } from "react";
 import { buildDashboard } from "./ui/adapters";
+import { initialExpanded } from "./ui/appState";
 import Capsule from "./ui/Capsule";
 import ExpandedCard from "./ui/ExpandedCard";
 import { RESET_HISTORY_ANNOUNCED_AT } from "./ui/history";
 import { useSnapshots } from "./ui/useSnapshots";
 
 export default function App() {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => initialExpanded(window.location.hash));
   const { snapshots, live } = useSnapshots();
 
   const codex = snapshots.find((item) => item.provider === "codex") ?? snapshots[0];

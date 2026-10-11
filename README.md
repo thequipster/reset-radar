@@ -18,7 +18,12 @@ reset-radar 的核心差异是**校准闭环**——每条风险预测都被落�
 ![胶囊态：周窗重置风险](docs/screenshots/20261011-capsule-460.png)
 
 点击胶囊展开三块面板：**风险雷达**（分数 + 可解释因子逐条列出）/ **今日建议**（配速数字与依据）/
-**用卡规划**（决策 + 期望收益 + 24h/48h 碰撞概率）。展开态截图待补（见 [ROADMAP.md](ROADMAP.md)）。
+**用卡规划**（决策 + 期望收益 + 24h/48h 碰撞概率）：
+
+![展开态：三块面板](docs/screenshots/20261011-expanded.png)
+
+> 展开态在 460 窄窗下右侧列溢出需横向滚动（排版优化排期见 [ROADMAP.md](ROADMAP.md)）；
+> 验收/截图可用 `#expanded` hash 入口复现（`pwsh scripts/shot-expanded.ps1`）。
 
 ## 功能清单（v0.1.0）
 
