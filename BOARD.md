@@ -26,6 +26,9 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
+### [2026-10-11 16:08:00] RR31 | P1 | 🔧🟢已闭环 | ui | S1011-RR31（用户在线指定）
+- b0cb857→main a89369c，树恒等；主仓tsc/238TS/38Node复验绿；junction先拆worktree移除。用户三反馈全闭环：页签分模块无滚动条、顶栏实底无透出、收益图注澄清；算法疑问实算答复无缺陷（TRUTH §U）。
+
 ### [2026-10-11 15:52:00] RR12 第2轮REVIEW | 🟢本轮完成（锚卡转回🟠待领，永不🟢） | S1011-RR12r2
 - 验收artifact：main a362c4e tsc/234TS/38Node/build/cargo check/校准管线（fresh双快照n=0如实）+RR27十二截图复用；差距5条零悬空：立卡RR29/RR30、不立卡3条附理由（详见docs/review-20261011-round2.md）；BOARD切WORK。
 

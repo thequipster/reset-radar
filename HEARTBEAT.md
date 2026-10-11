@@ -172,3 +172,7 @@
 - 2026-10-11 15:52:00 RR12 第2轮完成：四绿+构建+校准管线+截图复用齐；差距5条零悬空（立卡RR29/RR30，不立卡3条附理由）；报告docs/review-20261011-round2.md；锚卡RR12转回🟠待领，BOARD切WORK。
 - 2026-10-11 15:54:00 S1011-RR12r2 占MERGE槽：REVIEW产物批（review-20261011-round2.md+RR12r2_artifacts+刷新的calibration/resets-history+看板协调文件）主仓直接落commit（docs-only，等价RR12首轮artifact批口径）。
 - 2026-10-11 15:58:00 S1011-RR12r2 收工：REVIEW产物已合入main 634bd2f（含历史未跟踪交付档案一并入库）；用户生图材料包落桌面 reset-radar-生图材料包-20261011.zip（六图+提示词+图标prompt；本轮无需新生图）；LIGHT/MERGE释放；下一拍RR29/RR30或用户发布。
+- 2026-10-11 16:05:00 S1011-RR31 开工领卡LIGHT：用户在线三反馈（分页模块/顶部透出×2）；算法疑问已实算答复（consumed 封顶+存活折价，无缺陷不立卡）。
+- 2026-10-11 16:04:00 RR31 🟡待合入（agent/RR31 @b0cb857；tsc/域81/全量238/Node38；两变异红恢复；六截图识图两轮全过〔无滚动条/顶栏实底/页签高亮〕；done/patch齐；会话 S1011-RR31；LIGHT释放）
+- 2026-10-11 16:04:30 S1011-RR31 占MERGE槽：预审通过（单commit/patch干净适用/无他MERGE），主仓cherry-pick b0cb857。
+- 2026-10-11 16:08:30 RR31 🟢已闭环（b0cb857→main a89369c树恒等；主仓238/38Node绿）；两槽释放。算法疑问答复要点：收益按可消耗增量封顶非补给规模，无缺陷不立卡。

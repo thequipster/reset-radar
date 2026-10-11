@@ -178,3 +178,8 @@
 - MIT reset_forecast.rs:8,76-83,229-265定义5min容差、watch字段、25%融合和active校验；本卡src/lib/watchSignal.ts复用源约束，risk.ts仅导出既有weight并保存counterfactual，不增加新权重。
 - /api/v1/status现场原文见task_logs/RR16_artifacts/status-live.json，fetchedAt记录实际抓取，active_watch:null；合成80%测试不能作为生产watch证据。当前watch同样本比较n=0，两列指标null。
 - 前瞻窗口来自本项目risk.ts未来24h定义；旧四字段日志没有窗口/无watch基线，禁止倒填。通用旧calendar join待RR17修复，不据本卡报告宣称历史权重提升。
+
+### 2026-10-11 用户 UI 反馈（RR31，用户在线指令）
+- 原文要点：①不想要展开面板右侧滚动条，「多做几个模块点进去看就不用划了」；②04b-light-bottom 最顶上一行小字疑似爆出；③demo-credits-unknown 顶上同样疑似爆出；④疑问：收益越往后越高是否意味着全建议自然重置前一天用卡（担心亏爆）。
+- 裁决：展开面板信息架构从「单页纵向滚动」改为「页签分模块」，覆盖 02-spec §3.4 的单页滚动线框（用户指令为最高层级）。
+- 算法疑问核查结论（无缺陷，不立卡）：期望收益=用卡后至下次重置的可消耗增量（resetCard.ts consumed() 封顶）× 强制重置存活折价；补给规模本身不入账。短视界（临重置1-2天）曲线单调上升、满周视界中间隆起均属真实形状；当前真实数据（84%余量）收益全 0、决策 hold-until-depleted。
