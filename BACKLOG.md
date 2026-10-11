@@ -482,3 +482,11 @@
 - 2026-10-11 20:24:00 RR40 🟡待合入：agent/RR40 @f0f44f0 单commit基于main 133c0a7（5文件+36/−10，含双主题截图2张）；tsc/UI域115/全量272 0failed/变异红两轮（3红+1红）复原绿；去「·」改间距+锁测试口径升级6条；release 双主题截图 920×1380 识图独立复核双图全 PASS；详见 task_logs/RR40_done.md。会话 S1011-2010
 - 2026-10-11 20:28:00 RR40 🟢已闭环 main 918caf8←f0f44f0 树恒等（5路径含2二进制截图0字节）；主仓复验 tsc✅ vitest 全量272/272 0failed✅ check-release 13链接✅（Rust 不适用：未触 src-tauri/）；双 junction 先拆 worktree 移除无残留、branch 归档（archive/RR40-merged-918caf8）。→RR41 待领（docs：README:110 状态行刷新），RR30 仍等用户 CI 首跑。会话 S1011-2010 MERGE
 - 2026-10-11 21:00:00 RR12 第6轮REVIEW 🟢本轮闭环（会话 S1011-2040，锚卡永续转回🟠）：base main 354ce7d 七门全绿（tsc/vitest 272/272〔数据刷新后复跑同〕/vite build/cargo check --tests/node 38/38/check-release 13/校准 fresh n=0 如实），artifact 八件 task_logs/RR12r6_artifacts/；识图独立复核 RR40 双主题图全 PASS（修复确认）+RR41 README:110 实读确认；差距 10 条零悬空**零新卡**（不立卡理由见 docs/review-20261011-round6.md；v0.3 沿 D031 用户门控期留点单）；产物批落库（报告+刷新数据三件+artifact+done+收编 RR40/41 未跟踪档四件）。用户门控期维持：RR30 等 CI 首跑、下一班 REVIEW 第 7 轮照 §9.1 全量执行
+
+### RR42 | P3 | 🔧修卡🟠待领 | docs | 立卡 S1011-2050（REVIEW 第7轮 G6）
+- 现象：README:110 状态行「v0.1.0 发布就绪（RR01–RR40 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 已 5 轮）」滞后实况 2 轮（RR41 已闭环、r6/r7 已闭环）；且「已 N 轮」硬编码计数每轮 REVIEW 闭环即再滞后，逐轮立卡刷新空转（D032）。
+- 证据：README.md:110 原文；git log main（354ce7d RR41 闭环、03c7069 r6 批、r7 批见看板）；docs/review-20261011-round7.md §3 G6。
+- 修向：一次到位去易腐（D032）——①闭环区间刷新「RR01–RR41 除 RR30 待用户 CI 首跑外已全部闭环」（沿 RR36/RR41 先例写到最新已闭环卡号、排除本卡自身）；②轮次计数改滚动表述「REVIEW 验收循环持续滚动，历轮报告见 docs/review-*.md」（行内代码非链接）；版本叙述 0.1.0 全文不动（RUNBOOK §6 版本戳只许发布卡变）。
+- 验证口径：check-release 13 链接门；docs 级零代码变更，变异红验沿 RR36/RR39/RR41 口径真做（状态行 RUNBOOK/ROADMAP 链接改坏→门红 exit1→复原复绿）。
+- 状态行：2026-10-11 21:01:44 🟠待领（未领不占槽）。
+- 2026-10-11 21:01:44 RR12 第7轮REVIEW 🟢本轮闭环（会话 S1011-2050，锚卡永续转回🟠）：base main 03c7069 七门全绿（tsc/vitest 272/272〔刷新后复跑同，即落库前终验〕/vite build 1.67s/cargo check 10.45s/node 38/38/check-release 13/校准 fresh 仅时间戳变化 n=0 如实），artifact 九件 task_logs/RR12r7_artifacts/；E2E 由当前 main 重建 release（B01）双主题新图 20261011-r7-expanded-{dark,light}.png（IHDR 920×1380/pHYs DPI 192）识图独立复核双 PASS（RR40 修复持续在位+过期态诚实显示首次实证）；差距 12 条零悬空立 RR42（README:110 去易腐，D032），识图半角逗号观察回源证伪（DashboardPanel.tsx:224 全角）；产物批落库（报告+D032+RR42+刷新数据三件+新截图两件+artifact 九件+done+看板协调）。用户门控期维持：RR30 等 CI 首跑

@@ -1,0 +1,13 @@
+$ pwsh -NoProfile -File scripts/shot-expanded.ps1 <release exe> docs/screenshots/20261011-r7-expanded-{dark,light}.png -Theme {dark,light}
+[20:5x] 探针输出关键行（两跑同构）：
+  ThemePreset(...): {"result":{"type":"string","value":"(dark|light)"}}   ← 主题预设写入并回读成功
+  GetDpiForWindow: 192   (期望 192=PMv2 生效，B10 修复在)
+  ClientRect(物理): W=920 H=1380   (期望 2x 逻辑)
+  PrintWindow(3): True
+  Saved: ...20261011-r7-expanded-(dark|light).png  size=920x1380
+IHDR 字节核验（node readUInt32BE）：
+  20261011-r7-expanded-dark.png  IHDR=920x1380 pHYs=7559x7559ppm unit=1 DPI=192
+  20261011-r7-expanded-light.png IHDR=920x1380 pHYs=7559x7559ppm unit=1 DPI=192
+E2E 附记：
+  - release exe 由当前 main 03c7069 源重建（cargo build --release --features tauri/custom-protocol，42.31s，1 条良性 linker 警告），dist/ 为门3 刚构建产物——构建→启动→双主题渲染→PrintWindow 全链路通。
+  - 本轮两跑未完成新鲜握手（%APPDATA%/app.resetradar.desktop/last-snapshots.json mtime 仍 20:17:45=RR40 会话运行写入），UI 如实呈现「采集状态：过期 / 基于上次观测」——SWR 过期态诚实显示的设计内行为；RR40 同源码路径 40 分钟前刚成功握手过（最近更新成功 10/11 20:17），无回归证据，不立卡仅记录。

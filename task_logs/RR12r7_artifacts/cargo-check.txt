@@ -1,0 +1,3 @@
+$ cargo check --tests（src-tauri/，工具链 PATH 见 RUNBOOK §10）  [20:53:46]
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.45s
+exit=0 [20:53:58]
