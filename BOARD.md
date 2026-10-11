@@ -14,9 +14,9 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：MERGE（RR34 🟡唯一待合〔S1011-1821，4b395cb〕；RR30 依赖用户 CI 首跑）**
-（RR34 合后无🟠无🟡 → REVIEW 第 3 轮。
-下一班建议：占 MERGE 槽合 RR34 → 转 REVIEW 第 3 轮（RR30 仍等用户 CI 首跑）。
+**当前阶段：REVIEW 第 3 轮（S1011-1836 执行中；RR34 已合入 main ba7d0e8；RR30 依赖用户 CI 首跑）**
+（本班 REVIEW 产物（review-20261011-round3 + artifact + 新卡）落地后回 WORK。
+下一班建议：若 REVIEW 第 3 轮已闭环→按新立 🟠 卡顺序进 WORK；RR30 仍等用户 CI 首跑。
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -25,7 +25,10 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
-### [2026-10-11 18:36:00] RR34 | P2 | 🔧🟡待合入 | ui | S1011-1821 交付
+### [2026-10-11 18:45:00] RR34 | P2 | 🔧🟢已闭环 | ui | S1011-1836 MERGE
+- 4b395cb→main ba7d0e8 树恒等✅（涉及10路径逐字节核对全 OK，树间差异仅看板协调文件）；预审四过（探活 4b395cb✅/diffstat 10文件+203/−77✅/patch 在位 345KB✅/交集空✅）；主仓复验 tsc✅ vitest 全量262/262 0failed✅（Rust 不适用：未触 src-tauri/，树恒等已证）；顺带删交付遗留 task_logs/RR34_wip.md（未跟踪，上班漏删）；双 junction 先拆 worktree 移除无残留、branch 归档（agent/RR34 保留）。MERGE 释放，本会话转 REVIEW 第 3 轮。
+
+### [2026-10-11 18:36:00] RR34 | P2 | 🔧🟡待合入（已闭环，见上行） | ui | S1011-1821 交付
 - 4b395cb（base e831974，10文件+203/−77，patch 对 main 干净适用✅345KB）：①浅色横幅浅紫渐变→深紫渐变与深色统一（白字 1.23–1.51→5.38–10.95 全达标，紫语义保持=卡面候选①）②深色 a 段 #a855f7→#9333ea（3.96→5.38）③--banner-sub/--decision-icon token 化（深浅各取达标值：sub 2.14→4.56、浅 decision-icon 1.30→5.81）④浅色 --warn #b45309（dot 2.99→4.71，theme.ts 双源同步）⑤84 组快照+不达标清单+报告再生成（达标数深 33→38/浅 20→31 只升）⑥shot-expanded.ps1 -Theme 参数+双主题截图识图全过（四要素清晰/深紫到位/协调不刺眼）。门禁：tsc/域105/全量262 0failed/变异红两轮（红1+红3）复原绿；Rust 不适用。worktree 留 MERGE 班拆（node_modules+src-tauri/target 双 junction 先拆，B09）。
 
 ### [2026-10-11 18:30:00] RR34 | P2 | 🔧🟠在飞 | ui | S1011-1821
