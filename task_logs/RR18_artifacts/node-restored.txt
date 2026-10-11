@@ -1,0 +1,232 @@
+TAP version 13
+# Subtest: 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
+ok 1 - 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
+  ---
+  duration_ms: 4.1061
+  type: 'test'
+  ...
+# Subtest: 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
+ok 2 - 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
+  ---
+  duration_ms: 0.6994
+  type: 'test'
+  ...
+# Subtest: 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
+ok 3 - 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
+  ---
+  duration_ms: 0.3211
+  type: 'test'
+  ...
+# Subtest: parseIsoMs
+    # Subtest: 合法 ISO（毫秒/Z）→ epoch 毫秒
+    ok 1 - 合法 ISO（毫秒/Z）→ epoch 毫秒
+      ---
+      duration_ms: 0.9518
+      type: 'test'
+      ...
+    # Subtest: 非法输入 → null
+    ok 2 - 非法输入 → null
+      ---
+      duration_ms: 0.3201
+      type: 'test'
+      ...
+    1..2
+ok 4 - parseIsoMs
+  ---
+  duration_ms: 2.4819
+  type: 'suite'
+  ...
+# Subtest: normalizeEvent
+    # Subtest: snake_case → camelCase，缺 source 容错
+    ok 1 - snake_case → camelCase，缺 source 容错
+      ---
+      duration_ms: 0.2912
+      type: 'test'
+      ...
+    1..1
+ok 5 - normalizeEvent
+  ---
+  duration_ms: 0.4446
+  type: 'suite'
+  ...
+# Subtest: sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
+    # Subtest: 不可解析日期被丢弃
+    ok 1 - 不可解析日期被丢弃
+      ---
+      duration_ms: 1.1399
+      type: 'test'
+      ...
+    # Subtest: 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
+    ok 2 - 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
+      ---
+      duration_ms: 0.6825
+      type: 'test'
+      ...
+    # Subtest: 倒序输出（最新在前）
+    ok 3 - 倒序输出（最新在前）
+      ---
+      duration_ms: 0.2529
+      type: 'test'
+      ...
+    # Subtest: 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
+    ok 4 - 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
+      ---
+      duration_ms: 0.4562
+      type: 'test'
+      ...
+    # Subtest: 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
+    ok 5 - 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
+      ---
+      duration_ms: 0.2677
+      type: 'test'
+      ...
+    1..5
+ok 6 - sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
+  ---
+  duration_ms: 3.1927
+  type: 'suite'
+  ...
+# Subtest: buildDocument（上游封装校验）
+    # Subtest: 跨类型交错不打断同类型5分钟去重
+    ok 1 - 跨类型交错不打断同类型5分钟去重
+      ---
+      duration_ms: 0.2678
+      type: 'test'
+      ...
+    # Subtest: 缺字段或坏形状直接 reject
+    ok 2 - 缺字段或坏形状直接 reject
+      ---
+      duration_ms: 0.7381
+      type: 'test'
+      ...
+    # Subtest: 兼容真实 API 的 object/null 可选字段并保留 status 原形
+    ok 3 - 兼容真实 API 的 object/null 可选字段并保留 status 原形
+      ---
+      duration_ms: 0.9887
+      type: 'test'
+      ...
+    1..3
+ok 7 - buildDocument（上游封装校验）
+  ---
+  duration_ms: 2.1437
+  type: 'suite'
+  ...
+# Subtest: weekdayBeijing（D004 北京零点边界）
+    # Subtest: 北京 16:00:00Z 恰跨零点 → 次日星期
+    ok 1 - 北京 16:00:00Z 恰跨零点 → 次日星期
+      ---
+      duration_ms: 0.153
+      type: 'test'
+      ...
+    # Subtest: 15:59:59Z 仍属北京当日
+    ok 2 - 15:59:59Z 仍属北京当日
+      ---
+      duration_ms: 0.0781
+      type: 'test'
+      ...
+    # Subtest: 实测锚点 2026-10-08T03:44:55Z → 北京周四
+    ok 3 - 实测锚点 2026-10-08T03:44:55Z → 北京周四
+      ---
+      duration_ms: 0.0734
+      type: 'test'
+      ...
+    1..3
+ok 8 - weekdayBeijing（D004 北京零点边界）
+  ---
+  duration_ms: 0.4737
+  type: 'suite'
+  ...
+# Subtest: summarize
+    # Subtest: count/earliest/latest/星期直方图
+    ok 1 - count/earliest/latest/星期直方图
+      ---
+      duration_ms: 0.1927
+      type: 'test'
+      ...
+    # Subtest: 空输入 → count 0 且两端为 null
+    ok 2 - 空输入 → count 0 且两端为 null
+      ---
+      duration_ms: 0.0905
+      type: 'test'
+      ...
+    1..2
+ok 9 - summarize
+  ---
+  duration_ms: 0.3596
+  type: 'suite'
+  ...
+# Subtest: 先刷新历史，再运行校准；输出流按用途分流
+ok 10 - 先刷新历史，再运行校准；输出流按用途分流
+  ---
+  duration_ms: 1.1406
+  type: 'test'
+  ...
+# Subtest: fetch 失败时非零退出并且不运行 calibrate
+ok 11 - fetch 失败时非零退出并且不运行 calibrate
+  ---
+  duration_ms: 0.2118
+  type: 'test'
+  ...
+# Subtest: calibrate 失败时非零退出且不输出部分 Markdown
+ok 12 - calibrate 失败时非零退出且不输出部分 Markdown
+  ---
+  duration_ms: 0.2092
+  type: 'test'
+  ...
+# Subtest: --path resolves relative paths and preserves absolute paths
+ok 13 - --path resolves relative paths and preserves absolute paths
+  ---
+  duration_ms: 1.2268
+  type: 'test'
+  ...
+# Subtest: canonical paths follow Tauri identifier on each platform
+ok 14 - canonical paths follow Tauri identifier on each platform
+  ---
+  duration_ms: 0.4196
+  type: 'test'
+  ...
+# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
+ok 15 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
+  ---
+  duration_ms: 12.6615
+  type: 'test'
+  ...
+# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
+ok 16 - append preserves existing bytes and inserts a separator for a missing final newline
+  ---
+  duration_ms: 17.4896
+  type: 'test'
+  ...
+# Subtest: busy lock fails clearly and never removes the other process lock
+ok 17 - busy lock fails clearly and never removes the other process lock
+  ---
+  duration_ms: 9.3552
+  type: 'test'
+  ...
+# Subtest: log CLI --path writes only to the requested temporary file
+ok 18 - log CLI --path writes only to the requested temporary file
+  ---
+  duration_ms: 109.3589
+  type: 'test'
+  ...
+# Subtest: unknown or duplicate path options fail instead of writing canonical data
+ok 19 - unknown or duplicate path options fail instead of writing canonical data
+  ---
+  duration_ms: 0.2462
+  type: 'test'
+  ...
+# Subtest: missing file is labelled but read errors make calibration fail explicitly
+ok 20 - missing file is labelled but read errors make calibration fail explicitly
+  ---
+  duration_ms: 96.9676
+  type: 'test'
+  ...
+1..20
+# tests 30
+# suites 6
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 367.1992

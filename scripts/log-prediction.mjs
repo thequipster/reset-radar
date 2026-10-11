@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { appendPredictionLog, digestFactors, predictionDateKey } from "../src/lib/predictions.ts";
 import { assessResetRisk } from "../src/lib/risk.ts";
+import { assessHistorySource, selectQuotaResetHistory } from "../src/lib/history.ts";
 import { appendPredictionFile, canonicalPredictionPath, parsePredictionPathArg } from "./prediction-files.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -22,15 +23,14 @@ const override = parsePredictionPathArg(process.argv.slice(2));
 const logPath = override ?? canonicalPredictionPath();
 
 const history = JSON.parse(readFileSync(`${root}data/resets-history.json`, "utf8"));
-const announcedAt = history.events
-  .map((e) => e?.announcedAt)
-  .filter((v) => typeof v === "string");
-const fetchedAtMs = Date.parse(history.fetchedAt ?? "");
-if (!Number.isFinite(fetchedAtMs)) {
+const source = assessHistorySource(history, new Date());
+if (source.state === "invalid") {
   console.error("[log-prediction] 夹具 fetchedAt 缺失/非法：先跑 node scripts/fetch-history.mjs");
   process.exit(1);
 }
-const asOf = new Date(fetchedAtMs);
+if (source.state === "stale") console.error("[log-prediction] 历史已过期：本次只评估历史fetchedAt所在日，请先刷新历史。");
+const announcedAt = selectQuotaResetHistory(history.events);
+const asOf = new Date(source.asOf);
 
 const risk = assessResetRisk(announcedAt, asOf);
 const candidate = {

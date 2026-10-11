@@ -161,3 +161,9 @@
 - 重启ownedPID30192：05:18:12Z重新采集成功，日志188bytes→188bytes完全相同，无遗留.lock；production-restart-idempotent.json。默认calibrate实际同时读取仓内1行+应用1行，--path生产文件仅读1行；今日未完结，计分n=0，未伪造命中率。两份报告在RR15_artifacts。
 - TS137/137、Rust29passed+1手动网络ignored、Node6/6；目标日/额度独立/路径/CAS变异均红且原字节恢复绿。完整门禁与借鉴出处见RR15_done.md；新幂等业务仍唯一src/lib/predictions.ts，不在Rust复算。
 - RR15最终复验补记：Node补测未知/重复参数和读失败，8/8绿；最终release ownedPID31512在05:21:45Z启动，重新采集来源ok，刷新前后CDP hook=ok、日志188字节完全不变、锁已释放（production-verified-idempotent.json）。首轮时间探针用ConvertFrom-Json默认DateTime转换丢原ISO时区，已改-DateKind String；新鲜缓存可先完成风险记录，探针必须另等实际后台新采集，不能将一次早观察当采集失败。
+
+### 2026-10-11 RR18 历史刷新实证（B07追加）
+- REVIEW入口真实拉两个HTTPS API后生成data/resets-history.json，fetchedAt=2026-10-11T05:33:27.738Z；60条原始事件（54regular、6banked），最新regular.id=2109132167112782291、announcedAt=2026-10-11T04:01:09.000Z；regular北京星期Sun..Sat=[10,4,10,10,7,5,8]。原始status与sources随夹具保留，诊断及核心消费结果见RR18_artifacts/review-refresh.txt、consumer-live.json。
+- 采集前原始59条夹具原字节复制src/lib/__tests__/fixtures/resets-history-20261010.json，SHA256=D3E54A8F986FC8E0E214DF5D2F4A089AA0EF4FD80E7BA1F1BFD3FD8A27F347D5，旧golden统计不因联网更新而重写。
+- 当前calibrate双源各1行、今日未完结计分n=0；7日严格边界/非法覆盖/排除banked的实际报告测试通过。说明docs/history-refresh-20261011.md、D026；门禁与生产实证最终见RR18_done。
+- RR18生产补验：GNU custom-protocol ownedPID26652，新来源fetchedAt=2026-10-11T05:36:33.524549900Z、quota/source均ok；只读CDP风险32.1%、hook=ok。输入变化后自然追加32.1，日志188→361字节，44的旧行及原前缀不变，无锁残留， owned进程已关闭。最终报告归档1+应用2行仍n=0；production-history-verified.json、production-dom-fresh.json。

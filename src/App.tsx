@@ -8,7 +8,7 @@ import { buildDashboard } from "./ui/adapters";
 import { initialExpanded } from "./ui/appState";
 import Capsule from "./ui/Capsule";
 import ExpandedCard from "./ui/ExpandedCard";
-import { RESET_HISTORY_ANNOUNCED_AT } from "./ui/history";
+import { RESET_HISTORY_ANNOUNCED_AT, RESET_HISTORY_SOURCE } from "./ui/history";
 import { usePredictionLog } from "./ui/usePredictionLog";
 import { useSnapshots } from "./ui/useSnapshots";
 import { applyWidgetSize, closeWidget } from "./ui/widgetWindow";
@@ -39,7 +39,7 @@ export default function App() {
   }, [expanded]);
 
   const codex = snapshots.find((item) => item.provider === "codex") ?? snapshots[0];
-  const vm = codex != null ? buildDashboard(codex, RESET_HISTORY_ANNOUNCED_AT) : null;
+  const vm = codex != null ? buildDashboard(codex, RESET_HISTORY_ANNOUNCED_AT, new Date(), RESET_HISTORY_SOURCE) : null;
 
   const predictionLog = usePredictionLog(vm?.prediction ?? null, live, vm?.updatedAt ?? "");
 

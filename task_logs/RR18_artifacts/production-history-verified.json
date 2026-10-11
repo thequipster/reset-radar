@@ -1,0 +1,27 @@
+{
+  "pid": 26652,
+  "startedAt": "2026-10-11T05:36:31.7395685+00:00",
+  "runtimePath": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\predictions.jsonl",
+  "bytesBefore": 188,
+  "bytesAfter": 361,
+  "originalBytesPreserved": true,
+  "sourceStatus": "ok",
+  "freshSourceAttempt": "2026-10-11T05:36:32.821204800Z",
+  "sourceFetchedAt": "2026-10-11T05:36:33.524549900Z",
+  "quotaStatus": "ok",
+  "records": [
+    {
+      "date": "2026-10-11",
+      "predictedRisk": 44,
+      "factorsDigest": "base=10,consecutive-reset=30,interval-hazard=-6.7,recent-regime=12,weekday-empirical=-1.2",
+      "fetchedAt": "2026-10-11T05:17:20.742Z"
+    },
+    {
+      "date": "2026-10-11",
+      "predictedRisk": 32.1,
+      "factorsDigest": "base=10,consecutive-reset=30,interval-hazard=-6.8,weekday-empirical=-1.1",
+      "fetchedAt": "2026-10-11T05:36:32.810Z"
+    }
+  ],
+  "lockLeft": false
+}

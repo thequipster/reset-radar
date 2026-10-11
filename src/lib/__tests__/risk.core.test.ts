@@ -7,8 +7,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { assessResetRisk, beijingWeekday } from "../risk";
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
-const fixture = JSON.parse(readFileSync(`${root}data/resets-history.json`, "utf8"));
+// RR18：固定RR03原字节回归样本，独立于每轮联网更新；保留旧算法golden，生产仅消费regular。
+const fixturePath = fileURLToPath(new URL("./fixtures/resets-history-20261010.json", import.meta.url));
+const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
 const fixtureDates: string[] = fixture.events.map((e: { announcedAt: string }) => e.announcedAt);
 
 describe("星期基线（rs:140-144）", () => {

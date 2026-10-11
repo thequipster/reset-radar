@@ -1,13 +1,13 @@
 {
   "schema": "reset-radar/resets-history@1",
-  "fetchedAt": "2026-10-10T17:20:15.727Z",
+  "fetchedAt": "2026-10-11T05:33:27.738Z",
   "sources": {
     "resets": "https://codex-resets.com/api/v1/resets?limit=100&order=desc",
     "status": "https://codex-resets.com/api/v1/status"
   },
   "upstream": {
     "apiVersion": "v1",
-    "generatedAt": "2026-10-10T17:15:21.280Z",
+    "generatedAt": "2026-10-11T05:31:36.506Z",
     "pagination": {
       "has_more": false,
       "next_cursor": null
@@ -15,26 +15,34 @@
   },
   "status": {
     "latest_reset": {
-      "id": "2108040921044639779",
-      "reset_type": "banked",
-      "announced_at": "2026-10-08T03:44:55.000Z",
-      "text": "Confirmed landed across all accounts. How are we doing so far? https://t.co/tzw7dNX4pN",
+      "id": "2109132167112782291",
+      "reset_type": "regular",
+      "announced_at": "2026-10-11T04:01:09.000Z",
+      "text": "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj",
       "source": {
         "type": "x_post",
         "author": "thsottiaux",
-        "url": "https://x.com/thsottiaux/status/2108040921044639779"
+        "url": "https://x.com/thsottiaux/status/2109132167112782291"
       }
     },
     "scheduled_reset": null,
     "active_watch": null,
     "stats": {
-      "total": 59,
-      "last_reset_at": "2026-10-08T03:44:55.000Z",
-      "days_since_last": 2.6,
-      "avg_interval_days": 6.7
+      "total": 60,
+      "last_reset_at": "2026-10-11T04:01:09.000Z",
+      "days_since_last": 0.1,
+      "avg_interval_days": 6.6
     }
   },
   "events": [
+    {
+      "id": "2109132167112782291",
+      "resetType": "regular",
+      "announcedAt": "2026-10-11T04:01:09.000Z",
+      "text": "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj",
+      "sourceType": "x_post",
+      "sourceUrl": "https://x.com/thsottiaux/status/2109132167112782291"
+    },
     {
       "id": "2108040921044639779",
       "resetType": "banked",
@@ -509,9 +517,9 @@
     }
   ],
   "summary": {
-    "count": 59,
+    "count": 60,
     "earliest": "2025-09-17T04:02:52.000Z",
-    "latest": "2026-10-08T03:44:55.000Z",
+    "latest": "2026-10-11T04:01:09.000Z",
     "byWeekdayBeijing": {
       "Mon": 4,
       "Tue": 10,
@@ -519,7 +527,7 @@
       "Thu": 8,
       "Fri": 7,
       "Sat": 9,
-      "Sun": 9
+      "Sun": 10
     }
   }
 }

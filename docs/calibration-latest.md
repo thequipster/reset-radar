@@ -1,10 +1,10 @@
 # 校准报告（calibration-latest）
 
-> 生成：2026-10-11T00:49:52.370Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
+> 生成：2026-10-11T05:36:57.773Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
 
-- 重置历史：data/resets-history.json —— 59 events（fetchedAt 2026-10-10T17:20:15.727Z）
-- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-10T17:20:15.727Z
-- 预测日志：data/predictions.jsonl —— 1 行有效
+- 重置历史：data/resets-history.json —— 60 条原始事件 / 54 条额度重置（仅regular；排除 6 条）（fetchedAt 2026-10-11T05:33:27.738Z）
+- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-11T05:33:27.738Z
+- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar_wt\RR18\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：2 行有效；合计 3 行有效
 - 计分日：0 个（同日多行取首行 + 未完结日剔除；其中实际重置日 0 个）
 
 ## 总分

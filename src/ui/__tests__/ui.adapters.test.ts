@@ -10,6 +10,7 @@ import {
 } from "../../lib";
 import { buildDashboard } from "../adapters";
 import type { ProviderSnapshot } from "../types";
+import { RESET_HISTORY_ANNOUNCED_AT, RESET_HISTORY_SOURCE } from "../history";
 
 // 固定时间轴：观测时刻 asOf=2026-10-10T12:00Z（北京周日 20:00），
 // 周窗重置 resetsAt=2026-10-12T12:00Z → 恰好 daysToReset=2（整数便于对账）。
@@ -38,6 +39,30 @@ function okSnapshot(overrides: Partial<ProviderSnapshot> = {}): ProviderSnapshot
     ...overrides,
   };
 }
+
+describe("RR18历史接线与独立来源", () => {
+  it("生产夹具中banked排除，regular完整且无重复接到风险模型", () => {
+    const expected = [...new Set(RESET_HISTORY_SOURCE.events
+      .filter((event) => event.resetType === "regular")
+      .map((event) => new Date(event.announcedAt).toISOString()))].sort().reverse();
+    expect(RESET_HISTORY_ANNOUNCED_AT).toEqual(expected);
+    for (const event of RESET_HISTORY_SOURCE.events.filter((event) => event.resetType === "banked")) {
+      const instant = new Date(event.announcedAt).toISOString();
+      if (!expected.includes(instant)) expect(RESET_HISTORY_ANNOUNCED_AT).not.toContain(instant);
+    }
+  });
+  it("历史过期元数据透传，保留独立额度观测时刻且兼容旧调用", () => {
+    const source = { fetchedAt: "2026-10-01T12:00:00Z", events: [
+      { resetType: "regular", announcedAt: "2026-09-30T12:00:00Z" },
+      { resetType: "banked", announcedAt: "2026-09-29T12:00:00Z" },
+    ] };
+    const vm = buildDashboard(okSnapshot(), HISTORY, new Date(AS_OF), source);
+    expect(vm.historySource).toMatchObject({ state: "stale", asOf: "2026-10-01T12:00:00.000Z",
+      totalEvents: 2, quotaResetEvents: 1, excludedEvents: 1 });
+    expect(vm.observedAt).toBe(AS_OF);
+    expect(buildDashboard(okSnapshot(), HISTORY, new Date(AS_OF)).historySource).toBeNull();
+  });
+});
 
 describe("字段透传（RR08 契约 models.rs）", () => {
   it("周窗/短窗/卡量/plan 直映射到视图模型", () => {

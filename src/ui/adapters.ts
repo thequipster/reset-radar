@@ -14,6 +14,8 @@ import {
   historyWithResetStatus,
   type ResetStatusSnapshot,
   type ResetStatusEvaluation,
+  assessHistorySource,
+  type HistorySourceAssessment,
 } from "../lib";
 import type { ProviderSnapshot } from "./types";
 
@@ -41,6 +43,8 @@ export interface DashboardViewModel {
   resetStatus: (ResetStatusSnapshot & ResetStatusEvaluation) | null;
   riskEvaluatedAt: string;
   prediction: PredictionRecord | null;
+  /** 离线历史独立来源时刻/数量/过期状态，不和实时公告混成一个状态。 */
+  historySource: HistorySourceAssessment | null;
 }
 
 /**
@@ -52,6 +56,7 @@ export function buildDashboard(
   snapshot: ProviderSnapshot,
   history: readonly string[],
   now: Date = new Date(),
+  historyDocument?: unknown,
 ): DashboardViewModel {
   const observedAt =
     snapshot.rateLimitSnapshot?.observedAt ?? snapshot.updatedAt;
@@ -129,6 +134,7 @@ export function buildDashboard(
     cardPlan,
     resetStatus: status != null && statusEvaluation != null ? { ...status, ...statusEvaluation } : null,
     riskEvaluatedAt: modelAsOf.toISOString(),
+    historySource: historyDocument === undefined ? null : assessHistorySource(historyDocument, now),
     prediction: buildPredictionRecord({ risk, evaluatedAt: modelAsOf.toISOString(), recordedAt: now,
       quotaStatus: snapshot.status, resetSourceState: statusEvaluation?.state ?? null }),
   };

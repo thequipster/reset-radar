@@ -1,0 +1,6 @@
+quota-type: red exit=1
+quota-type: restored SHA256=1a2925f7ae910e76ea873f0901551d0b5f37772644036bf0020b89d7db001d7a
+seven-day-boundary: red exit=1
+seven-day-boundary: restored SHA256=1a2925f7ae910e76ea873f0901551d0b5f37772644036bf0020b89d7db001d7a
+interleaved-dedupe: red exit=1
+interleaved-dedupe: restored SHA256=1cacb8938e1c1e99b5394d6e75c18d136f25664ed45bf5e8e0ec8229d28dbd24

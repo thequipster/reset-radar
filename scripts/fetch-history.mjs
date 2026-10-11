@@ -5,7 +5,8 @@
 //   GET https://codex-resets.com/api/v1/status                         （latest_reset / stats / active_watch）
 // 清洗规则移植自参考实现 codex-cockpit（MIT）src-tauri/src/reset_forecast.rs 的 sanitize_history
 // （函数体 :103-132；FUTURE_TOLERANCE_MINUTES=5、DUPLICATE_WINDOW_MINUTES=5 定义于 :8-9）：
-//   解析失败丢弃 → 未来容差过滤 → 倒序 → 相邻 5 分钟窗口去重；/status 的 latest_reset 并入再清洗。
+//   解析失败丢弃 → 未来容差过滤 → 倒序 → 同类型 5 分钟窗口去重；/status 的 latest_reset 并入再清洗。
+// RR18按regular/banked分别去重，避免发卡事件吞掉额度重置；原始两类都保留，消费者由纯核心筛regular。
 // 星期统计按 D004 全项目唯一日边界（北京零点，UTC+8 固定偏移、无夏令时）。
 
 import { mkdir, rename, writeFile } from 'node:fs/promises';
@@ -56,10 +57,12 @@ export function sanitizeEvents(rawEvents, asOfMs) {
   parsed.sort((a, b) => b.ms - a.ms); // 倒序（right.cmp(left)）
   const windowMs = DUPLICATE_WINDOW_MIN * 60_000;
   const kept = [];
+  const lastByType = new Map();
   for (const item of parsed) {
-    const prev = kept[kept.length - 1];
-    if (prev !== undefined && Math.abs(prev.ms - item.ms) <= windowMs) continue; // 5 分钟窗口去重
+    const prev = lastByType.get(item.ev.resetType);
+    if (prev !== undefined && Math.abs(prev.ms - item.ms) <= windowMs) continue; // 跨类型交错也不打断同类型去重
     kept.push(item);
+    lastByType.set(item.ev.resetType, item);
   }
   return kept.map(({ ev, ms }) => ({ ...ev, announcedAt: ms.toISOString() }));
 }
@@ -106,10 +109,30 @@ export async function fetchJson(url) {
   }
 }
 
-function buildDocument({ resets, status, fetchedAtIso }) {
-  const asOfMs = Date.parse(fetchedAtIso);
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function buildDocument({ resets, status, fetchedAtIso }) {
+  if (!isObject(resets) || !Array.isArray(resets.data) || !isObject(resets.meta)) {
+    throw new TypeError('invalid resets response: expected object data array and meta object');
+  }
+  if (!isObject(status) || !isObject(status.data) || !isObject(status.meta)) {
+    throw new TypeError('invalid status response: expected data and meta objects');
+  }
+  if (!Object.hasOwn(status.data, 'latest_reset') ||
+      (status.data.latest_reset !== null && !isObject(status.data.latest_reset))) {
+    throw new TypeError('invalid status.data.latest_reset: expected object or null');
+  }
+  for (const key of ['scheduled_reset', 'active_watch']) {
+    if (Object.hasOwn(status.data, key) && status.data[key] !== null && !isObject(status.data[key])) {
+      throw new TypeError(`invalid status.data.${key}: expected object or null`);
+    }
+  }
+  const asOfMs = parseIsoMs(fetchedAtIso);
+  if (asOfMs === null) throw new TypeError('invalid fetchedAtIso: expected ISO timestamp');
   // /status 的 latest_reset 并入历史再清洗（参考 reset_forecast.rs:108-110 的 chain 写法）
-  const rawEvents = [...(Array.isArray(resets?.data) ? resets.data : [])];
+  const rawEvents = [...resets.data];
   const latest = status?.data?.latest_reset;
   if (latest && typeof latest === 'object') rawEvents.push(latest);
   const events = sanitizeEvents(rawEvents, asOfMs);
@@ -118,23 +141,23 @@ function buildDocument({ resets, status, fetchedAtIso }) {
     fetchedAt: fetchedAtIso,
     sources: { resets: RESETS_URL, status: STATUS_URL },
     upstream: {
-      apiVersion: resets?.meta?.api_version ?? null,
-      generatedAt: resets?.meta?.generated_at ?? null,
+      apiVersion: resets.meta.api_version ?? null,
+      generatedAt: resets.meta.generated_at ?? null,
       pagination: resets?.pagination ?? null,
     },
     // /status 侧信息原样保留（RR04 风险模型要用 active_watch.reset_chance_percent 等字段）
-    status: status?.data ?? null,
+    status: status.data,
     events,
     summary: summarize(events),
   };
 }
 
 async function main() {
-  const fetchedAtIso = new Date().toISOString();
   console.log(`[fetch-history] 拉取 ${RESETS_URL}`);
   const resets = await fetchJson(RESETS_URL);
   console.log(`[fetch-history] 拉取 ${STATUS_URL}`);
   const status = await fetchJson(STATUS_URL);
+  const fetchedAtIso = new Date().toISOString();
   const doc = buildDocument({ resets, status, fetchedAtIso });
   const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
   const outPath = join(outDir, 'resets-history.json');

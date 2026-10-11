@@ -1,0 +1,37 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR18
+
+ ❯ src/lib/__tests__/history.freshness.test.ts (8 tests | 1 failed) 12ms
+   ❯ 历史重置筛选 (1)
+     × 只选 regular，按 epoch 去重并倒序；banked、未知类型和非法时间排除 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/history.freshness.test.ts > 历史重置筛选 > 只选 regular，按 epoch 去重并倒序；banked、未知类型和非法时间排除
+AssertionError: expected [ '2026-10-11T03:00:00.000Z' ] to deeply equal [ '2026-10-10T03:00:00.000Z', …(1) ]
+
+- Expected
++ Received
+
+  [
+-   "2026-10-10T03:00:00.000Z",
+-   "2026-10-08T03:00:00.000Z",
++   "2026-10-11T03:00:00.000Z",
+  ]
+
+ ❯ src/lib/__tests__/history.freshness.test.ts:21:9
+     19|       { resetType: "regular", announcedAt: "2026-02-30T03:00:00Z" },
+     20|       null,
+     21|     ])).toEqual(["2026-10-10T03:00:00.000Z", "2026-10-08T03:00:00.000Z…
+       |         ^
+     22|   });
+     23| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  13:34:10
+   Duration  227ms (transform 50%, import 35%, tests 11%, worker 3%)
+

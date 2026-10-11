@@ -1,0 +1,38 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR18
+
+ ❯ src/lib/__tests__/history.freshness.test.ts (8 tests | 1 failed) 12ms
+   ❯ 历史抓取新鲜度 (7)
+     × 7日常数来自 RR18；精确 7 日仍新鲜，超过阈值才 stale 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/history.freshness.test.ts > 历史抓取新鲜度 > 7日常数来自 RR18；精确 7 日仍新鲜，超过阈值才 stale
+AssertionError: expected { state: 'stale', …(3) } to match object { state: 'fresh', ageDays: 7 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "ageDays": 7,
+-   "state": "fresh",
++   "state": "stale",
+  }
+
+ ❯ src/lib/__tests__/history.freshness.test.ts:30:55
+     28|     const atBoundary = new Date(NOW.getTime() - HISTORY_STALE_DAYS * 2…
+     29|     const justOld = new Date(Date.parse(atBoundary) - 1).toISOString();
+     30|     expect(evaluateHistoryFreshness(atBoundary, NOW)).toMatchObject({ …
+       |                                                       ^
+     31|     expect(evaluateHistoryFreshness(justOld, NOW).state).toBe("stale");
+     32|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  13:34:12
+   Duration  240ms (transform 49%, import 35%, tests 12%, worker 4%)
+

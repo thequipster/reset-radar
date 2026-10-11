@@ -8,6 +8,7 @@ import {
   sanitizeEvents,
   summarize,
   weekdayBeijing,
+  buildDocument,
 } from './fetch-history.mjs';
 
 const AS_OF = Date.parse('2026-10-11T00:00:00.000Z');
@@ -66,6 +67,61 @@ describe('sanitizeEvents（移植自 reset_forecast.rs sanitize_history）', () 
     const dEdge = new Date(Date.parse(c7) + 5 * MIN).toISOString(); // 23:40，与 c7 恰好 5min → c7 被去重
     const out = sanitizeEvents([ev(a), ev(b3), ev(c7), ev(dEdge)], AS_OF);
     assert.deepEqual(out.map((e) => e.announcedAt), [b3, dEdge]);
+  });
+  test('不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重', () => {
+    const newer = new Date(AS_OF - 10 * MIN).toISOString();
+    const older = new Date(AS_OF - 12 * MIN).toISOString();
+    const regularNew = ev(newer, 'regular-new');
+    const regularNewer = { ...regularNew, id: 'regular-duplicate', announced_at: new Date(AS_OF - 9 * MIN).toISOString() };
+    const banked = { ...ev(older, 'banked'), reset_type: 'banked' };
+    const out = sanitizeEvents([banked, regularNew, regularNewer], AS_OF);
+    assert.deepEqual(out.map(({ id, resetType }) => [id, resetType]), [
+      ['regular-duplicate', 'regular'],
+      ['banked', 'banked'],
+    ]);
+  });
+});
+
+describe('buildDocument（上游封装校验）', () => {
+  test('跨类型交错不打断同类型5分钟去重', () => {
+    const newest = ev(new Date(AS_OF - 10 * MIN).toISOString(), 'regular-new');
+    const middle = { ...ev(new Date(AS_OF - 11 * MIN).toISOString(), 'banked'), reset_type: 'banked' };
+    const older = ev(new Date(AS_OF - 13 * MIN).toISOString(), 'regular-old');
+    assert.deepEqual(sanitizeEvents([older, middle, newest], AS_OF).map((e) => e.id), ['regular-new', 'banked']);
+  });
+  const valid = () => ({
+    resets: { data: [], meta: { api_version: 'v1', generated_at: '2026-10-11T00:00:00Z' } },
+    status: { data: { latest_reset: null, scheduled_reset: null, active_watch: null }, meta: {} },
+    fetchedAtIso: '2026-10-11T00:00:00.000Z',
+  });
+
+  test('缺字段或坏形状直接 reject', () => {
+    const cases = [
+      (x) => { x.resets.data = {}; },
+      (x) => { x.resets.meta = null; },
+      (x) => { x.status.data = null; },
+      (x) => { x.status.meta = []; },
+      (x) => { delete x.status.data.latest_reset; },
+      (x) => { x.status.data.latest_reset = []; },
+      (x) => { x.status.data.scheduled_reset = false; },
+      (x) => { x.status.data.active_watch = []; },
+      (x) => { x.fetchedAtIso = 'not-a-date'; },
+    ];
+    for (const corrupt of cases) {
+      const input = valid();
+      corrupt(input);
+      assert.throws(() => buildDocument(input), TypeError);
+    }
+  });
+
+  test('兼容真实 API 的 object/null 可选字段并保留 status 原形', () => {
+    const input = valid();
+    input.status.data.scheduled_reset = { announced_at: null };
+    delete input.status.data.active_watch;
+    const doc = buildDocument(input);
+    assert.deepEqual(doc.status, input.status.data);
+    assert.equal(doc.events.length, 0);
+    assert.equal(doc.fetchedAt, input.fetchedAtIso);
   });
 });
 

@@ -1,0 +1,49 @@
+{
+  "source": {
+    "state": "fresh",
+    "fetchedAt": "2026-10-11T05:33:27.738Z",
+    "asOf": "2026-10-11T05:33:27.738Z",
+    "ageDays": 0.00000375,
+    "totalEvents": 60,
+    "quotaResetEvents": 54,
+    "excludedEvents": 6
+  },
+  "risk": {
+    "score": 32.1,
+    "factors": [
+      {
+        "id": "base",
+        "label": "星期启发式基线",
+        "delta": 10,
+        "note": "普通日基线 10%。"
+      },
+      {
+        "id": "consecutive-reset",
+        "label": "连续重置效应",
+        "delta": 30,
+        "note": "上次重置后 36 小时内，24h 风险至少抬到 40%。"
+      },
+      {
+        "id": "interval-hazard",
+        "label": "历史间隔条件风险",
+        "delta": -6.8,
+        "note": "已等待 0.1 天的条件下，用历史间隔经验分布校准。"
+      },
+      {
+        "id": "weekday-empirical",
+        "label": "历史星期分布",
+        "delta": -1.1,
+        "note": "用清洗后的重置星期分布做平滑校准。"
+      }
+    ]
+  },
+  "regularWeekdays": [
+    10,
+    4,
+    10,
+    10,
+    7,
+    5,
+    8
+  ]
+}

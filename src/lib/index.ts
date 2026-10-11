@@ -8,3 +8,4 @@ export * from "./calibration";
 export * from "./predictions";
 export * from "./scheduledReset";
 export * from "./resetStatus";
+export * from "./history";
