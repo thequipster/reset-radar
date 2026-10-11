@@ -35,11 +35,14 @@ reset-radar 的核心差异是**校准闭环**——每条风险预测都被落�
 - [x] 📝 **预测落盘**：每日评估幂等追加到 `data/predictions.jsonl`（同日只在风险漂移超阈值时
   补行），只追加不修改——校准闭环的原料。
 - [x] 🎯 **校准报告**：`npm run calibrate` 输出命中率、Brier 分数与逐周趋势
-  （应用内校准面板在 [ROADMAP.md](ROADMAP.md) v0.2）。
+  （应用内校准摘要已入「数据与校准」页；深化面板见 [ROADMAP.md](ROADMAP.md) v0.2）。
 - [x] ⚡ **秒开**：快照持久化 + 热启动，首屏先画上次数据再后台刷新。
 - [x] 🔒 **本地优先**：无遥测、无账号；鉴权完全交给本机 `codex` CLI（app-server stdio），
   本应用不经手任何密钥。
-- [ ] 🖥️ 应用内校准面板 / 预测自动落盘到应用数据目录（[ROADMAP.md](ROADMAP.md) v0.2+）。
+- [x] 🖥️ **应用内校准摘要**：「数据与校准」页只读展示应用目录 `calibration.json` 摘要
+  （正常/缺失/无效三态，零样本如实标注"数据积累中"，RR28）。
+- [ ] 🗃️ 预测自动落盘到应用数据目录：现为脚本管线（`npm run log-prediction`）落盘
+  `data/predictions.jsonl`，应用内暂不接入（[ROADMAP.md](ROADMAP.md) v0.2+）。
 
 ## 校准闭环怎么跑（差异化核心）
 
