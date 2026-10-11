@@ -397,3 +397,11 @@
 - 修向：按 handoff 接入——icons/reset-radar.ico 与对应 PNG 更换 src-tauri/icons/（icns 无交付，Windows 目标不受影响，保留现件并注明）；UI 内品牌 logo 可换 source/reset-radar-mark.svg 造型（浅色底用 02-glass 配色，勿将亮色透明标放白底）；重建后核 exe/任务栏/窗口图标与 100%–200% 缩放（shell 图标缓存可能延迟显示旧标）。
 - 验证口径：release 构建后 exe 内嵌图标实证（资源转储或截图）；识图子代理复核两主题下界面 logo 可见；check-release 门禁如涉及 README 图则同步过。
 - 状态行：2026-10-11 17:22 🟠待领（未领不占槽）。
+
+### RR33 | P2 | 🧱修卡🟠在飞 | license+docs | 立卡/领卡 S1011-RR33（用户在线裁决：如实声明）
+- 现象：移植文件头与 README 已署名 codex-cockpit（MIT），但未保留对方版权行（Copyright (c) 2026 Quota Float contributors）；MIT 条款要求实质性复用携带原版权与许可声明。用户裁决不走重写路线，走如实声明。
+- 证据：逐行比对实测定档——resetCard.ts 331 行中 263 行与原文相同（~77%）；codex.rs 握手段约 300 行同文；planner.ts 约 46 行公式段同源；risk.ts 思路重写非逐字；README 致谢已有链接与版本；TRUTH §1 来源3。
+- 修向：新增 THIRD_PARTY_NOTICES.md（对方 MIT 许可全文 + 复用清单表）；resetCard.ts/codex.rs/planner.ts 头部补原版权行；risk.ts 补声明指引；README 致谢补版权行与声明链接。
+- 验证口径：typecheck/域/全量 vitest/Node38（注释与文档级改动，全量即覆盖）；cargo check --tests（触及 .rs）；check-release（README 链接门）；变异红验不适用（无可执行代码变更，理由记 done，沿 RR12 artifact 批口径）。
+- 状态行：2026-10-11 17:44 🟠在飞（LIGHT，用户在线指定，S1011-RR33）。
+- 2026-10-11 17:49:59 RR33 🟢已闭环 main 8aa944d；主仓复验绿（tsc/238/check-release/cargo check）。重叠度定档与声明全文见 done 与 THIRD_PARTY_NOTICES.md。

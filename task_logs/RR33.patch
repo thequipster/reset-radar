@@ -1,0 +1,192 @@
+From 8bffd4fb55213ca7978f9ad36ac98f5bd85592b4 Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 17:48:19 +0800
+Subject: [PATCH] docs(license): retain codex-cockpit MIT attribution (RR33)
+
+---
+ README.md              |  7 +++++--
+ THIRD_PARTY_NOTICES.md | 45 ++++++++++++++++++++++++++++++++++++++++++
+ TRUTH.md               |  4 ++++
+ src-tauri/src/codex.rs |  2 ++
+ src/lib/planner.ts     |  2 ++
+ src/lib/resetCard.ts   |  2 ++
+ src/lib/risk.ts        |  1 +
+ task_logs/RR33_done.md | 33 +++++++++++++++++++++++++++++++
+ 8 files changed, 94 insertions(+), 2 deletions(-)
+ create mode 100644 THIRD_PARTY_NOTICES.md
+ create mode 100644 task_logs/RR33_done.md
+
+diff --git a/README.md b/README.md
+index e5f974b..35530aa 100644
+--- a/README.md
++++ b/README.md
+@@ -92,9 +92,12 @@ tag 名会与版本做一致性校验，不一致构建即失败。CI/release 
+ 
+ ## 致谢与许可
+ 
+-- [codex-cockpit](https://github.com/HouSiyuan2001/codex-cockpit)（MIT，v0.3.0-beta.5）：
++- [codex-cockpit](https://github.com/HouSiyuan2001/codex-cockpit)（MIT，v0.3.0-beta.5，
++  Copyright (c) 2026 Quota Float contributors）：
+   风险因子、配速公式、重置卡规划器与 app-server 握手的算法思路来源，逐文件出处见
+-  [TRUTH.md](TRUTH.md) §1 与各卡 `task_logs/*_done.md`。
++  [TRUTH.md](TRUTH.md) §1 与各卡 `task_logs/*_done.md`；
++  部分代码为注明出处的逐行移植，复用清单与其 MIT 许可全文见
++  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+ - [codex-resets.com](https://codex-resets.com) 的公开数据与接口。
+ 
+ 本项目基于 [MIT License](LICENSE) 开源。
+diff --git a/THIRD_PARTY_NOTICES.md b/THIRD_PARTY_NOTICES.md
+new file mode 100644
+index 0000000..4a86de9
+--- /dev/null
++++ b/THIRD_PARTY_NOTICES.md
+@@ -0,0 +1,45 @@
++# 第三方声明（Third-Party Notices）
++
++本仓部分代码复用自 [codex-cockpit](https://github.com/HouSiyuan2001/codex-cockpit)
++（v0.3.0-beta.5，MIT License）。按 MIT 条款在此保留其版权与许可声明原文，并列明复用范围，
++供任何人核验（登记卡 RR33；用户裁决「如实声明」路线，不做重写）。
++
++## codex-cockpit — MIT License（原文保留）
++
++```text
++MIT License
++
++Copyright (c) 2026 Quota Float contributors
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
++```
++
++## 复用清单（RR33 逐行比对定档）
++
++| 本仓文件 | 复用方式 | 原文出处（codex-cockpit） |
++|---|---|---|
++| `src/lib/resetCard.ts` | 整文件移植，逐函数对应（归一化后约 77% 行与原文逐行相同）；适配点见文件头与 docs/DECISIONS.md D015 | `src/lib/resetCard.ts` |
++| `src-tauri/src/codex.rs` | app-server 握手序列与解析移植（约 300 行同文），裁剪为本项目单 provider 子集 | `src-tauri/src/codex.rs` |
++| `src/lib/planner.ts` | `planRemainingQuota` / `DEFAULT_WEEKDAY_HAZARDS` 公式段移植（约 46 行同源） | `src/lib/dynamicQuota.ts` |
++| `src/lib/risk.ts` | 算法思路借鉴后重写为 TypeScript（非逐字复用，常量与结构注明 rs 行号） | `src-tauri/src/reset_forecast.rs` |
++| `.github/workflows/ci.yml`、`release.yml` | workflow 结构与 action 选型借鉴（action 按 commit SHA 锁定） | `.github/workflows/release.yml` |
++| `src-tauri/tauri.conf.json` 悬浮窗字段 | 字段口径对齐 | `src-tauri/tauri.conf.json` |
++
++逐函数行号出处另见各文件头注释与 `task_logs/*_done.md`；来源登记见 `TRUTH.md` §1 来源 3。
++除上表外，本仓其余源码、文档、图稿为本工作区 AI 看板会话原创产出。
+diff --git a/TRUTH.md b/TRUTH.md
+index 1761750..beaf108 100644
+--- a/TRUTH.md
++++ b/TRUTH.md
+@@ -183,3 +183,7 @@
+ - 原文要点：①不想要展开面板右侧滚动条，「多做几个模块点进去看就不用划了」；②04b-light-bottom 最顶上一行小字疑似爆出；③demo-credits-unknown 顶上同样疑似爆出；④疑问：收益越往后越高是否意味着全建议自然重置前一天用卡（担心亏爆）。
+ - 裁决：展开面板信息架构从「单页纵向滚动」改为「页签分模块」，覆盖 02-spec §3.4 的单页滚动线框（用户指令为最高层级）。
+ - 算法疑问核查结论（无缺陷，不立卡）：期望收益=用卡后至下次重置的可消耗增量（resetCard.ts consumed() 封顶）× 强制重置存活折价；补给规模本身不入账。短视界（临重置1-2天）曲线单调上升、满周视界中间隆起均属真实形状；当前真实数据（84%余量）收益全 0、决策 hold-until-depleted。
++
++### 2026-10-11 移植代码雷同疑问与「如实声明」裁决（RR33，用户在线指令）
++- 用户问：仓内内容会不会被别人判作雷同。实测答复：按 MIT 合规与署名口径不算（每个移植文件头注明来源文件+行号、README 致谢带原仓链接与版本、TRUTH §1 登记），但未保留对方版权行是一处瑕疵；若作为「个人原创作品」送评审，resetCard.ts（归一化 77% 行同文）与 codex.rs（约 300 行同文）会被查重工具命中。
++- 用户裁决：如实声明，不重写。落卡 RR33：新增 THIRD_PARTY_NOTICES.md（对方 MIT 全文 + 复用清单），resetCard.ts/codex.rs/planner.ts 补原版权行（Copyright (c) 2026 Quota Float contributors），risk.ts 补声明指引，README 致谢补版权行与声明链接。
+diff --git a/src-tauri/src/codex.rs b/src-tauri/src/codex.rs
+index 1be37c6..3ebb627 100644
+--- a/src-tauri/src/codex.rs
++++ b/src-tauri/src/codex.rs
+@@ -2,6 +2,8 @@
+ //! 读 rateLimits + rateLimitResetCredits（卡面：单次 read 同时拿两者，无 HTTP fallback）。
+ //! 握手序列与解析移植自参考实现 codex-cockpit src-tauri/src/codex.rs（MIT，TRUTH §1 来源 3），
+ //! 逐函数注明参考行号。
++//! 原文件版权（MIT）：Copyright (c) 2026 Quota Float contributors（codex-cockpit）；
++//! 完整许可文本与复用清单见 THIRD_PARTY_NOTICES.md。
+ 
+ use std::path::PathBuf;
+ use std::process::Stdio;
+diff --git a/src/lib/planner.ts b/src/lib/planner.ts
+index 8c3453c..d122fd9 100644
+--- a/src/lib/planner.ts
++++ b/src/lib/planner.ts
+@@ -1,6 +1,8 @@
+ // 每日配速建议（RR05）：把「剩余额度 / 距重置天数 / 重置风险」折成今日建议用量。
+ // 公式借鉴 MIT 项目 codex-cockpit 的 dynamicQuota.ts::planCalibratedRiskQuota
+ // （出处：TRUTH §1 来源 3；下文「dq:NNN」均指该文件行号），
++// 原文件版权（MIT）：Copyright (c) 2026 Quota Float contributors（codex-cockpit）；
++// 完整许可文本与复用清单见 THIRD_PARTY_NOTICES.md。
+ // dashboard 版三段式：均匀配速 + 风险平方前拉 + 疲劳软上限，取三者最小。
+ // 周末判定沿用 RR04 的 beijingWeekday（D004 北京零点唯一边界）。
+ // 本函数为纯函数：不查网络、不读钟（now 仅用于推导周末，可显式传 isWeekend 覆盖）。
+diff --git a/src/lib/resetCard.ts b/src/lib/resetCard.ts
+index 1663e93..a65d54c 100644
+--- a/src/lib/resetCard.ts
++++ b/src/lib/resetCard.ts
+@@ -1,5 +1,7 @@
+ // 重置卡规划器（RR06）：整文件移植自 MIT 项目 codex-cockpit 的 src/lib/resetCard.ts
+ // （出处：TRUTH §1 来源 3；下文「rc:NNN」均指该文件行号），逐函数对应移植。
++// 原文件版权（MIT）：Copyright (c) 2026 Quota Float contributors（codex-cockpit）；
++// 完整许可文本与复用清单见 THIRD_PARTY_NOTICES.md。
+ // 本项目适配三处（详见 docs/DECISIONS.md D015）：
+ //   ① 历史消耗日键：参考实现用 usageDateKey（04:00 记账日，B06 双日边界陷阱），
+ //      本项目统一为北京日历键 beijingCalendarDateKey（D004 全项目唯一日边界）；
+diff --git a/src/lib/risk.ts b/src/lib/risk.ts
+index c557afb..d63ddea 100644
+--- a/src/lib/risk.ts
++++ b/src/lib/risk.ts
+@@ -1,6 +1,7 @@
+ // 重置风险评估（RR04）：估计「未来 24 小时内发生强制重置」的概率（0-100 百分比）。
+ // 算法思路借鉴 MIT 项目 codex-cockpit 的 reset_forecast.rs::calibrated_risk
+ // （出处：TRUTH §1 来源 3；下文「rs:NNN」均指该文件行号），重写为纯 TS，常量逐一注明。
++// 思路重写非逐字复用；版权声明与全仓复用清单见 THIRD_PARTY_NOTICES.md。
+ // 星期判定全项目唯一边界 = 北京零点（D004）：一律 +8h 后取星期，绝不用本地时区。
+ // 输入契约：history 为已清洗的 announcedAt ISO 串（RR03 夹具口径，scripts/fetch-history.mjs
+ // 已做去重/未来过滤）；本函数仍保留解析容错与未来容差防御（与 rs:110-114 同源）。
+diff --git a/task_logs/RR33_done.md b/task_logs/RR33_done.md
+new file mode 100644
+index 0000000..ff90c6d
+--- /dev/null
++++ b/task_logs/RR33_done.md
+@@ -0,0 +1,33 @@
++# RR33 done — MIT 版权声明如实补齐（用户裁决路线）
++
++用户裁决（2026-10-11，TRUTH §U）：雷同疑问答复后选「如实声明」，不重写移植代码。
++
++## 改动（8 路径，全部注释/文档级，零可执行代码变更）
++- THIRD_PARTY_NOTICES.md（新增）：codex-cockpit MIT 许可全文原文保留 + 复用清单表（逐行比对定档数字）。
++- src/lib/resetCard.ts、src-tauri/src/codex.rs、src/lib/planner.ts：文件头补原版权行 + 指向 THIRD_PARTY_NOTICES.md。
++- src/lib/risk.ts：补「思路重写非逐字复用」声明指引。
++- README.md 致谢：补版权行、「部分代码为注明出处的逐行移植」表述与 THIRD_PARTY_NOTICES.md 链接。
++- TRUTH.md §U：追加本裁决记录。
++
++## 重叠度实证（立卡依据，主会话实测 2026-10-11）
++归一化（去空白/去行内注释/排序）逐行比对 codex-cockpit v0.3.0-beta.5：
++- resetCard.ts：原 341 行 / 本仓 331 行 / 同文 263 行（~77%）；git diff --no-index --numstat = 119增/115删。
++- codex.rs：原 1242 行 / 本仓 352 行 / 同文约 300 行（握手段）。
++- planner.ts vs dynamicQuota.ts：同文 46 行（公式段）。
++- risk.ts vs reset_forecast.rs：跨语言重写，无逐行同文。
++
++## 门禁（worktree agent/RR33，全绿）
++- npx tsc --noEmit → exit 0
++- npx vitest run src/lib → 152/152（14 文件）
++- npm test 全量 → 238/238（25 文件，0 failed）
++- npm run test:node → pass 38 / fail 0，exit 0
++- node scripts/check-release.mjs → OK：版本 0.1.0 同步；README 14 条相对链接全可达（含新增 THIRD_PARTY_NOTICES.md）
++- cargo check --tests（gnu 工具链，PATH 按 RUNBOOK §10）→ Finished dev profile 1m21s，无 error/warning 输出
++- 变异红验：不适用——无可执行代码变更（注释+markdown），沿 RR12 artifact 批「无代码可变异」口径。
++
++## 出处
++- codex-cockpit LICENSE 原文：quota-analysis/codex-cockpit/LICENSE（Copyright (c) 2026 Quota Float contributors）
++- TRUTH §1 来源 3；docs/DECISIONS.md D015；README「致谢与许可」节；重叠数字为本会话 comm/归一化实测（命令见心跳）
++
++## 排障遗产
++- 无异常。worktree node_modules junction 按 B09 常规拆除。
+-- 
+2.52.0.windows.1
+
