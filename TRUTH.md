@@ -120,6 +120,18 @@
   AppliedDPI + exe 内嵌 manifest 直接 dump（python 读 `<assembly` 段）。
 - 出处：RR13 会话 S1011-0913 实测（task_logs/RR13_wip.md 证据链节）。
 
+### B11 截图探针无 PMv2 自设在 DPI≠100% 机器上产出半分辨率图（RR37 会话实测 2026-10-11）
+- 机制：B10 同族反向面——探针进程不 `SetProcessDpiAwarenessContext(PMv2)` 时，
+  `GetClientRect` 返回**虚拟化逻辑坐标**，位图按逻辑尺寸创建（460×76），PrintWindow(3)
+  把渲染内容压进半分辨率画布。实测：`scripts/shot-capsule.ps1`（RR13 老探针，无 PMv2）产出的
+  `20261011-rr32-capsule-dark.png` IHDR=460×76，而同批浅色孪生（shot-expanded.ps1 产）920×152；
+  坏图自 RR32 提交（3237e5b）即在库，RR32_done「四图 920×152/920×1380」口径对深色胶囊一条不实。
+- 正口径：胶囊态截图用 `shot-expanded.ps1 -Hash ""`（头注释明载「空串=默认胶囊态」，自带
+  PMv2 + `-Theme`）；不要再用 shot-capsule.ps1 于缩放比≠100% 的机器。
+- 判别法：PNG IHDR 字节核验（`fs.readFileSync(p).readUInt32BE(16/20)`），规格=2×逻辑
+  （RR20 DPI 192 口径：胶囊 920×152、展开 920×1380）。
+- 出处：RR37 会话 S1011-1930 实测（docs/review-20261011-round4.md §2 字节级复核 + 本卡重截对照）。
+
 ## §8 黑名单（已证伪/已知坑——绝不重踩）
 
 > 以下均初始化会话实测踩过，任何会话不得以任何理由重新引入；确有新证据要翻案，先立挖卡。
