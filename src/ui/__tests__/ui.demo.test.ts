@@ -40,3 +40,13 @@ describe("demoScenarioSnapshot", () => {
     expect(resetsAt != null && Date.parse(resetsAt) > Date.now()).toBe(true);
   });
 });
+
+describe("RR29：卡数场景带有效周窗（no-credits 决策分支可达）", () => {
+  it("credits-zero/credits-unknown 的自然重置时刻在未来（cardPlan 可生成）", () => {
+    for (const scenario of ["credits-zero", "credits-unknown"] as const) {
+      const snapshot = demoScenarioSnapshot(scenario);
+      const resetsAt = snapshot?.weeklyWindow?.resetsAt ?? null;
+      expect(resetsAt != null && Date.parse(resetsAt) > Date.now()).toBe(true);
+    }
+  });
+});

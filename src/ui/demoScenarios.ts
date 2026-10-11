@@ -23,18 +23,26 @@ function baseSnapshot(overrides: Partial<ProviderSnapshot>): ProviderSnapshot {
   };
 }
 
-/** 默认演示快照（浏览器 demo 降级用；数值沿 RR09 demo 口径）。 */
-export function demoSnapshot(): ProviderSnapshot {
+/** 健康周窗底（未来 2 天自然重置 + 同步观测）：demoSnapshot 与卡数场景共用——
+ *  卡数场景（credits-zero/unknown）要测「no-credits 决策分支」，周窗必须有效，
+ *  否则 cardPlan=null 决策卡不渲染（RR29 取证发现并修复，夹具缺陷）。 */
+function healthyWeeklyWindow() {
+  const now = new Date();
   const resetsAt = new Date(
     Math.ceil((Date.now() + 2 * 86_400_000) / 86_400_000) * 86_400_000,
   ).toISOString();
-  return baseSnapshot({
+  return {
     weeklyWindow: { remainingPercent: 29, resetsAt, windowSeconds: 604_800 },
     rateLimitSnapshot: {
       source: "app-server", usedPercent: 71, windowDurationMins: 10_080,
-      resetsAt, observedAt: new Date().toISOString(),
+      resetsAt, observedAt: now.toISOString(),
     },
-  });
+  };
+}
+
+/** 默认演示快照（浏览器 demo 降级用；数值沿 RR09 demo 口径）。 */
+export function demoSnapshot(): ProviderSnapshot {
+  return baseSnapshot(healthyWeeklyWindow());
 }
 
 export type DemoScenario = "empty" | "error" | "stale" | "credits-zero" | "credits-unknown" | "loading";
@@ -78,9 +86,11 @@ export function demoScenarioSnapshot(scenario: DemoScenario): ProviderSnapshot |
       });
     }
     case "credits-zero":
-      return baseSnapshot({ resetCredits: 0 });
+      // 有效周窗底（决策分支可达）+ 卡数归零：测「卡 ×0 下的用卡决策」渲染。
+      return baseSnapshot({ ...healthyWeeklyWindow(), resetCredits: 0 });
     case "credits-unknown":
-      return baseSnapshot({ resetCredits: null });
+      // 有效周窗底 + 卡数未知：测 hideNoCreditsDecision 分支（mutedNote 提示）。
+      return baseSnapshot({ ...healthyWeeklyWindow(), resetCredits: null });
     case "loading":
       return null; // 初始化骨架由 phase 呈现
   }

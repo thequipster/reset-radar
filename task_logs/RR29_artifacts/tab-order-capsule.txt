@@ -1,0 +1,9 @@
+start: {"id":3,"result":{"result":{"type":"string","value":"{\"tag\":\"BODY\",\"cls\":\"\"}"}}}
+tab#1 : {"id":6,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_expandButton_1o1i5_325\",\"aria\":\"\u5c55\u5f00\u5b8c\u6574\u9762\u677f\",\"text\":\"\"}"}}}
+tab#2 : {"id":9,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_expandButton_1o1i5_325\",\"aria\":\"\u5c55\u5f00\u5b8c\u6574\u9762\u677f\",\"text\":\"\"}"}}}
+tab#3 : {"id":12,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_expandButton_1o1i5_325\",\"aria\":\"\u5c55\u5f00\u5b8c\u6574\u9762\u677f\",\"text\":\"\"}"}}}
+tab#4 : {"id":15,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_expandButton_1o1i5_325\",\"aria\":\"\u5c55\u5f00\u5b8c\u6574\u9762\u677f\",\"text\":\"\"}"}}}
+tab#5 : {"id":18,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_expandButton_1o1i5_325\",\"aria\":\"\u5c55\u5f00\u5b8c\u6574\u9762\u677f\",\"text\":\"\"}"}}}
+tab#6 : {"id":21,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_expandButton_1o1i5_325\",\"aria\":\"\u5c55\u5f00\u5b8c\u6574\u9762\u677f\",\"text\":\"\"}"}}}
+tab#7 : {"id":24,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_expandButton_1o1i5_325\",\"aria\":\"\u5c55\u5f00\u5b8c\u6574\u9762\u677f\",\"text\":\"\"}"}}}
+done: 7 tabs dispatched

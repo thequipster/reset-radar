@@ -14,7 +14,9 @@ param(
   # 目标 hash：默认 #expanded（起始展开）；空串=默认胶囊态（两跳重载后仍回胶囊）
   [string]$Hash = "#expanded",
   # RR27：截图前把展开面板滚到底（底栏按钮/校准行在折叠线下方，需滚动佐证可达）
-  [switch]$ScrollBottom
+  [switch]$ScrollBottom,
+  # RR29：导航后先点击该文字的页签按钮（如"用卡"），拍指定页视口（credits-zero 决策卡等）
+  [string]$ClickTab = ""
 )
 
 Add-Type -AssemblyName System.Drawing
@@ -90,6 +92,20 @@ if ($ScrollBottom) {
   Start-Sleep -Seconds 3   # 等 React 挂载完成（导航响应早于渲染）
   Send-Cdp 3 "Runtime.evaluate" '{"expression":"document.querySelector(''[role=main]'').scrollTop = 1e6; ''scrolled''","returnByValue":true}'
   "Scroll: $(Recv-Until 3)"
+}
+if ($ClickTab -ne "") {
+  Start-Sleep -Seconds 4   # 等 React 挂载完成（导航响应早于渲染；3s 偶发未挂载完 not-found）
+  $cJson = @{ expression = "(() => { const b = [...document.querySelectorAll('button')].find(x => (x.textContent||'').trim() === '" + $ClickTab + "'); if (b) { b.click(); return 'clicked'; } return 'not-found'; })()"; returnByValue = $true } | ConvertTo-Json -Compress
+  Send-Cdp 4 "Runtime.evaluate" $cJson
+  $clickRes = Recv-Until 4
+  "ClickTab: $clickRes"
+  if ($clickRes -match "not-found") {   # 单次重试（挂载竞态）
+    Start-Sleep -Seconds 2
+    Send-Cdp 5 "Runtime.evaluate" $cJson
+    $clickRes = Recv-Until 5
+    "ClickTab retry: $clickRes"
+  }
+  Start-Sleep -Milliseconds 600
 }
 $ws.Dispose()
 

@@ -1,0 +1,16 @@
+start: {"id":3,"result":{"result":{"type":"string","value":"{\"tag\":\"BODY\",\"cls\":\"\"}"}}}
+tab#1 : {"id":6,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_themeOption_xcbbq_229 _themeOptionActive_xcbbq_255\",\"aria\":\"\u6df1\u8272\u4e3b\u9898\",\"text\":\"\"}"}}}
+tab#2 : {"id":9,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_themeOption_xcbbq_229 \",\"aria\":\"\u6d45\u8272\u4e3b\u9898\",\"text\":\"\"}"}}}
+tab#3 : {"id":12,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_themeOption_xcbbq_229 \",\"aria\":\"\u8ddf\u968f\u7cfb\u7edf\u4e3b\u9898\",\"text\":\"\"}"}}}
+tab#4 : {"id":15,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_iconButton_xcbbq_165\",\"aria\":\"\u6536\u8d77\u9762\u677f\",\"text\":\"\"}"}}}
+tab#5 : {"id":18,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_iconButton_xcbbq_165\",\"aria\":\"\u9000\u51fa reset-radar\",\"text\":\"\"}"}}}
+tab#6 : {"id":21,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_tabButton_xcbbq_2107 _tabButtonActive_xcbbq_2151\",\"aria\":\"\",\"text\":\"\u6982\u89c8\"}"}}}
+tab#7 : {"id":24,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_tabButton_xcbbq_2107 \",\"aria\":\"\",\"text\":\"\u98ce\u9669\"}"}}}
+tab#8 : {"id":27,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_tabButton_xcbbq_2107 \",\"aria\":\"\",\"text\":\"\u7528\u5361\"}"}}}
+tab#9 : {"id":30,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_tabButton_xcbbq_2107 \",\"aria\":\"\",\"text\":\"\u6570\u636e\"}"}}}
+tab#10 : {"id":33,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_themeOption_xcbbq_229 _themeOptionActive_xcbbq_255\",\"aria\":\"\u6df1\u8272\u4e3b\u9898\",\"text\":\"\"}"}}}
+tab#11 : {"id":36,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_themeOption_xcbbq_229 \",\"aria\":\"\u6d45\u8272\u4e3b\u9898\",\"text\":\"\"}"}}}
+tab#12 : {"id":39,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_themeOption_xcbbq_229 \",\"aria\":\"\u8ddf\u968f\u7cfb\u7edf\u4e3b\u9898\",\"text\":\"\"}"}}}
+tab#13 : {"id":42,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_iconButton_xcbbq_165\",\"aria\":\"\u6536\u8d77\u9762\u677f\",\"text\":\"\"}"}}}
+tab#14 : {"id":45,"result":{"result":{"type":"string","value":"{\"tag\":\"BUTTON\",\"cls\":\"_iconButton_xcbbq_165\",\"aria\":\"\u9000\u51fa reset-radar\",\"text\":\"\"}"}}}
+done: 14 tabs dispatched
