@@ -83,3 +83,5 @@
 | 2026-10-11T09:44+08 | S1011-0944 | 开工 | — | — | 工位会话：STOP 区空，五件套读毕，判定 WORK（🟠×8 无🟡，上心跳收工无人在飞）；按 BOARD 建议领 RR20（data-layer：exe manifest 补 dpiAware，TRUTH B10/D020，解锁 RR13 复验）。注：本机钟 09:44 与上会话收工戳 09:56 有钟差，以看板状态（已收工/无在飞）为准 |
 | 2026-10-11T09:46+08 | S1011-0944 | 领卡 | RR20 | LIGHT | WORK 阶段按 BOARD 建议领 RR20（data-layer：build.rs manifest 补 dpiAware PerMonitorV2，B10/D020）；已核实 tauri-build 2.7.1 默认 manifest 无 dpiAware+tao 0.37.1 运行时调用路径（本机 gnu 失效），落码前真值链闭合；建 worktree agent/RR20 开工 |
 | 2026-10-11T10:03+08 | S1011-0944 | 收工 | RR20 | — | 交付完毕：8963fd3 四绿全过+变异红验（PerMonitorV2 改坏→哨兵红1/复原绿）+200% 实证（GetDpiForWindow 96病灶→192、物理客户区=2×逻辑、识图复验右缘截断消除）；exe 内两份 manifest 并存注记入 done/artifacts（生效者=含 dpiAware 份，运行时实证）；MSVC 发行路径 DPI 覆盖留 REVIEW 取材；BOARD 转🟡、阶段切 MERGE，下一班合入后 RR13 复验收尾解锁；时间盒内完卡一张，槽位释放 |
+| 2026-10-11T10:05+08 | S1011-0944 | 领卡 | RR20 | MERGE | 占 MERGE 槽合入 RR20（时间盒余量内）：开始预审（worktree 探活/diffstat 对账/patch 备份核对/路径交集） |
+| 2026-10-11T10:08+08 | S1011-0944 | 收工 | RR20 | — | MERGE 闭环：8963fd3→main aadaed4 树恒等✅；预审四过；主仓复验 tsc✅ 86/86 0failed✅ cargo check --tests✅；worktree/分支已拆（junction先拆，主仓 node_modules 完好）；BOARD 转🟢、阶段切 WORK（RR13 复验收尾为下一班优先）；本会话时间盒内完卡一张+合入一张，槽位释放 |

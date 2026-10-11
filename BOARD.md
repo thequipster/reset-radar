@@ -14,10 +14,11 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：MERGE（RR20 🟡唯一待合；合入后 RR13 复验收尾优先）**
-（下一班建议：占 MERGE 槽合 RR20（8963fd3，单 commit；worktree 有 node_modules junction
-**拆前先 rmdir**）→ 主仓复跑 cargo check --tests+vitest 全量 → 转 WORK **领 RR13 续作收尾**
-（前置已就绪，task_logs/RR13_wip.md 4 步指引：重建→重截→识图复验→done）。
+**当前阶段：WORK（🟠可领 ×8：RR13 复验收尾 P1 优先、RR14–RR19；无 🟡）**
+（下一班建议：**优先领 RR13 续作收尾**（前置 RR20 已合入 main aadaed4；task_logs/
+RR13_wip.md 4 步指引：worktree 重建（npm run build + release --features
+tauri/custom-protocol）→shot-capsule.ps1 重截→识图复验无截断→四绿→done；其 worktree
+含 node_modules junction **拆前先 rmdir**；RR20 探针脚本 shot-rr20.ps1 可复用）。
 其后 RR14→RR15→RR18→RR19→RR16→RR17（RR13/RR14 同域串行，RR17 依赖 RR15）。
 取材详单：docs/review-20261011.md + RR20_done 注记（MSVC 发行路径 DPI 覆盖））
 
@@ -28,22 +29,26 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
-### [2026-10-11 09:46→10:03] RR20 | P1 | 🔧🟡待合入 | data-layer | 会话 S1011-0944
+### [2026-10-11 09:46→10:08] RR20 | P1 | 🔧🟢已闭环 | data-layer | 会话 S1011-0944 交付 → 同会话合入
+- 合入：agent/RR20 @ 8963fd3（单 commit）→ main **aadaed4**（cherry-pick，树恒等✅
+  2 路径 diff 0 字节；worktree/分支已拆——junction 先拆 cmd rmdir，主仓 node_modules 完好）
+- 主仓复验：tsc✅ vitest 全量 86/86 0failed✅ cargo check --tests 4.18s✅
+  （worktree 侧域门 cargo test --lib 12/12✅ 含新哨兵2）
 - 分支/commit：agent/RR20 @ **8963fd3**（单 commit；基于 main 7afcd64；patch 备份
-  task_logs/RR20.patch；worktree 在，**node_modules junction 拆前先 rmdir**，B09）
+  task_logs/RR20.patch）
 - 已落：build.rs GNU_APP_MANIFEST 补 dpiAware=true/PM + dpiAwareness=PerMonitorV2,
   PerMonitor（保留 CC v6，B08 成果不丢；xml 落盘无条件、embed 仍 gnu 门控）+
   lib.rs 哨兵测试×2（B08/B10 回归，include_str! 读真件）；真值=B10/D020+registry
   源码核实（tauri-build 2.7.1 默认 manifest 无 dpiAware，官方靠 tao 运行时调用，
   本机 gnu 实测未生效）
 - 门禁：tsc✅ 域 cargo test --lib **12/12**✅（10+新2）全量 vitest 86/86 0failed✅
-  cargo check --tests 1m01s✅ 变异红验✅（PerMonitorV2→MUTANT 红哨兵1条/复原复绿）
+  cargo check --tests✅ 变异红验✅（PerMonitorV2→MUTANT 红哨兵1条/复原复绿）
 - 实证（200% 缩放）：exe 嵌入含 dpiAware manifest（PerMonitorV2×1）；
   **GetDpiForWindow 96病灶→192**；物理客户区 **840×1120=2×逻辑**（修复前 420×560）；
   识图复验胶囊右端「卡×3」完整、余量 40+px——**右缘截断消除**（真实数据 29%/24.7%/×3）
 - 证据件：task_logs/RR20_artifacts/（manifest-dump.txt 含两份并存注记 / rr20-after-420.png /
   shot-rr20.ps1 探针可复用）；done 有 MSVC 发行路径 DPI 注记（REVIEW 取材）
-- →下轮：MERGE 合入后 **RR13 续作解锁**（其 wip 4 步指引：重建→重截→识图复验→done）
+- 解锁：**RR13 复验收尾**（下一班优先；其 wip 4 步指引照走）
 
 ### [2026-10-11 09:17→09:55] RR13 | P1 | 🔧🟠待领（留证续作） | ui | 会话 S1011-0913 留证
 - 分支/commit：agent/RR13 @ **1482ca9**（WIP：width 460+minWidth/README 图引/截图脚本+460 截图；
