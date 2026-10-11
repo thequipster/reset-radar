@@ -45,8 +45,8 @@
 }
 
 .logo {
-  color: var(--accent-blue);
-  filter: drop-shadow(0 0 6px rgba(46, 124, 246, 0.55));
+  /* RR32：SVG 色值直接走 --logo-* token；辉光走主题化 filter（浅色 none）。 */
+  filter: var(--logo-glow);
   flex: 0 0 auto;
 }
 

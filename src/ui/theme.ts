@@ -42,6 +42,12 @@ export const THEME_VARIABLES: Record<ResolvedTheme, Record<string, string>> = {
     "--glow-purple": "0 6px 28px rgba(147, 51, 234, 0.40)",
     "--shadow-panel": "0 12px 40px rgba(0, 0, 0, 0.55)",
     "--shadow-card": "0 4px 16px rgba(0, 0, 0, 0.35)",
+    // RR32 品牌 logo token（与 widget.css 对齐，域测试锁定）：深色=精密蓝正稿。
+    "--logo-ring-main": "#46e4f4",
+    "--logo-ring-inner": "#179bf1",
+    "--logo-grad-lo": "rgba(23, 155, 241, 0.12)",
+    "--logo-grad-hi": "rgba(70, 228, 244, 0.68)",
+    "--logo-glow": "drop-shadow(0 0 6px rgba(70, 228, 244, 0.45))",
   },
   light: {
     "--bg-panel": "rgba(245, 248, 252, 0.97)",
@@ -76,6 +82,12 @@ export const THEME_VARIABLES: Record<ResolvedTheme, Record<string, string>> = {
     "--glow-purple": "0 6px 20px rgba(147, 51, 234, 0.15)",
     "--shadow-panel": "0 8px 24px rgba(20, 40, 80, 0.14)",
     "--shadow-card": "0 1px 3px rgba(20, 40, 80, 0.08)",
+    // RR32 浅色=02-glass 配色（深色调标记放浅底）。
+    "--logo-ring-main": "#0277c8",
+    "--logo-ring-inner": "#30b7ef",
+    "--logo-grad-lo": "rgba(48, 183, 239, 0.12)",
+    "--logo-grad-hi": "rgba(2, 119, 200, 0.68)",
+    "--logo-glow": "none",
   },
 };
 

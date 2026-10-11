@@ -1,0 +1,13 @@
+RR32 exe 内嵌图标字节级实证 (2026-10-11)
+交付包: docs/design/icons-20261011/icons/reset-radar.ico (8 帧 PNG)
+exe: src-tauri/target/release/reset-radar.exe (cargo build --release --features tauri/custom-protocol, 2026-10-11 17:42)
+方法: 逐帧取交付 ico 帧数据前 96 字节在 exe 全文件搜索
+frame 16px: 748 字节帧数据前 96 字节命中 exe 偏移 17046752
+frame 20px: 941 字节帧数据前 96 字节命中 exe 偏移 17047504
+frame 24px: 1167 字节帧数据前 96 字节命中 exe 偏移 17048448
+frame 32px: 1665 字节帧数据前 96 字节命中 exe 偏移 17049616
+frame 48px: 2801 字节帧数据前 96 字节命中 exe 偏移 17051288
+frame 64px: 3685 字节帧数据前 96 字节命中 exe 偏移 17054096
+frame 128px: 7723 字节帧数据前 96 字节命中 exe 偏移 17057784
+frame 256px: 17115 字节帧数据前 96 字节命中 exe 偏移 17065512
+exe SHA256: 06882AD1E112D32EB748112E6BCD047EB2B7192314BBEEEE62D3A043924D4DCF

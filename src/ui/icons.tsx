@@ -26,16 +26,24 @@ function Svg({ size = 24, className, children, label }: IconProps & { children: 
   );
 }
 
-/** 品牌雷达 logo：同心圆环 + 中心点 + 扫描扇形（图1/图3 发光雷达）。 */
+/** 品牌雷达 logo：RR32 换交付正稿造型（docs/design/icons-20261011/icons/source/
+ * reset-radar-mark.svg 几何逐值：外环 r172 sw15 / 内环 r104 sw12 / 扫描扇形渐变 /
+ * 扫描线 / 中心点 r27）。色值走主题 token——深色=精密蓝 #46E4F4/#179BF1，浅色=02-glass
+ * 配色 #0277C8/#30B7EF（handoff：勿将亮色透明标放白底）。 */
 export function RadarLogo({ size = 36, className }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" className={className} aria-hidden={true}>
-      <circle cx="24" cy="24" r="19" stroke="currentColor" strokeWidth="2" opacity="0.35" />
-      <circle cx="24" cy="24" r="12" stroke="currentColor" strokeWidth="2" opacity="0.6" />
-      <path d="M24 24 L24 6 A18 18 0 0 1 39 13 Z" fill="currentColor" opacity="0.22" />
-      <path d="M24 24 L38.6 14.5" stroke="currentColor" strokeWidth="2" />
-      <circle cx="24" cy="24" r="3.2" fill="currentColor" />
-      <circle cx="33" cy="16" r="2.2" fill="currentColor" opacity="0.85" />
+    <svg width={size} height={size} viewBox="0 0 512 512" fill="none" className={className} aria-hidden={true}>
+      <defs>
+        <linearGradient id="rr-logo-sweep" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stopColor="var(--logo-grad-lo)" />
+          <stop offset="1" stopColor="var(--logo-grad-hi)" />
+        </linearGradient>
+      </defs>
+      <path d="M256 256 L328.69 100.19 A172 172 0 0 1 417.63 197.17 Z" fill="url(#rr-logo-sweep)" />
+      <circle cx="256" cy="256" r="172" stroke="var(--logo-ring-main)" strokeWidth="15" />
+      <circle cx="256" cy="256" r="104" stroke="var(--logo-ring-inner)" strokeWidth="12" />
+      <path d="M256 256 L417.63 197.17" stroke="var(--logo-ring-main)" strokeWidth="7" strokeLinecap="round" />
+      <circle cx="256" cy="256" r="27" fill="var(--logo-ring-main)" />
     </svg>
   );
 }

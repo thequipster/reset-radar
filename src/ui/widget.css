@@ -40,6 +40,12 @@
   --purple-banner-b: #7c3aed;
   --purple-banner-c: #4c1d95;
   --suggestion-number: #ffffff;
+  /* RR32 品牌 logo token：深色用交付正稿「精密蓝」（icons-20261011/reset-radar-mark.svg）。 */
+  --logo-ring-main: #46e4f4;
+  --logo-ring-inner: #179bf1;
+  --logo-grad-lo: rgba(23, 155, 241, 0.12);
+  --logo-grad-hi: rgba(70, 228, 244, 0.68);
+  --logo-glow: drop-shadow(0 0 6px rgba(70, 228, 244, 0.45));
 }
 
 [data-theme="light"] {
@@ -80,6 +86,12 @@
   --purple-banner-b: #e6dcff;
   --purple-banner-c: #e0e7ff;
   --suggestion-number: #7c3aed;
+  /* RR32 浅色主题 logo 走 02-glass 配色（handoff：勿将亮色透明标放白底）。 */
+  --logo-ring-main: #0277c8;
+  --logo-ring-inner: #30b7ef;
+  --logo-grad-lo: rgba(48, 183, 239, 0.12);
+  --logo-grad-hi: rgba(2, 119, 200, 0.68);
+  --logo-glow: none;
 }
 
 * {
