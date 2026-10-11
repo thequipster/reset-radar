@@ -14,11 +14,13 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（RR11/RR12 🟠可领）**
-（下一班建议：领 RR11（docs+发布域：README 真实截图与功能清单勾选/版本 0.1.0 两处同步/
-release workflow/LICENSE+TRUTH 致谢检查；RR09 胶囊态截图 docs/screenshots/ 已有、展开态
-截图缺失可在卡内注明留 REVIEW）。RR12 首轮 REVIEW 待 RR11 合入后执行，取材：app 内自动
-落盘路径汇流（D019③）/展开态截图/胶囊溢出 420px/ROADMAP 扫描）
+**当前阶段：MERGE（RR11 🟡待合入；RR12 🟠可领）**
+（下一班建议：占 MERGE 槽合入 RR11（单 commit f5ce969，patch task_logs/RR11.patch 对 main
+干净适用已验证；拆 worktree 前先拆 node_modules junction——pwsh New-Item Junction 法建的，
+用 pwsh Remove-Item 或 cmd rmdir 拆）→ 阶段切 WORK 领 RR12 执行首轮 REVIEW（RUNBOOK §9.1：
+全量测试输出/构建证据/校准报告/UI 截图 artifact + 差距逐条定夺立 RR13+，编号查 BACKLOG 尾部；
+取材：app 内自动落盘路径汇流 D019③/展开态截图（RR09+RR11 两处遗留）/胶囊溢出 420px/
+ROADMAP v0.2 未立卡条目））
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -26,6 +28,19 @@ release workflow/LICENSE+TRUTH 致谢检查；RR09 胶囊态截图 docs/screensh
 - MERGE：×1（主仓合入互斥，同一时刻只有一人写主仓代码）
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
+
+### [2026-10-11 08:20→08:42] RR11 | P1 | 🧱🟡待合入 | docs+发布 | 会话 S1011-0813
+- 分支/commit：agent/RR11 @ **f5ce969**（单 commit；基于 main 9b81f38；patch 备份
+  task_logs/RR11.patch 对 main 干净适用✅）
+- 已落：README 重写（胶囊态真实截图上墙+功能清单勾选 7/8+校准闭环用法+发布三步+致谢精确
+  到 v0.3.0-beta.5；"keyring"措辞修准为 codex CLI 鉴权）+ release.yml（tag v* 触发，10 步，
+  gh release create 挂 nsis/msi/SHA256SUMS，permissions 仅此 wf 写）+ check-release.mjs
+  （版本同步+README 链接 12 条+tag 守卫）+ check-release-wf.py（结构门禁）
+- 门禁（等价口径沿 RR02/D011）：tsc✅ 全量 86/86 0failed✅ check-release/check-release-wf/
+  check-ci 回归/actionlint 1.7.12 零告警/PyYAML 全绿✅ 变异红验两轮✅（链接条件反转红12/
+  触发器比较符反转红1）+ tag 守卫咬合证（v9.9.9 红/v0.1.0 绿）
+- 版本定档 0.1.0 两处已一致（核验后不动值）；LICENSE/TRUTH 致谢完整性检查结论：无需改动
+- →下轮：MERGE 占槽 cherry-pick 单 commit；合入后 RR12 首轮 REVIEW 可执行（取材见阶段区）
 
 ### [2026-10-11 07:56→08:00] RR10 | P1 | 🧱🟢已闭环 | core+data-layer | 会话 S1011-0743 交付 → S1011-0813 合入
 - 合入：agent/RR10 @ d35bc8b（2 commits c78e462+d35bc8b）→ main **8ec7d6b**

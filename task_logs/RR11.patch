@@ -1,0 +1,333 @@
+From f5ce969517fe6b0dd8a4bd9cf49acdc839abb0c0 Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 08:20:12 +0800
+Subject: [PATCH] feat(release): README polish + tag-triggered release workflow
+ + readiness gates (RR11)
+
+---
+ .github/workflows/release.yml | 66 ++++++++++++++++++++++++++++++
+ README.md                     | 76 ++++++++++++++++++++++++++++-------
+ scripts/check-release-wf.py   | 67 ++++++++++++++++++++++++++++++
+ scripts/check-release.mjs     | 53 ++++++++++++++++++++++++
+ 4 files changed, 248 insertions(+), 14 deletions(-)
+ create mode 100644 .github/workflows/release.yml
+ create mode 100644 scripts/check-release-wf.py
+ create mode 100644 scripts/check-release.mjs
+
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+new file mode 100644
+index 0000000..d120d22
+--- /dev/null
++++ b/.github/workflows/release.yml
+@@ -0,0 +1,66 @@
++# Release — 打 tag v* 触发 Windows（MSVC）构建并把产物挂上 GitHub Release（RR11）
++# 借鉴 codex-cockpit .github/workflows/release.yml（MIT）已证做法：tag v* 触发、action 逐
++# commit-SHA pin、rust-cache save-if false（post-job 缓存修剪曾挂死一台 Windows runner）、
++# gh release create --verify-tag 用内置 token 免第三方 release action（缩供应链面）。
++# 与参考差异：本项目无自动更新器/多平台/签名，单 Windows job；日常门禁在 ci.yml（push/PR），
++# 本工作流只管发版。
++name: Release
++
++on:
++  push:
++    tags: ['v*']
++
++permissions:
++  contents: write # gh release create 需要写权限建 Release 并传附件
++
++concurrency:
++  group: release-${{ github.ref }}
++  cancel-in-progress: false
++
++jobs:
++  release:
++    runs-on: windows-latest
++    timeout-minutes: 60
++    steps:
++      - name: Checkout
++        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
++      - name: Setup Node
++        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
++        with:
++          node-version: '24'
++          cache: npm
++      - name: Setup Rust (stable, MSVC)
++        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
++      - name: Rust cache
++        uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
++        with:
++          workspaces: src-tauri -> target
++          # 借鉴参考仓：release job 只恢复缓存不写回（构建慢、产物一旦上传，缓存修剪
++          # 得不偿失且曾引发 post-job 挂死）
++          save-if: 'false'
++      - name: Install frontend deps
++        run: npm ci
++      - name: Version/tag consistency guard
++        shell: bash
++        run: node scripts/check-release.mjs --tag "$GITHUB_REF_NAME"
++      - name: Type check (tsc)
++        run: npx tsc --noEmit
++      - name: Unit tests (vitest)
++        run: npx vitest run
++      - name: Build desktop app (tauri)
++        run: npm run tauri build
++      - name: Create release with installers
++        shell: bash
++        env:
++          GH_TOKEN: ${{ github.token }}
++        run: |
++          set -euo pipefail
++          cd src-tauri/target/release/bundle
++          sha256sum nsis/*.exe msi/*.msi > SHA256SUMS.txt
++          flags=()
++          # 借鉴参考仓：版本带预发布后缀（-beta.1/-rc.1）标 prerelease
++          if [[ "${GITHUB_REF_NAME#v}" == *-* ]]; then flags+=(--prerelease); fi
++          gh release create "$GITHUB_REF_NAME" nsis/*.exe msi/*.msi SHA256SUMS.txt \
++            --verify-tag "${flags[@]}" \
++            --generate-notes \
++            --title "reset-radar $GITHUB_REF_NAME"
+diff --git a/README.md b/README.md
+index 85744d0..95c885b 100644
+--- a/README.md
++++ b/README.md
+@@ -3,24 +3,47 @@
+ > 看得见准头的 Codex 重置风险与用卡规划器。
+ > A Codex reset-risk & credit planner that **proves its own accuracy**.
+ 
+-[![CI](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
++[![CI](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](ROADMAP.md)
+ 
+ ## 为什么做这个
+ 
+ 现有的 Codex 额度悬浮窗会告诉你"明天强制重置风险 70%"，但从来没人回答：**这个 70% 说过几次准几次？**
+ reset-radar 的核心差异是**校准闭环**——每条风险预测都被落盘记录，事后与实际重置对答案，
+-命中率与 Brier 分数直接展示在界面上。模型准不准，摆在明面上，而不是藏在公式里。
++命中率与 Brier 分数直接算给你看。模型准不准，摆在明面上，而不是藏在公式里。
+ 
+-## 功能（随迭代推进，进度见 [BACKLOG.md](BACKLOG.md)）
++## 界面
+ 
+-- 📡 **重置风险雷达**：星期基线 + 历史校准的强制重置概率，每个数字附带可解释因子
+-  （"为什么是 70%"一条条列出来）。
+-- 🏃 **每日配速建议**：把剩余额度按风险摊到每天，公式三行说完，不搞黑盒。
+-- 🎴 **重置卡规划器**：基于期望增量模型告诉你"今天用卡/等到周几用/这周期别用"，
++悬浮胶囊常驻显示当前重置风险（真实数据截图）：
++
++![胶囊态：周窗重置风险](docs/screenshots/20261011-capsule.png)
++
++点击胶囊展开三块面板：**风险雷达**（分数 + 可解释因子逐条列出）/ **今日建议**（配速数字与依据）/
++**用卡规划**（决策 + 期望收益 + 24h/48h 碰撞概率）。展开态截图待补（见 [ROADMAP.md](ROADMAP.md)）。
++
++## 功能清单（v0.1.0）
++
++- [x] 📡 **重置风险雷达**：星期基线 + 历史校准的强制重置概率，每个数字附带可解释因子
++  （"为什么是这个数"一条条列出来）。
++- [x] 🏃 **每日配速建议**：把剩余额度按风险摊到每天，公式三行说完，不搞黑盒。
++- [x] 🎴 **重置卡规划器**：期望增量模型告诉你"今天用卡/等到周几用/这周期别用"，
+   并给出"用卡后 24h/48h 撞上强制重置"的概率。
+-- 🎯 **校准面板**（差异化核心）：预测 vs 实际的命中率、Brier 分数、逐周趋势。
+-- ⚡ **秒开**：快照持久化 + 热启动，首屏先画上次数据再后台刷新。
+-- 🔒 **本地优先**：无遥测，无账号，密钥不出系统 keyring。
++- [x] 📝 **预测落盘**：每日评估幂等追加到 `data/predictions.jsonl`（同日只在风险漂移超阈值时
++  补行），只追加不修改——校准闭环的原料。
++- [x] 🎯 **校准报告**：`npm run calibrate` 输出命中率、Brier 分数与逐周趋势
++  （应用内校准面板在 [ROADMAP.md](ROADMAP.md) v0.2）。
++- [x] ⚡ **秒开**：快照持久化 + 热启动，首屏先画上次数据再后台刷新。
++- [x] 🔒 **本地优先**：无遥测、无账号；鉴权完全交给本机 `codex` CLI（app-server stdio），
++  本应用不经手任何密钥。
++- [ ] 🖥️ 应用内校准面板 / 预测自动落盘到应用数据目录（[ROADMAP.md](ROADMAP.md) v0.2+）。
++
++## 校准闭环怎么跑（差异化核心）
++
++```bash
++npm run log-prediction   # 每日一次：评估当日风险并幂等落盘（建议挂定时任务）
++npm run calibrate        # 随时对答案：输出命中率/Brier/逐周趋势报告
++```
++
++预测行的 schema 与幂等规则见 `src/lib/predictions.ts`（单一实现源，100% 单测）。
+ 
+ ## 技术栈
+ 
+@@ -33,18 +56,43 @@ Tauri 2 · React · TypeScript（核心算法为零依赖纯函数，100% 单测
+ ```bash
+ npm install
+ npm run tauri dev     # 开发运行
+-npx vitest run        # 全量测试
++npx vitest run        # 全量测试（86 条）
+ npm run tauri build   # 构建（注意：gnu 本机构建需 custom-protocol 特性，见 RUNBOOK §10）
+ ```
+ 
++发布资产门禁（本地复现 CI 检查）：
++
++```bash
++node scripts/check-release.mjs         # 版本两处同步 + README 链接可达
++python scripts/check-ci.py             # ci.yml 结构（RR02）
++python scripts/check-release-wf.py     # release.yml 结构（RR11）
++```
++
+ 本项目由「永续看板循环」驱动迭代：AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议领卡开发，
+ 一切进度与证据见 [BOARD.md](BOARD.md) 与 [task_logs/](task_logs/)。
+ 
++## 发布（用户操作，共三步）
++
++仓库已配置打 tag 自动构建（Windows MSVC 产物：nsis `.exe` + msi + SHA256SUMS 挂 Release）：
++
++```bash
++gh repo create <owner>/reset-radar --public --source . --remote origin   # ① 建 GitHub 仓库（仅首次）
++git push -u origin main                                                  # ② 推主干（CI 首跑=门禁验证）
++git tag v0.1.0 && git push origin v0.1.0                                 # ③ 打版本 tag → 自动出 Release
++```
++
++版本号两处（`package.json` + `src-tauri/tauri.conf.json`）已锁定 `0.1.0` 且有门禁校验同步；
++tag 名会与版本做一致性校验，不一致构建即失败。CI/release 的真实首跑发生在用户首次 push 后。
++
+ ## 致谢与许可
+ 
+-算法思路部分借鉴自 MIT 许可的 [codex-cockpit](https://github.com/HouSiyuan2001/codex-cockpit)
+-与 [codex-resets.com](https://codex-resets.com) 的公开数据。本项目基于 [MIT License](LICENSE) 开源。
++- [codex-cockpit](https://github.com/HouSiyuan2001/codex-cockpit)（MIT，v0.3.0-beta.5）：
++  风险因子、配速公式、重置卡规划器与 app-server 握手的算法思路来源，逐文件出处见
++  [TRUTH.md](TRUTH.md) §1 与各卡 `task_logs/*_done.md`。
++- [codex-resets.com](https://codex-resets.com) 的公开数据与接口。
++
++本项目基于 [MIT License](LICENSE) 开源。
+ 
+ ---
+ 
+-*Status: 🚧 bootstrapping — v0.1.0 目标见 [ROADMAP.md](ROADMAP.md)。此仓库由 AI 工位夜间自主推进。*
++*Status: v0.1.0 发布就绪（RR01–RR11 已闭环）。此仓库由 AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议自主推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*
+diff --git a/scripts/check-release-wf.py b/scripts/check-release-wf.py
+new file mode 100644
+index 0000000..cfadee5
+--- /dev/null
++++ b/scripts/check-release-wf.py
+@@ -0,0 +1,67 @@
++#!/usr/bin/env python3
++"""RR11 门禁断言：.github/workflows/release.yml 步骤结构与卡面修向逐条对照。
++
++口径来源：BACKLOG RR11 修向——打 tag 触发构建、产物附件挂 Release。本脚本即该验证口径的
++可复现实现（actionlint+PyYAML 双校验与 RR02 同法，等价口径先例见 DECISIONS D011；actionlint
++二进制留在 /tmp/actionlint/，见 RR02 排障遗产）。用法：python scripts/check-release-wf.py
++"""
++import re
++import sys
++from pathlib import Path
++
++import yaml
++
++ROOT = Path(__file__).resolve().parents[1]
++WF = ROOT / ".github" / "workflows" / "release.yml"
++PINNED_SHA = re.compile(r"@[0-9a-f]{40}$")  # 逐 commit-SHA pin（借参考仓，ci.yml 同法）
++
++failures = []
++
++
++def check(cond, msg):
++    if not cond:
++        failures.append(msg)
++
++
++text = WF.read_text(encoding="utf-8")
++wf = yaml.safe_load(text)
++# PyYAML 会把裸键 on 解析为布尔 True，两种都取
++on = wf.get("on") if "on" in wf else wf.get(True)
++
++check(isinstance(on, dict), "缺 on 触发区")
++if isinstance(on, dict):
++    check(on.get("push", {}).get("tags") == ["v*"], "触发器必须是 push.tags=['v*']（打 tag 发版）")
++perms = wf.get("permissions", {})
++check(perms.get("contents") == "write", "permissions.contents 必须 write（gh release create 附件上传）")
++check(wf.get("concurrency", {}).get("cancel-in-progress") is False, "发版并发不得 cancel-in-progress")
++
++jobs = wf.get("jobs", {})
++check(len(jobs) == 1, "应只有单个 release job（本项目无多平台矩阵）")
++job = next(iter(jobs.values())) if jobs else {}
++check(job.get("runs-on") == "windows-latest", "runs-on 必须 windows-latest（与 ci.yml 产物线一致）")
++
++steps = job.get("steps", [])
++for step in steps:
++    uses = step.get("uses")
++    if uses:
++        check(bool(PINNED_SHA.search(uses)), f"action 未按 commit-SHA pin：{uses}")
++
++runs = [s.get("run", "") for s in steps if "run" in s]
++joined = "\n".join(runs)
++check("node scripts/check-release.mjs --tag" in joined, "缺版本/tag 一致性守卫步骤")
++check("npx tsc --noEmit" in joined, "缺 tsc 门禁")
++check("npx vitest run" in joined, "缺 vitest 门禁")
++check("npm run tauri build" in joined, "缺 tauri 构建")
++check("gh release create" in joined, "缺 gh release create（产物挂 Release）")
++check("--verify-tag" in joined, "gh release create 必须带 --verify-tag")
++check("sha256sum" in joined, "产物必须附 SHA256SUMS 校验和")
++
++# 借参考仓教训：release job 的 rust-cache 必须 save-if false（post-job 缓存修剪曾挂死 Windows runner）
++cache_steps = [s for s in steps if str(s.get("uses", "")).startswith("swatinem/rust-cache")]
++check(bool(cache_steps) and all(c.get("with", {}).get("save-if") == "false" for c in cache_steps),
++      "rust-cache 必须 save-if 'false'（参考仓 Windows runner 挂死教训）")
++
++if failures:
++    print("\n".join(f"✗ {f}" for f in failures))
++    sys.exit(1)
++print(f"release.yml 结构门禁通过：{len(steps)} 步、{sum(1 for s in steps if s.get('uses'))} 个 action 全 SHA pin")
+diff --git a/scripts/check-release.mjs b/scripts/check-release.mjs
+new file mode 100644
+index 0000000..4fa89f7
+--- /dev/null
++++ b/scripts/check-release.mjs
+@@ -0,0 +1,53 @@
++#!/usr/bin/env node
++// RR11 发布就绪门禁：版本同步 + README 链接可达 +（可选）tag 一致性。
++// 口径来源：BACKLOG RR11 验证口径——package.json 与 src-tauri/tauri.conf.json 版本必须一致；
++// README 内相对链接必须全部解析到存在的文件（存在性检查）；带 --tag 时（release.yml 调用）
++// tag 名必须等于 v{version}。任一失败 exit 1。用法：
++//   node scripts/check-release.mjs [--tag v0.1.0 | --tag=v0.1.0]
++import { readFileSync, existsSync } from 'node:fs';
++import { dirname, join, resolve } from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
++const failures = [];
++const fail = (msg) => failures.push(msg);
++const readJson = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'));
++
++// ① 版本两处同步（RUNBOOK §6：package.json 与 tauri.conf.json 必须同步）
++const pkg = readJson('package.json');
++const conf = readJson('src-tauri/tauri.conf.json');
++if (pkg.version !== conf.version) {
++  fail(`版本不同步：package.json=${pkg.version} tauri.conf.json=${conf.version}`);
++}
++
++// ② tag 一致性（release.yml 的 Version/tag consistency guard 步骤调用）
++const argv = process.argv.slice(2);
++let tag = null;
++const idx = argv.findIndex((a) => a === '--tag' || a.startsWith('--tag='));
++if (idx >= 0) {
++  tag = argv[idx].includes('=') ? argv[idx].split('=')[1] : argv[idx + 1];
++  if (!tag) fail('--tag 传了开关但没给值（--tag v0.1.0 或 --tag=v0.1.0）');
++}
++if (tag !== null && tag !== `v${pkg.version}`) {
++  fail(`tag 与版本不一致：tag=${tag} 期望=v${pkg.version}`);
++}
++
++// ③ README 相对链接存在性（外链/锚点/邮件跳过，只查仓库内路径）
++const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
++const targets = [...readme.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)]
++  .map((m) => m[1])
++  .filter((t) => !/^([a-z][a-z0-9+.-]*:)?\/\//i.test(t) && !t.startsWith('#') && !t.startsWith('mailto:'));
++for (const t of targets) {
++  const rel = decodeURI(t.split('#')[0]);
++  if (!existsSync(join(ROOT, rel))) fail(`README 链接不可达：${t}`);
++}
++
++if (failures.length) {
++  console.error(`check-release: ${failures.length} 项失败`);
++  for (const f of failures) console.error(`  ✗ ${f}`);
++  process.exit(1);
++}
++console.log(
++  `check-release OK：版本同步 ${pkg.version}` +
++    `${tag ? `（tag=${tag}）` : ''}；README 相对链接 ${targets.length} 条全部可达`,
++);
+-- 
+2.52.0.windows.1
+
