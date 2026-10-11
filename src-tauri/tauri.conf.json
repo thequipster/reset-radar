@@ -14,8 +14,9 @@
       {
         "label": "main",
         "title": "重置雷达 reset-radar",
-        "width": 420,
+        "width": 460,
         "height": 560,
+        "minWidth": 460,
         "resizable": true
       }
     ],
