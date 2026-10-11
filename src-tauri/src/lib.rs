@@ -7,6 +7,7 @@ mod codex;
 mod models;
 mod snapshots;
 mod reset_status;
+mod predictions;
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -109,7 +110,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_snapshots, refresh_snapshots])
+        .invoke_handler(tauri::generate_handler![get_snapshots, refresh_snapshots, read_prediction_log, append_prediction_log])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -217,4 +218,18 @@ mod build_manifest {
             "B10 回归：manifest 丢了 legacy dpiAware（true/PM）声明"
         );
     }
+}
+
+/// RR15固定app_config_dir读取日志；不接受调用者传路径。
+#[tauri::command]
+fn read_prediction_log(state: State<'_, AppState>) -> Result<predictions::LogRead, String> {
+    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
+    predictions::read_log(dir.as_ref().ok_or("application config directory unavailable")?)
+}
+
+/// 只追加TS核心已生成的新行；文件级锁与expectedContent保证跨写者串行。
+#[tauri::command]
+fn append_prediction_log(state: State<'_, AppState>, expected_content: String, line: String) -> Result<predictions::AppendResult, String> {
+    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
+    predictions::append_line(dir.as_ref().ok_or("application config directory unavailable")?, &expected_content, &line)
 }

@@ -1,0 +1,33 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR15
+
+ ❯ src/lib/__tests__/predictions.runtime.test.ts (5 tests | 1 failed) 9ms
+   ❯ 运行时预测候选 (5)
+     × 记录风险评估北京日，执行时间不改变目标日 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/predictions.runtime.test.ts > 运行时预测候选 > 记录风险评估北京日，执行时间不改变目标日
+AssertionError: expected '2026-10-12' to be '2026-10-11' // Object.is equality
+
+Expected: "2026-10-11"
+Received: "2026-10-12"
+
+ ❯ src/lib/__tests__/predictions.runtime.test.ts:11:22
+      9|   it("记录风险评估北京日，执行时间不改变目标日", () => {
+     10|     const input = base(); const row = buildPredictionRecord(input)!;
+     11|     expect(row.date).toBe("2026-10-11"); // recordedAt北京已经次日。
+       |                      ^
+     12|     expect(row.fetchedAt).toBe(now.toISOString());
+     13|     expect(row.predictedRisk).toBe(input.risk.score);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  13:13:37
+   Duration  260ms (transform 48%, import 43%, tests 6%, worker 2%)
+
+
+exit=1

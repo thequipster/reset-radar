@@ -9,6 +9,7 @@ import { initialExpanded } from "./ui/appState";
 import Capsule from "./ui/Capsule";
 import ExpandedCard from "./ui/ExpandedCard";
 import { RESET_HISTORY_ANNOUNCED_AT } from "./ui/history";
+import { usePredictionLog } from "./ui/usePredictionLog";
 import { useSnapshots } from "./ui/useSnapshots";
 import { applyWidgetSize, closeWidget } from "./ui/widgetWindow";
 
@@ -40,10 +41,13 @@ export default function App() {
   const codex = snapshots.find((item) => item.provider === "codex") ?? snapshots[0];
   const vm = codex != null ? buildDashboard(codex, RESET_HISTORY_ANNOUNCED_AT) : null;
 
+  const predictionLog = usePredictionLog(vm?.prediction ?? null, live, vm?.updatedAt ?? "");
+
   if (vm == null) {
     return (
       <main
         data-tauri-drag-region
+        data-prediction-log-state={predictionLog.status}
         style={{
           minHeight: "100vh",
           display: "flex",
@@ -74,6 +78,7 @@ export default function App() {
   return (
     <main
       data-tauri-drag-region
+      data-prediction-log-state={predictionLog.status}
       style={{
         minHeight: "100vh",
         boxSizing: "border-box",

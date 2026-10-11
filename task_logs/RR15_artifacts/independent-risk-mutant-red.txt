@@ -1,0 +1,44 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR15
+
+ ❯ src/lib/__tests__/predictions.runtime.test.ts (5 tests | 1 failed) 9ms
+   ❯ 运行时预测候选 (5)
+     × 额度失败不妨碍独立的新鲜风险；旧契约stale额度不能当新评估 3ms
+ ❯ src/ui/__tests__/ui.prediction-log.test.ts (2 tests | 1 failed) 7ms
+   ❯ 生产预测VM (2)
+     × 风险独立于额度状态，来源过期或旧契约stale额度不冒充新预测 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/predictions.runtime.test.ts > 运行时预测候选 > 额度失败不妨碍独立的新鲜风险；旧契约stale额度不能当新评估
+AssertionError: expected null not to be null
+ ❯ src/lib/__tests__/predictions.runtime.test.ts:22:69
+     20|   it("额度失败不妨碍独立的新鲜风险；旧契约stale额度不能当新评估", () => {
+     21|     for (const quotaStatus of ["stale", "error", "unavailable"]) {
+     22|       expect(buildPredictionRecord({ ...base(), quotaStatus })).not.to…
+       |                                                                     ^
+     23|       expect(buildPredictionRecord({ ...base(), quotaStatus, resetSour…
+     24|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/ui/__tests__/ui.prediction-log.test.ts > 生产预测VM > 风险独立于额度状态，来源过期或旧契约stale额度不冒充新预测
+AssertionError: expected null not to be null
+ ❯ src/ui/__tests__/ui.prediction-log.test.ts:19:85
+     17|   });
+     18|   it("风险独立于额度状态，来源过期或旧契约stale额度不冒充新预测", () => {
+     19|     expect(buildDashboard({ ...input(), status: "error" }, [], now).pr…
+       |                                                                                     ^
+     20|     expect(buildDashboard({ ...input(), status: "stale", resetStatus: …
+     21|     expect(buildDashboard({ ...input(), resetStatus: sourceSnapshot({ …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  2 failed | 5 passed (7)
+   Start at  13:19:27
+   Duration  310ms (transform 49%, import 43%, tests 5%, worker 3%)
+
+
+exit=1

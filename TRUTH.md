@@ -154,3 +154,10 @@
 - latest_reset.id=2109132167112782291、reset_type=regular、announced_at=2026-10-11T04:01:09.000Z；scheduled_reset和active_watch均null。新增15分钟缓存、失败保留旧字段但不用于行动的契约，详见docs/runtime-status-20261011.md及D024。
 - 单测24通过/1手动网络测试默认忽略；显式网络测试1通过。轮询900秒误改60秒令缓存边界及freshUntil测试失败，原字节恢复24通过。
 - GNU release带custom-protocol实跑：`task_logs/RR23_artifacts/production-cache-smoke.json`，owned PID32568启动于05:05:10Z且已关闭；额度status=ok、observedAt=05:05:13.773898400Z；公告status=ok、fetchedAt=05:05:12.553657700Z，成功落于app.resetradar.desktop/last-snapshots.json，两时钟分开。
+
+### 2026-10-11 RR15 生产预测日志汇流实证
+- 路径回源：Tauri2.12.2安装源码src/path/desktop.rs:239（dirs::config_dir/identifier）与官方https://v2.tauri.app/reference/javascript/api/namespacepath/#appconfigdir，当前tauri.conf.json:5 identifier=app.resetradar.desktop，无override。Windows生产落APPDATA/app.resetradar.desktop/predictions.jsonl，与last-snapshots同目录；其他平台仅分支单测。
+- 本卡app真实生成首条记录，文件创建时刻2026-10-11T05:17:20.7454402Z、row fetchedAt=05:17:20.742Z、date=2026-10-11、predictedRisk=44；CDP只读main.dataset.predictionLogState=ok且tauri=true，未调用写命令造数据。此前运行目录文件不存在；证据production-log-first-verified.json与production-dom-first.json。
+- 重启ownedPID30192：05:18:12Z重新采集成功，日志188bytes→188bytes完全相同，无遗留.lock；production-restart-idempotent.json。默认calibrate实际同时读取仓内1行+应用1行，--path生产文件仅读1行；今日未完结，计分n=0，未伪造命中率。两份报告在RR15_artifacts。
+- TS137/137、Rust29passed+1手动网络ignored、Node6/6；目标日/额度独立/路径/CAS变异均红且原字节恢复绿。完整门禁与借鉴出处见RR15_done.md；新幂等业务仍唯一src/lib/predictions.ts，不在Rust复算。
+- RR15最终复验补记：Node补测未知/重复参数和读失败，8/8绿；最终release ownedPID31512在05:21:45Z启动，重新采集来源ok，刷新前后CDP hook=ok、日志188字节完全不变、锁已释放（production-verified-idempotent.json）。首轮时间探针用ConvertFrom-Json默认DateTime转换丢原ISO时区，已改-DateKind String；新鲜缓存可先完成风险记录，探针必须另等实际后台新采集，不能将一次早观察当采集失败。

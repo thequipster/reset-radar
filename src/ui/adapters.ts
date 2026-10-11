@@ -8,6 +8,8 @@ import {
   type DailyUsagePlan,
   type ResetCardPlan,
   type ResetRisk,
+  buildPredictionRecord,
+  type PredictionRecord,
   evaluateResetStatus,
   historyWithResetStatus,
   type ResetStatusSnapshot,
@@ -38,6 +40,7 @@ export interface DashboardViewModel {
   cardPlan: ResetCardPlan | null;
   resetStatus: (ResetStatusSnapshot & ResetStatusEvaluation) | null;
   riskEvaluatedAt: string;
+  prediction: PredictionRecord | null;
 }
 
 /**
@@ -126,5 +129,7 @@ export function buildDashboard(
     cardPlan,
     resetStatus: status != null && statusEvaluation != null ? { ...status, ...statusEvaluation } : null,
     riskEvaluatedAt: modelAsOf.toISOString(),
+    prediction: buildPredictionRecord({ risk, evaluatedAt: modelAsOf.toISOString(), recordedAt: now,
+      quotaStatus: snapshot.status, resetSourceState: statusEvaluation?.state ?? null }),
   };
 }

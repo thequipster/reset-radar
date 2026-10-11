@@ -5,10 +5,10 @@
 // （先例 calibrate.mjs，D016 node 直载 .ts）。
 // 行 schema（卡面四字段，序列化顺序即此）：{date, predictedRisk, factorsDigest, fetchedAt}；
 // date=北京日历键（D004 唯一日边界，复用 resetCard.beijingCalendarDateKey）。
-// 数据锁（RUNBOOK §1.5）：predictions.jsonl 只追加不修改，唯一写者=落盘器脚本。
+// 数据锁（RUNBOOK §1.5）：日志只追加不修改；脚本与app薄壳共用本核心规则（RR15/D025）。
 
 import { beijingCalendarDateKey } from "./resetCard.ts";
-import type { RiskFactor } from "./risk.ts";
+import type { RiskFactor, ResetRisk } from "./risk.ts";
 
 /** 同日补行阈值（0-100 分制）。依据：risk.score 输出固定 1 位小数（risk.ts round1），
  *  0.5=显示精度下界——漂移超 0.5 才是可感知变化，≤0.5 视为噪声不补行。AI 裁决 D019。 */
@@ -93,4 +93,26 @@ export function appendPredictionLog(
     };
   }
   return { lines: [...existing], appended: false, reason: "suppressed-noise" };
+}
+
+/** RR15：生产评估→记录。状态与日期检查只在核心，浏览器demo由IO壳禁止写盘。 */
+export function buildPredictionRecord(input: {
+  risk: ResetRisk | null;
+  evaluatedAt: string;
+  recordedAt: Date;
+  quotaStatus: string;
+  resetSourceState: string | null;
+}): PredictionRecord | null {
+  const evaluatedMs = Date.parse(input.evaluatedAt);
+  const recordedMs = input.recordedAt.getTime();
+  // 风险不依赖额度余额：有新鲜公告来源时额度失败仍可记录；旧契约靠quota观测时刻。
+  if ((input.resetSourceState === null ? input.quotaStatus !== "ok" : input.resetSourceState !== "ok")
+    || !input.risk || !Number.isFinite(input.risk.score) || input.risk.score < 0 || input.risk.score > 100
+    || !Number.isFinite(evaluatedMs) || !Number.isFinite(recordedMs) || evaluatedMs > recordedMs) return null;
+  return {
+    date: predictionDateKey(new Date(evaluatedMs)),
+    predictedRisk: input.risk.score,
+    factorsDigest: digestFactors(input.risk.factors),
+    fetchedAt: input.recordedAt.toISOString(),
+  };
 }

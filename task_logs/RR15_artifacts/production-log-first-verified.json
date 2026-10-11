@@ -1,0 +1,14 @@
+{
+  "runtimePath": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\predictions.jsonl",
+  "createdAt": "2026-10-11T05:17:20.7454402Z",
+  "record": {
+    "date": "2026-10-11",
+    "predictedRisk": 44,
+    "factorsDigest": "base=10,consecutive-reset=30,interval-hazard=-6.7,recent-regime=12,weekday-empirical=-1.2",
+    "fetchedAt": "2026-10-11T05:17:20.742Z"
+  },
+  "rows": 1,
+  "lockLeft": false,
+  "probeResult": "production-dom-first.json: tauri=true, logState=ok",
+  "validationCorrection": "ConvertFrom-Json -DateKind String preserves ISO timezone; default DateTime conversion invalidated the first timestamp comparison"
+}

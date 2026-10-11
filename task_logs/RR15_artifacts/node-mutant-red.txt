@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: --path resolves relative paths and preserves absolute paths
+ok 1 - --path resolves relative paths and preserves absolute paths
+  ---
+  duration_ms: 2.0299
+  type: 'test'
+  ...
+# Subtest: canonical paths follow Tauri identifier on each platform
+not ok 2 - canonical paths follow Tauri identifier on each platform
+  ---
+  duration_ms: 0.9235
+  type: 'test'
+  location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR15\\scripts\\tests\\prediction-log.node.mjs:32:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'C:\\Users\\u\\Roaming\\app.wrong.desktop\\predictions.jsonl'
+    - 'C:\\Users\\u\\Roaming\\app.resetradar.desktop\\predictions.jsonl'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'C:\\Users\\u\\Roaming\\app.resetradar.desktop\\predictions.jsonl'
+  actual: 'C:\\Users\\u\\Roaming\\app.wrong.desktop\\predictions.jsonl'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR15/scripts/tests/prediction-log.node.mjs:33:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
+ok 3 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
+  ---
+  duration_ms: 3.8857
+  type: 'test'
+  ...
+# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
+ok 4 - append preserves existing bytes and inserts a separator for a missing final newline
+  ---
+  duration_ms: 9.5302
+  type: 'test'
+  ...
+# Subtest: busy lock fails clearly and never removes the other process lock
+ok 5 - busy lock fails clearly and never removes the other process lock
+  ---
+  duration_ms: 2.8434
+  type: 'test'
+  ...
+# Subtest: log CLI --path writes only to the requested temporary file
+ok 6 - log CLI --path writes only to the requested temporary file
+  ---
+  duration_ms: 109.5613
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 5
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 218.1675
+
+exit=1

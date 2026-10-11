@@ -225,3 +225,10 @@
 - 新鲜来源用当前评估时刻验证公告与latest_reset，不能用旧额度observedAt忽略新发布的计划或继续执行过期计划。VM新增riskEvaluatedAt、resetStatus及独立fetched/generated/lastAttempt时间；额度observedAt与status不被覆盖。
 - 最新确认regular事件按时间戳去重并入风险历史；banked只是发卡，不能算自动回满。离线历史已有banked条目，RR18刷新/消费者核对时一并处理；不手改夹具数值。
 - sources成功过期与sources失败都保留旧公告展示信息，actionableReset=null；没有整个来源字段时后向兼容旧golden。计划/概率分别显示，React不实现业务策略；watch本卡原样透传，RR16接既有单一权重与比较。
+
+## D025 RR15 生产预测日志路径汇流，Rust仅IO（2026-10-11，S1011-RR15）
+- RR15倾向路径被现有Tauri app_config_dir具体化：Windows APPDATA/app.resetradar.desktop/predictions.jsonl，与last-snapshots.json共目录，identifier见tauri.conf.json；mac/Linux脚本对应同一Tauri配置目录约定。无需另建reset-radar目录产生第二条断链。
+- ARCHITECTURE要求算法唯一src/lib，覆盖卡面“Rust每日首评幂等”的实现细节：buildPredictionRecord/appendPredictionLog纯TS生成候选与判重，React/Node只是调用，Rust只提供固定路径读盘及expectedContent比较后追加，绝不再写0.5规则或北京日期公式。
+- app仅记录真实有效风险评估：公告来源存在但非ok不写；来源新鲜时风险与额度独立，额度失败不抹去有效风险预测。无来源旧契约只有quota为ok才沿原as_of记录。候选date是riskEvaluatedAt北京日，fetchedAt为执行时间；demo不落盘，旧快照不是新的成功预测。
+- app与Node用同名predictions.jsonl.lock create_new排他锁，持锁比对读取内容再append，竞争后重读核心重算；只追加新行与必要的末尾换行，不改坏行/旧字节。不自动删未知持有者的锁，失败明确返回busy/error；app有限重试防止永久等待。
+- log-prediction默认写生产文件；calibrate默认双源按实际记录fetchedAt稳定排序，同时间归档先，核心继续同日首行。--path指定独立来源方便归档/测试；不自动将生产记录写回受锁数据夹具。RR17/RR28沿本路径消费，历史新鲜度仍交RR18处理。

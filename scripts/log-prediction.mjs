@@ -1,21 +1,25 @@
 #!/usr/bin/env node
-// scripts/log-prediction.mjs —— RR10：每日评估落盘器（幂等追加 data/predictions.jsonl）。
-// 用法：node scripts/log-prediction.mjs（建议先 node scripts/fetch-history.mjs 刷新夹具）。
+// scripts/log-prediction.mjs —— RR10/RR15：每日评估落盘器（幂等追加生产predictions.jsonl）。
+// 用法：默认写应用 canonical 文件；可用 --path <路径> 指定唯一写入文件。
+// 建议先 node scripts/fetch-history.mjs 刷新夹具。
 // 算法单一源 src/lib（RUNBOOK §1.4）：风险=assessResetRisk、幂等=appendPredictionLog——
 // 本脚本零算法，只做读夹具/调核心/追加写（先例 calibrate.mjs，D016 node ≥22.18 原生
 // type-stripping 直载 .ts）。
 // as_of = 历史夹具 fetchedAt（数据新鲜度时刻，与 calibrate.mjs 同口径）：date=as_of 北京日键
 // ——夹具滞后时评估的是「数据新鲜度所在日」（诚实语义），所以先刷新夹具再落盘。
-// 数据锁（RUNBOOK §1.5）：本脚本是 predictions.jsonl 的唯一写者，只追加、绝不修改既有行。
+// 数据锁（RUNBOOK §1.5）：脚本与app共用核心判重，只追加、绝不修改既有行。
 
-import { appendFileSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { appendPredictionLog, digestFactors, predictionDateKey } from "../src/lib/predictions.ts";
 import { assessResetRisk } from "../src/lib/risk.ts";
+import { appendPredictionFile, canonicalPredictionPath, parsePredictionPathArg } from "./prediction-files.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const logPath = `${root}data/predictions.jsonl`;
+const override = parsePredictionPathArg(process.argv.slice(2));
+const logPath = override ?? canonicalPredictionPath();
 
 const history = JSON.parse(readFileSync(`${root}data/resets-history.json`, "utf8"));
 const announcedAt = history.events
@@ -36,25 +40,12 @@ const candidate = {
   fetchedAt: new Date().toISOString(),
 };
 
-let existing = [];
-try {
-  existing = readFileSync(logPath, "utf8")
-    .split(/\r?\n/)
-    .filter((line) => line.trim());
-} catch (err) {
-  if (err?.code !== "ENOENT") throw err; // 首次落盘：文件尚不存在
-}
-
-const outcome = appendPredictionLog(existing, candidate);
-if (outcome.appended) {
-  // 新行一律取自 appendPredictionLog 的序列化结果（单一序列化源）
-  appendFileSync(logPath, outcome.lines[outcome.lines.length - 1] + "\n");
-}
+const outcome = appendPredictionFile(logPath, (existing) => appendPredictionLog(existing, candidate));
 
 console.log(
   `[log-prediction] date=${candidate.date} predictedRisk=${candidate.predictedRisk}` +
     ` → ${outcome.appended ? `追加（${outcome.reason}）` : `不追加（${outcome.reason}）`}` +
-    `；日志现有 ${outcome.lines.length} 行`,
+  `；日志现有 ${outcome.lines.length} 行；文件 ${resolve(logPath)}`,
 );
 if (outcome.appended) {
   console.log(`[log-prediction] factorsDigest=${candidate.factorsDigest}`);

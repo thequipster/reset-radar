@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: --path resolves relative paths and preserves absolute paths
+ok 1 - --path resolves relative paths and preserves absolute paths
+  ---
+  duration_ms: 1.6118
+  type: 'test'
+  ...
+# Subtest: canonical paths follow Tauri identifier on each platform
+ok 2 - canonical paths follow Tauri identifier on each platform
+  ---
+  duration_ms: 0.256
+  type: 'test'
+  ...
+# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
+ok 3 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
+  ---
+  duration_ms: 11.1861
+  type: 'test'
+  ...
+# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
+ok 4 - append preserves existing bytes and inserts a separator for a missing final newline
+  ---
+  duration_ms: 9.2906
+  type: 'test'
+  ...
+# Subtest: busy lock fails clearly and never removes the other process lock
+ok 5 - busy lock fails clearly and never removes the other process lock
+  ---
+  duration_ms: 2.0849
+  type: 'test'
+  ...
+# Subtest: log CLI --path writes only to the requested temporary file
+ok 6 - log CLI --path writes only to the requested temporary file
+  ---
+  duration_ms: 112.8377
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 240.0939
