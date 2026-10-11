@@ -1,0 +1,43 @@
+warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `reset-radar` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.42s
+     Running unittests src\lib.rs (C:/Users/slsjz/Desktop/reset-radar/src-tauri/target\debug\deps\reset_radar_lib-0c14c46607274616.exe)
+
+running 1 test
+raw status response: {"data":{"latest_reset":{"id":"2109132167112782291","reset_type":"regular","announced_at":"2026-10-11T04:01:09.000Z","text":"Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj","source":{"type":"x_post","author":"thsottiaux","url":"https://x.com/thsottiaux/status/2109132167112782291"}},"scheduled_reset":null,"active_watch":null,"stats":{"total":60,"last_reset_at":"2026-10-11T04:01:09.000Z","days_since_last":0,"avg_interval_days":6.6}},"meta":{"api_version":"v1","generated_at":"2026-10-11T05:03:01.289Z"}}
+parsed status snapshot: ResetStatusSnapshot {
+    scheduled_reset: None,
+    active_watch: None,
+    latest_reset: Some(
+        Object {
+            "announced_at": String("2026-10-11T04:01:09.000Z"),
+            "id": String("2109132167112782291"),
+            "reset_type": String("regular"),
+            "source": Object {
+                "author": String("thsottiaux"),
+                "type": String("x_post"),
+                "url": String("https://x.com/thsottiaux/status/2109132167112782291"),
+            },
+            "text": String("Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj"),
+        },
+    ),
+    fetched_at: Some(
+        "2026-10-11T05:03:40.171424200Z",
+    ),
+    fresh_until: Some(
+        "2026-10-11T05:18:40.171424200Z",
+    ),
+    generated_at: Some(
+        "2026-10-11T05:03:01.289Z",
+    ),
+    last_attempt_at: "2026-10-11T05:03:40.171424200Z",
+    status: "ok",
+    message: None,
+}
+test reset_status::tests::live_status_tls_probe ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.59s
+

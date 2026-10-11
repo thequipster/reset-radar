@@ -88,6 +88,7 @@ mod tests {
 
     fn ok_snapshot() -> ProviderSnapshot {
         ProviderSnapshot {
+            reset_status: None,
             provider: "codex".into(),
             display_name: "CODEX".into(),
             plan: Some("PRO".into()),
@@ -143,6 +144,32 @@ mod tests {
             snapshot.message.as_deref(),
             Some("Last known quota; refreshing live data.")
         );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn legacy_snapshots_without_status_remain_readable() {
+        let mut value = serde_json::to_value(ok_snapshot()).unwrap();
+        value.as_object_mut().unwrap().remove("resetStatus");
+        let restored: ProviderSnapshot = serde_json::from_value(value).unwrap();
+        assert!(restored.reset_status.is_none());
+        assert_eq!(restored.reset_credits, Some(2));
+    }
+
+    #[test]
+    fn source_metadata_roundtrips_independently_of_stale_quota() {
+        let dir = temp_dir("status-source");
+        let fetched = "2026-10-11T04:00:00Z";
+        let now = "2026-10-11T04:10:00Z".parse::<DateTime<Utc>>().unwrap();
+        let mut snapshot = ok_snapshot();
+        snapshot.reset_status = Some(crate::reset_status::parse_status(
+            r#"{"data":{"scheduled_reset":null,"active_watch":null,"latest_reset":null},"meta":{"generated_at":"2026-10-11T03:59:00Z"}}"#,
+            fetched,
+        ).unwrap());
+        persist_snapshot_cache(&dir, &[snapshot.clone()], fetched).unwrap();
+        let restored = load_persisted_snapshot_cache(&dir, now).unwrap();
+        assert_eq!(restored.snapshots[0].status, "stale");
+        assert_eq!(restored.snapshots[0].reset_status, snapshot.reset_status);
         std::fs::remove_dir_all(&dir).ok();
     }
 

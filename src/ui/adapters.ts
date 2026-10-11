@@ -8,6 +8,10 @@ import {
   type DailyUsagePlan,
   type ResetCardPlan,
   type ResetRisk,
+  evaluateResetStatus,
+  historyWithResetStatus,
+  type ResetStatusSnapshot,
+  type ResetStatusEvaluation,
 } from "../lib";
 import type { ProviderSnapshot } from "./types";
 
@@ -27,11 +31,13 @@ export interface DashboardViewModel {
   /** 短窗剩余 %（辅助展示）。 */
   shortRemainingPercent: number | null;
   updatedAt: string;
-  /** 数据新鲜度时刻（risk 的 now 语义，risk.ts 文件头：取快照观测时刻而非墙钟）。 */
+  /** 额度观测时刻；与公告抓取、风险评估时刻分开。旧快照无公告来源时仍为风险as_of。 */
   observedAt: string;
   risk: ResetRisk | null;
   dailyPlan: DailyUsagePlan | null;
   cardPlan: ResetCardPlan | null;
+  resetStatus: (ResetStatusSnapshot & ResetStatusEvaluation) | null;
+  riskEvaluatedAt: string;
 }
 
 /**
@@ -50,7 +56,16 @@ export function buildDashboard(
   const observedMs = Date.parse(observedAt);
   const asOf = Number.isFinite(observedMs) ? new Date(observedMs) : now;
 
-  const risk = assessResetRisk(history, asOf);
+  const status = snapshot.resetStatus ?? null;
+  const statusEvaluation = status == null ? null : evaluateResetStatus(status, now);
+  // 额度observedAt保留原义；新公告的发布/到期不冻结在旧额度观测时间。
+  // 无公告来源字段时保持旧golden；来源成功时用本次评估时刻与最新确认事件。
+  const modelAsOf = statusEvaluation?.state === "ok" ? now : asOf;
+  const effectiveHistory = status == null ? history : historyWithResetStatus(history, status, now);
+  const risk = assessResetRisk(effectiveHistory, modelAsOf, undefined,
+    statusEvaluation?.state === "ok" ? status?.scheduledReset : null);
+  const planningAsOf = status == null ? asOf : now;
+  const scheduledReset = statusEvaluation?.actionableReset ?? null;
 
   const weekly = snapshot.weeklyWindow;
   const remaining =
@@ -64,15 +79,16 @@ export function buildDashboard(
   let cardPlan: ResetCardPlan | null = null;
   if (remaining != null && resetsAt != null) {
     const resetsAtMs = Date.parse(resetsAt);
-    if (Number.isFinite(resetsAtMs) && resetsAtMs > asOf.getTime()) {
+    if (Number.isFinite(resetsAtMs) && resetsAtMs > planningAsOf.getTime()) {
       // daysToReset 是 planner 的入参契约（planner.ts:20），单位换算在调用侧完成。
-      const daysToReset = (resetsAtMs - asOf.getTime()) / MS_PER_DAY;
+      const daysToReset = (resetsAtMs - planningAsOf.getTime()) / MS_PER_DAY;
       dailyPlan = planDailyUsage(
         {
           remaining,
           daysToReset,
           risk: risk.score,
-          now: asOf,
+          now: planningAsOf,
+          scheduledReset,
         },
       );
       cardPlan = planResetCard({
@@ -83,7 +99,8 @@ export function buildDashboard(
         // 无日消耗观测样本：走 lib 兜底均匀周配速 100/7（resetCard.ts:137 契约）。
         dailyNeedPercent: estimateDailyNeedPercent([]),
         tomorrowRiskPercent: risk.score,
-        now: asOf,
+        now: planningAsOf,
+        scheduledReset,
       });
     }
   }
@@ -107,5 +124,7 @@ export function buildDashboard(
     risk,
     dailyPlan,
     cardPlan,
+    resetStatus: status != null && statusEvaluation != null ? { ...status, ...statusEvaluation } : null,
+    riskEvaluatedAt: modelAsOf.toISOString(),
   };
 }

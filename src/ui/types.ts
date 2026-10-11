@@ -1,5 +1,6 @@
 // UI 层契约类型：与 src-tauri/src/models.rs 的 serde camelCase 输出一一对应（RR08）。
 // UI 层零业务规则（ARCHITECTURE §2）——本文件只描述数据形状，不含任何计算。
+import type { ResetStatusSnapshot } from "../lib";
 
 /** 用量窗口（周窗/短窗共用）。对应 Rust UsageWindow。 */
 export interface UsageWindow {
@@ -29,4 +30,5 @@ export interface ProviderSnapshot {
   updatedAt: string;
   status: string;
   message: string | null;
+  resetStatus?: ResetStatusSnapshot | null;
 }

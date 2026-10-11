@@ -148,3 +148,9 @@
 - 用户原文：“继续第四阶段”；六张参考PNG已到RR26/ref。本轮复制入RR22/ref，原名/字节保留，逐文件SHA256相等。
 - B07回源：task_logs/RR22_artifacts/status-live.json，2026-10-11T04:33:44.170Z；latest_reset.id=2109132167112782291，announced_at=04:01:09Z，reset_type=regular；scheduled_reset与active_watch均null。旧公告不能作为当前计划继续清仓。
 - https://codex-resets.com/ 首页解释banked为需主动兑换的保存卡，不自动回满额度；regular未来公告可作为规划情景，未确认落地不能写已重置。决策D022；以API响应原文为当前事实，搜索索引上的旧计划不覆盖它。
+
+### 2026-10-11 RR23 运行时公告实证（B07追加）
+- reqwest 0.12.28/rustls通过默认TLS校验实拉/status，Accept:application/json，总超时4s；`task_logs/RR23_artifacts/tls-live.txt`为Rust原始响应与解析结果。成功fetchedAt=2026-10-11T05:03:40.171424200Z，freshUntil=05:18:40.171424200Z；generated_at=05:03:01.289Z。
+- latest_reset.id=2109132167112782291、reset_type=regular、announced_at=2026-10-11T04:01:09.000Z；scheduled_reset和active_watch均null。新增15分钟缓存、失败保留旧字段但不用于行动的契约，详见docs/runtime-status-20261011.md及D024。
+- 单测24通过/1手动网络测试默认忽略；显式网络测试1通过。轮询900秒误改60秒令缓存边界及freshUntil测试失败，原字节恢复24通过。
+- GNU release带custom-protocol实跑：`task_logs/RR23_artifacts/production-cache-smoke.json`，owned PID32568启动于05:05:10Z且已关闭；额度status=ok、observedAt=05:05:13.773898400Z；公告status=ok、fetchedAt=05:05:12.553657700Z，成功落于app.resetradar.desktop/last-snapshots.json，两时钟分开。

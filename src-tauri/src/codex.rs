@@ -256,6 +256,7 @@ fn parse_app_server_snapshot(result: &Value, observed_at: String) -> Result<Prov
         observed_at: observed_at.clone(),
     };
     Ok(ProviderSnapshot {
+        reset_status: None,
         provider: "codex".into(),
         display_name: "CODEX".into(),
         plan,

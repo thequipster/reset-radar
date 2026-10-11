@@ -1,0 +1,2 @@
+    Checking reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR23\src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.09s

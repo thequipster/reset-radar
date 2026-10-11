@@ -217,3 +217,11 @@
 - 用户授权继续阶段4，六张图放在RR26 worktree的ref目录；Luna只读逐图识别，选择纵向展开图为主、横向6:1条为紧凑态，其他补预览/主题/状态/组件，详见docs/design/04-progress.md。
 - 图稿只提供布局/视觉依据；数字、日期、风险等级与因子归属不从图抄入产品。保留用户原名并原字节复制到RR22/ref，SHA256对账一致，随卡版本化，以免拆RR26时丢用户素材。
 - MERGE后暂保留RR21/RR26 worktree（junction及用户未跟踪素材），不执行递归强拆。后续安全清理另作协调动作，发布仍留用户。
+
+## D024 RR23 公告来源与额度分时钟，失败不等于无公告（2026-10-11，S1011-RR23）
+- 依据：ARCHITECTURE分层与出站超时；TRUTH B07 /status；BACKLOG RR23约15min轮询；02-spec来源新鲜度/已过计划待核实；D022禁止伪造必然概率。
+- Rust reqwest/rustls进行TLS验证，沿参考Cargo.toml:25配置，4s总超时沿reset_forecast.rs:334；与6s额度采集并行。Client构造失败也返回来源error而非令整个app panic。
+- 成功缓存15min；失败保留数据/成功时刻并标error，按同周期重试。freshUntil从成功抓取时刻+轮询期派生，纯TS核心只比较来源边界，零重复TTL常数。成功null清旧计划，缺字段/坏结构报失败；旧磁盘快照不建立新的单调时钟锚点，首刷立即实拉。
+- 新鲜来源用当前评估时刻验证公告与latest_reset，不能用旧额度observedAt忽略新发布的计划或继续执行过期计划。VM新增riskEvaluatedAt、resetStatus及独立fetched/generated/lastAttempt时间；额度observedAt与status不被覆盖。
+- 最新确认regular事件按时间戳去重并入风险历史；banked只是发卡，不能算自动回满。离线历史已有banked条目，RR18刷新/消费者核对时一并处理；不手改夹具数值。
+- sources成功过期与sources失败都保留旧公告展示信息，actionableReset=null；没有整个来源字段时后向兼容旧golden。计划/概率分别显示，React不实现业务策略；watch本卡原样透传，RR16接既有单一权重与比较。

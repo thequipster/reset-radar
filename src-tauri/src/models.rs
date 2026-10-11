@@ -38,6 +38,9 @@ pub struct ProviderSnapshot {
     pub updated_at: String,
     pub status: String,
     pub message: Option<String>,
+    /// RR23独立来源元信息；旧快照缺此字段仍可热启动。
+    #[serde(default)]
+    pub reset_status: Option<crate::reset_status::ResetStatusSnapshot>,
 }
 
 impl ProviderSnapshot {
@@ -54,6 +57,7 @@ impl ProviderSnapshot {
             updated_at: chrono::Utc::now().to_rfc3339(),
             status: status.into(),
             message: Some(message.into()),
+            reset_status: None,
         }
     }
 }

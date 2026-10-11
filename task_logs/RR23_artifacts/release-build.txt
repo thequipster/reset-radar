@@ -1,0 +1,62 @@
+   Compiling smallvec v1.16.3
+   Compiling icu_normalizer v2.3.0
+   Compiling form_urlencoded v1.2.2
+   Compiling futures-core v0.3.34
+   Compiling socket2 v0.6.5
+   Compiling ring v0.17.14
+   Compiling tracing-core v0.1.36
+   Compiling zeroize v1.9.1
+   Compiling http-body v1.1.0
+   Compiling getrandom v0.2.17
+   Compiling httparse v1.10.1
+   Compiling slab v0.4.12
+   Compiling untrusted v0.9.0
+   Compiling futures-task v0.3.34
+   Compiling rustls v0.23.45
+   Compiling try-lock v0.2.5
+   Compiling tower-service v0.3.3
+   Compiling parking_lot_core v0.9.12
+   Compiling tokio v1.53.2
+   Compiling rustls-pki-types v1.15.1
+   Compiling want v0.3.2
+   Compiling atomic-waker v1.1.2
+   Compiling futures-util v0.3.34
+   Compiling subtle v2.6.1
+   Compiling futures-channel v0.3.34
+   Compiling sync_wrapper v1.0.2
+   Compiling windows-registry v0.6.1
+   Compiling tracing v0.1.44
+   Compiling parking_lot v0.12.5
+   Compiling ipnet v2.12.2
+   Compiling tower-layer v0.3.3
+   Compiling softbuffer v0.4.8
+   Compiling webpki-roots v1.0.9
+   Compiling ryu v1.0.23
+   Compiling http-body-util v0.1.5
+   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR23\src-tauri)
+   Compiling serde_urlencoded v0.7.1
+   Compiling base64 v0.22.1
+   Compiling idna_adapter v1.2.2
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling urlpattern v0.6.0
+   Compiling tao v0.37.1
+   Compiling tauri-utils v2.10.1
+   Compiling hyper v1.12.0
+   Compiling tower v0.5.3
+   Compiling tower-http v0.6.11
+   Compiling hyper-util v0.1.21
+   Compiling rustls-webpki v0.103.15
+   Compiling tauri-runtime v2.12.1
+   Compiling tauri-runtime-wry v2.12.1
+   Compiling tauri v2.12.2
+   Compiling tokio-rustls v0.26.6
+   Compiling hyper-rustls v0.27.10
+   Compiling reqwest v0.12.28
+warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
+         C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `reset-radar` (bin "reset-radar") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 1m 12s

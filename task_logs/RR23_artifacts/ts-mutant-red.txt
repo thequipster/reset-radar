@@ -1,0 +1,108 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR23
+
+ ❯ src/lib/__tests__/resetStatus.core.test.ts (13 tests | 7 failed) 24ms
+   ❯ 公告来源新鲜度与可用性 (10)
+     × 来源时效不可信时保留公告但不清仓 ({"freshUntil":"2026-10-11T05:00:00Z"}) 7ms
+     × 来源时效不可信时保留公告但不清仓 ({"freshUntil":null}) 1ms
+     × 来源时效不可信时保留公告但不清仓 ({"freshUntil":"invalid"}) 1ms
+     × 来源时效不可信时保留公告但不清仓 ({"fetchedAt":"2026-10-11T05:01:00Z"}) 2ms
+     × 来源时效不可信时保留公告但不清仓 ({"fetchedAt":null}) 2ms
+     × 来源时效不可信时保留公告但不清仓 ({"freshUntil":"2026-10-11T04:58:59Z"}) 1ms
+     × 新抓取失败与旧计划可同时展示，禁止继续行动 1ms
+ ❯ src/ui/__tests__/ui.reset-status.test.ts (4 tests | 1 failed) 19ms
+   ❯ 公告生产adapter接线 (4)
+     × 失败来源只保留展示信息，传给规划的公告为空 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/ui/__tests__/ui.reset-status.test.ts > 公告生产adapter接线 > 失败来源只保留展示信息，传给规划的公告为空
+AssertionError: expected '2026-10-11T07:00:00Z' to be undefined
+
+- Expected:
+undefined
+
++ Received:
+"2026-10-11T07:00:00Z"
+
+ ❯ src/ui/__tests__/ui.reset-status.test.ts:42:43
+     40|     expect(vm.resetStatus?.announcement?.announcement.id).toBe("future…
+     41|     expect(vm.resetStatus?.message).toBe("TLS request failed");
+     42|     expect(vm.dailyPlan?.planningResetAt).toBeUndefined();
+       |                                           ^
+     43|     expect(vm.cardPlan?.planningResetAt).toBeUndefined();
+     44|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"freshUntil":"2026-10-11T05:00:00Z"})
+ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"freshUntil":null})
+ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"freshUntil":"invalid"})
+ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"fetchedAt":"2026-10-11T05:01:00Z"})
+ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"fetchedAt":null})
+ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"freshUntil":"2026-10-11T04:58:59Z"})
+AssertionError: expected { id: 'future', …(6) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "announcedAt": "2026-10-11T04:00:00Z",
+  "id": "future",
+  "resetType": "regular",
+  "scheduledFor": "2026-10-11T07:00:00Z",
+  "source": {
+    "type": "x_post",
+    "url": "https://example.invalid/notice",
+  },
+  "status": "scheduled",
+  "text": "Announced reset",
+}
+
+ ❯ src/lib/__tests__/resetStatus.core.test.ts:26:36
+     24|     expect(result.state).toBe("stale");
+     25|     expect(result.announcement?.state).toBe("planned");
+     26|     expect(result.actionableReset).toBeNull();
+       |                                    ^
+     27|   });
+     28|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 新抓取失败与旧计划可同时展示，禁止继续行动
+AssertionError: expected { id: 'future', …(6) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "announcedAt": "2026-10-11T04:00:00Z",
+  "id": "future",
+  "resetType": "regular",
+  "scheduledFor": "2026-10-11T07:00:00Z",
+  "source": {
+    "type": "x_post",
+    "url": "https://example.invalid/notice",
+  },
+  "status": "scheduled",
+  "text": "Announced reset",
+}
+
+ ❯ src/lib/__tests__/resetStatus.core.test.ts:33:36
+     31|     expect(result.state).toBe("error");
+     32|     expect(result.announcement?.announcement.id).toBe("future");
+     33|     expect(result.actionableReset).toBeNull();
+       |                                    ^
+     34|   });
+     35|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  8 failed | 9 passed (17)
+   Start at  13:01:44
+   Duration  593ms (transform 50%, import 39%, tests 8%, worker 3%)
+

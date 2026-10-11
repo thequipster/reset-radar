@@ -24,3 +24,5 @@ serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["io-util", "macros", "process", "sync", "time"] }
 dirs = "6"
+# RR23：与参考codex-cockpit Cargo.toml:25一致，保持TLS校验，禁止insecure降级。
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "system-proxy"] }

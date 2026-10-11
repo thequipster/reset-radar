@@ -1,0 +1,45 @@
+   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR23\src-tauri)
+warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `reset-radar` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.06s
+     Running unittests src\lib.rs (C:/Users/slsjz/Desktop/reset-radar/src-tauri/target\debug\deps\reset_radar_lib-0c14c46607274616.exe)
+
+running 11 tests
+test reset_status::tests::live_status_tls_probe ... ignored, manual live TLS probe; run explicitly with --ignored
+test reset_status::tests::malformed_envelope_and_missing_or_non_object_data_meta_are_rejected ... ok
+test reset_status::tests::required_keys_and_json_shapes_are_validated ... ok
+test reset_status::tests::serialization_uses_camel_case_snapshot_and_announcement_keys ... ok
+test reset_status::tests::scheduled_reset_object_requires_its_contract_fields ... ok
+test reset_status::tests::parses_status_contract_and_preserves_upstream_fields ... FAILED
+test reset_status::tests::error_without_saved_data_returns_an_error_snapshot ... ok
+test reset_status::tests::successful_null_schedule_replaces_the_previous_plan ... ok
+test reset_status::tests::fetch_error_preserves_last_success_fields_and_updates_attempt_state ... ok
+test reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary ... FAILED
+test reset_status::tests::client_build_error_returns_error_snapshot_without_network ... ok
+
+failures:
+
+---- reset_status::tests::parses_status_contract_and_preserves_upstream_fields stdout ----
+
+thread 'reset_status::tests::parses_status_contract_and_preserves_upstream_fields' (13516) panicked at src\reset_status.rs:276:9:
+assertion `left == right` failed
+  left: Some("2026-10-11T05:01:00Z")
+ right: Some("2026-10-11T05:15:00Z")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary stdout ----
+
+thread 'reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary' (25940) panicked at src\reset_status.rs:302:9:
+assertion failed: !service.refresh_due(start + Duration::from_secs(899))
+
+
+failures:
+    reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary
+    reset_status::tests::parses_status_contract_and_preserves_upstream_fields
+
+test result: FAILED. 8 passed; 2 failed; 1 ignored; 0 measured; 14 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

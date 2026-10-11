@@ -1,0 +1,29 @@
+{
+  "pid": 32568,
+  "startedAt": "2026-10-11T05:05:10.4473508+00:00",
+  "cachePath": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\last-snapshots.json",
+  "provider": "codex",
+  "quotaStatus": "ok",
+  "quotaObservedAt": "2026-10-11T05:05:13.773898400+00:00",
+  "resetStatus": {
+    "scheduledReset": null,
+    "activeWatch": null,
+    "latestReset": {
+      "announced_at": "2026-10-11T04:01:09Z",
+      "id": "2109132167112782291",
+      "reset_type": "regular",
+      "source": {
+        "author": "thsottiaux",
+        "type": "x_post",
+        "url": "https://x.com/thsottiaux/status/2109132167112782291"
+      },
+      "text": "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj"
+    },
+    "fetchedAt": "2026-10-11T05:05:12.553657700Z",
+    "freshUntil": "2026-10-11T05:20:12.553657700Z",
+    "generatedAt": "2026-10-11T05:05:02.089Z",
+    "lastAttemptAt": "2026-10-11T05:05:11.806572900Z",
+    "status": "ok",
+    "message": null
+  }
+}

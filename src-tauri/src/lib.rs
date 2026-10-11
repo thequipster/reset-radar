@@ -6,6 +6,7 @@
 mod codex;
 mod models;
 mod snapshots;
+mod reset_status;
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -28,6 +29,8 @@ const BACKGROUND_SNAPSHOTS_UPDATED_EVENT: &str = "background-snapshots-updated";
 
 #[derive(Default)]
 struct AppState {
+    /// 公告缓存与额度缓存分开：quota可5min刷新，status只15min一拉。
+    reset_status: tokio::sync::Mutex<Option<reset_status::ResetStatusService>>,
     /// 单飞锁。出处：参考 lib.rs:243 fetch_lock。
     fetch_lock: tokio::sync::Mutex<()>,
     /// 内存缓存（写入时刻 + 最新快照）。出处：参考 lib.rs:244 snapshot_cache。
@@ -37,8 +40,14 @@ struct AppState {
 }
 
 /// 采集全部 provider（v1 仅 codex）。出处：参考 lib.rs:306 collect_snapshots_once 的精简。
-async fn collect_snapshots() -> Vec<ProviderSnapshot> {
-    vec![codex::fetch_snapshot().await]
+async fn collect_snapshots(state: &AppState) -> Vec<ProviderSnapshot> {
+    let (mut quota, status) = tokio::join!(codex::fetch_snapshot(), async {
+        let mut service = state.reset_status.lock().await;
+        service.get_or_insert_with(|| reset_status::ResetStatusService::new(None))
+            .snapshot().await
+    });
+    quota.reset_status = Some(status);
+    vec![quota]
 }
 
 /// 后台刷新：实取 → 更新内存缓存 → 持久化 → 推事件。
@@ -46,7 +55,7 @@ async fn collect_snapshots() -> Vec<ProviderSnapshot> {
 async fn refresh_snapshots_in_background(app: &AppHandle) {
     let state = app.state::<AppState>();
     let _guard = state.fetch_lock.lock().await;
-    let values = collect_snapshots().await;
+    let values = collect_snapshots(&state).await;
     if let Ok(mut cache) = state.snapshot_cache.lock() {
         *cache = Some((Instant::now(), values.clone()));
     }
@@ -72,7 +81,7 @@ pub fn run() {
             if let Some(dir) = &config_dir {
                 let _ = std::fs::create_dir_all(dir);
             }
-            let state = AppState {
+            let mut state = AppState {
                 cache_dir: Mutex::new(config_dir.clone()),
                 ..Default::default()
             };
@@ -82,6 +91,8 @@ pub fn run() {
                 if let Some(saved) =
                     snapshots::load_persisted_snapshot_cache(dir, chrono::Utc::now())
                 {
+                    let saved_status = saved.snapshots.iter().find_map(|snapshot| snapshot.reset_status.clone());
+                    *state.reset_status.get_mut() = Some(reset_status::ResetStatusService::new(saved_status));
                     let anchor = Instant::now()
                         .checked_sub(saved.age)
                         .unwrap_or_else(Instant::now);
@@ -139,7 +150,7 @@ async fn get_snapshots(
             }
         }
     }
-    let values = collect_snapshots().await;
+    let values = collect_snapshots(&state).await;
     if let Ok(mut cache) = state.snapshot_cache.lock() {
         *cache = Some((Instant::now(), values.clone()));
     }
@@ -162,7 +173,7 @@ async fn refresh_snapshots(
     state: State<'_, AppState>,
 ) -> Result<Vec<ProviderSnapshot>, String> {
     let _guard = state.fetch_lock.lock().await;
-    let values = collect_snapshots().await;
+    let values = collect_snapshots(&state).await;
     if let Ok(mut cache) = state.snapshot_cache.lock() {
         *cache = Some((Instant::now(), values.clone()));
     }
