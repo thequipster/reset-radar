@@ -194,6 +194,15 @@
   white-space: nowrap;
 }
 
+/* RR40：采集状态卡副文案分隔点「·」无论并入 nowrap 段（换行后行首顶格，round5 实证）还是
+   留在段外（行尾悬挂，RR38 实证），换行时必悬到行缘——notices 两列网格下副文案宽约 170px、
+   全串贴边必换行，两种绑定形态互为镜像缺陷 → 去「·」改间距：时间段前 padding 4px 作视觉
+   分隔（前方的普通空格仍是干净断点，换行时段落行首缩进 4px，无孤悬标点）。作用域仅
+   noticeSub，周额度卡 timeNoWrap（quotaSub）不受影响。 */
+.noticeSub .timeNoWrap {
+  padding-left: 4px;
+}
+
 /* ── 区块标题 ──────────────────────────────────────────── */
 .sectionHead {
   display: flex;
