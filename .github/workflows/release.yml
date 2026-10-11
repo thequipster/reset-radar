@@ -1,0 +1,66 @@
+# Release — 打 tag v* 触发 Windows（MSVC）构建并把产物挂上 GitHub Release（RR11）
+# 借鉴 codex-cockpit .github/workflows/release.yml（MIT）已证做法：tag v* 触发、action 逐
+# commit-SHA pin、rust-cache save-if false（post-job 缓存修剪曾挂死一台 Windows runner）、
+# gh release create --verify-tag 用内置 token 免第三方 release action（缩供应链面）。
+# 与参考差异：本项目无自动更新器/多平台/签名，单 Windows job；日常门禁在 ci.yml（push/PR），
+# 本工作流只管发版。
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # gh release create 需要写权限建 Release 并传附件
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Setup Rust (stable, MSVC)
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+      - name: Rust cache
+        uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: src-tauri -> target
+          # 借鉴参考仓：release job 只恢复缓存不写回（构建慢、产物一旦上传，缓存修剪
+          # 得不偿失且曾引发 post-job 挂死）
+          save-if: 'false'
+      - name: Install frontend deps
+        run: npm ci
+      - name: Version/tag consistency guard
+        shell: bash
+        run: node scripts/check-release.mjs --tag "$GITHUB_REF_NAME"
+      - name: Type check (tsc)
+        run: npx tsc --noEmit
+      - name: Unit tests (vitest)
+        run: npx vitest run
+      - name: Build desktop app (tauri)
+        run: npm run tauri build
+      - name: Create release with installers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd src-tauri/target/release/bundle
+          sha256sum nsis/*.exe msi/*.msi > SHA256SUMS.txt
+          flags=()
+          # 借鉴参考仓：版本带预发布后缀（-beta.1/-rc.1）标 prerelease
+          if [[ "${GITHUB_REF_NAME#v}" == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" nsis/*.exe msi/*.msi SHA256SUMS.txt \
+            --verify-tag "${flags[@]}" \
+            --generate-notes \
+            --title "reset-radar $GITHUB_REF_NAME"
