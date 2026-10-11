@@ -14,16 +14,10 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：MERGE（RR21 🟡唯一待合；🟠可领 ×8：RR22/RR23 新立 P0 + RR15–RR19 + RR12 锚卡）**
-（下一班建议：**先占 MERGE 槽合 RR21**（2b10c27 单 commit / 12 文件 / patch 在位 /
-基于 main b518bcd 干净；**拆 worktree 前先 rmdir node_modules junction**，B09）→
-合完回 WORK 按 S1011-design 优先序领 **RR22**（P0 公告感知 core——用户实测
-codex-resets.com 已公告今日 15:00 Global reset 而模型无感知，纯函数先行注入测试）→
-**RR23**（P0 data-layer 运行时拉 /status，reqwest TLS 实测）。其后 RR15→RR18→RR19→
-RR16→RR17（RR17 依赖 RR15）。RR24/RR25（用户指定重设计阶段1/2）按其卡面槽位约定
-不占 LIGHT，待领落档。
-取材详单：docs/review-20261011.md + RR20_done 注记（MSVC 发行路径 DPI 覆盖）+
-RR13_done 遗产①–③ + RR14_done 遗产①–④ + RR21_done 遗产①–④）
+**当前阶段：WORK（阶段4全闭环：RR17→971be17 / RR28→c546b52 / RR27→a362c4e；RR12 第2轮REVIEW完成→立卡RR29/RR30 待领）**
+（阶段4顺序全部完成：RR23公告/RR15日志/RR18历史/RR19 CI/RR16 watch/RR17回测/RR28摘要/RR27照图UI。RR24/RR25已由RR26覆盖；六图视觉已落地为src/ui三态。
+下一拍：RR29（UI可访问性收尾）/RR30（MSVC发行DPI取证，依赖用户CI首跑）；或用户直接发布（三步就绪，push/tag留用户）。
+取材详单：docs/review-20261011-round2.md（最新）+ docs/review-20261011.md + RR27_done 排障遗产）
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -32,20 +26,109 @@ RR13_done 遗产①–③ + RR14_done 遗产①–④ + RR21_done 遗产①–�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
-### [2026-10-11 11:40:25] RR25 | P1 | 🧱🟠待领 | docs+发布 | 用户指定重设计阶段2
+### [2026-10-11 15:52:00] RR12 第2轮REVIEW | 🟢本轮完成（锚卡转回🟠待领，永不🟢） | S1011-RR12r2
+- 验收artifact：main a362c4e tsc/234TS/38Node/build/cargo check/校准管线（fresh双快照n=0如实）+RR27十二截图复用；差距5条零悬空：立卡RR29/RR30、不立卡3条附理由（详见docs/review-20261011-round2.md）；BOARD切WORK。
+
+### [2026-10-11 15:45:00] RR27 | P1 | 🔧🟢已闭环 | ui | S1011-RR27
+- 95c3a98→main a362c4e，树恒等；主仓tsc/234TS/38Node复验绿；junction先拆worktree移除，wip移档，branch归档。三态UI/主题/SVG/全状态/12截图三轮识图8/8；阶段4业务卡全部闭环→RR12第2轮REVIEW。
+
+### [2026-10-11 14:50:00] RR28 | P2 | 🧱🟢已闭环 | data-layer+core | S1011-RR28
+- c53fc42→main c546b52，树恒等；主仓复验见心跳；junction先拆worktree安全移除，wip移档，branch归档。→RR27。
+
+### [2026-10-11 14:48:00] RR28 | P2 | 🧱🟡待合入（已闭环，见上行） | data-layer+core | S1011-RR28 交付
+- c53fc42，12文件+429/−15；refresh-calibration追加写应用目录calibration.json→Rust只读命令read_calibration_summary→TS纯映射三态（missing/invalid/ok）→VM必填字段；tsc/域+全量182/Node38/Rust check+32test绿；三组变异红恢复；实跑应用目录真实摘要落盘（fresh/n=0/legacy3）；done/patch齐备；LIGHT释放。
+
+### [2026-10-11 14:40:00] RR17 | P2 | 🧱🟢已闭环 | core+data采集 | S1011-RR17b
+- 657da35→main971be17，树恒等；主仓tsc/177TS/38Node复验绿；junction先拆worktree安全移除，wip移档，branch保留归档。→RR28。
+
+### [2026-10-11 14:36:00] RR17 | P2 | 🧱🟡待合入（已闭环，见上行） | core+data采集 | S1011-RR17b 交付
+- 657da35，27文件+1440/−155；统一前瞻24h窗口对账（旧行排除不倒填）、fetch-history后自动产出calibration.json+报告、CLI评估时点=运行时刻；tsc/域147/全量177/Node38绿；三组变异红恢复（两组首轮存活已补钉）；实跑60事件3行全legacy n=0；done/patch齐备；LIGHT释放。
+
+### [2026-10-11 14:02:09] RR17 | P2 | 🧱🟢已闭环（被上行交付吸收） | core+data采集 | S1011-RR17
+- base299c1d5；上会话仅领卡建worktree，S1011-RR17b 14:28接管续作至交付（见上行）。
+
+
+### [2026-10-11 14:00:37] MERGE | 🟢已闭环 | S1011-RR16
+- f7890a5→main299c1d5，39路径全树恒等；主仓tsc/170TS/37Node/校准复验绿；worktree先非递归拆junction安全移除，wip移档，branch保留。MERGE释放。
+
+
+### [2026-10-11 13:49:23] RR16 | P2 | 🧱🟢已闭环 | core | S1011-RR16 LIGHT
+- base17fc22c；watch有效性与既有25%权重接线、前瞻baseline日志与同样本校准分列，不倒填历史watch。
+
+### [2026-10-11 13:47:17] MERGE | 🟢已闭环 | S1011-RR19
+- 3edf240→main17fc22c，全树恒等；主仓tsc/147TS/34Node/两结构/actionlint/版本绿；安全拆junction/worktree，wip移档，branch保留；MERGE释放。
+
+### [2026-10-11 13:41:45] RR19 | P2 | 🔧🟢已闭环 | docs+发布 | S1011-RR19
+- 3edf240→main17fc22c，30路径；四绿/34Node/结构YAML版本/4红恢复；主仓复验绿，done/patch齐。→RR16。
+
+### [2026-10-11 13:39:07] MERGE | 🟢已闭环 | S1011-RR18
+- 62d71e1→main7e406e0，全树恒等；主仓tsc/147tests/Node30/calibrate绿；先非递归拆junction再移除worktree，wip移档，分支保留归档。MERGE释放。
+
+### [2026-10-11 13:27:05] RR18 | P2 | 🔧🟢已闭环 | data采集 | S1011-RR18
+- 62d71e1→main7e406e0，42路径；四绿/Node30/3红恢复/生产32.1日志保留；已合入复验，done/patch齐备。→RR19。
+
+
+### [2026-10-11 13:24:13] MERGE | 🟢已闭环 | S1011-RR15
+- a246165→main44f2bba，全树恒等；主仓tsc/137tests/Node8/cargo check --tests/calibrate绿。worktree先拆junction再移除，分支归档；MERGE释放。
+
+
+### [2026-10-11 13:08:01] RR15 | P1 | 🧱🟢已闭环 | data-layer | S1011-RR15
+- a246165，52路径；tsc/域118/全137/Rust29/Node8/release/生产落盘与重启幂等绿，4类变异红恢复；done/patch齐备，LIGHT释放。
+
+
+### [2026-10-11 13:06:31] MERGE | 🟢已闭环 | S1011-RR23
+- RR23合入98d9bbc→main1f67601，全树恒等；主仓tsc/125tests/cargo check --tests绿。worktree已安全拆除，junction先非递归拆；分支保留归档，MERGE释放。
+
+
+### [2026-10-11 12:47:01] RR23 | P0 | 🧱🟢已闭环 | data-layer | S1011-RR23
+- 交付98d9bbc，34路径；tsc/域110/全量125/Rust24/TLS/生产落盘绿；两轮变异红恢复绿，done/patch齐备，LIGHT释放。
+
+
+
+### [2026-10-11 12:42:59] MERGE | 🟢已闭环 | S1011-design4 RR22
+- 合入c8321dc→main1142551，27路径树恒等；主仓tsc/108tests/设计验收全绿。RR22 worktree安全拆除；RR21已注销但空目录句柄占用留壳，junction已先拆且main依赖完好；分支保留归档，不用force；RR26用户原图保留。MERGE释放。
+- RR22 worktree干净，patch适用，主仓HEAD bca3ba4与卡基线相同；27路径对账，占MERGE槽。
+
+
+
+### [2026-10-11 12:38] RR27 / RR28 | P1/P2 | 🧱🟠待领 | ui / data-layer+core | 阶段4余项
+- RR28先提供真实校准只读摘要，RR27据六图重构三态UI/主题/SVG/完整状态/窗口焦点与尺寸；详细五件卡面见BACKLOG，前置业务卡依次执行；未领卡不占LIGHT。
+
+
+
+### [2026-10-11 12:33:26] RR22 | P0 | 🧱🟢已闭环 | core | S1011-design4 LIGHT
+- 本卡已合入main1142551；参考图及04-progress均已在主仓，下一卡RR23接线运行时公告。
+- 交付c8321dc；27文件+664/-10；tsc/核心93/全量108/两轮变异红复绿；参考图原字节归档，done/patch齐备，LIGHT释放。
+- 公告感知纯核心：计划与已发生/模型概率分开；RR23输入契约；日建议缩短计划 horizon、卡收益按公告情景截断；无公告golden回归。基线main bca3ba4，worktree agent/RR22。
+
+
+
+### [2026-10-11 12:32:13] MERGE | 🟢已闭环 | S1011-design4
+- 合入：RR21→main0fe0159，RR26→mainbca3ba4，涉及路径树恒等；主仓tsc/93测试/设计域/cargo check --tests全绿。保留两worktree（RR26用户参考图；RR21待安全拆junction），MERGE释放。
+- 预审通过：RR21/RR26各12文件、patch可应用、路径交集空；占MERGE槽，主仓cherry-pick。RR26含用户六张未跟踪参考图，保留原worktree，避免丢图。
+
+
+
+### [2026-10-11 11:57:14→2026-10-11 12:05:03] RR26 | P1 | 🧱🟢已闭环 | docs+发布 | S1011-design3交付
+- 分支/commit：agent/RR26 @961fdfb（单commit，基于main bcb3b5a；12文件+752行；task_logs/RR26.patch原字节导出，主仓apply --check通过）。
+- 已落：01/02/03三份设计文档、ref交接目录；03六组独立UIUX提示词，风格/色值/字体/材质自由；02同步新裁决；TRUTH用户裁决追加。
+- 门禁：tsc绿；UI11/11；全量89/89 0failed（main基线，RR21尚未合入）；文档验收绿；未知卡数误变零卡→断言红exit1→字节恢复绿；done/输出见task_logs/RR26_done.md与RR26_artifacts。
+- 阶段3停点已通过：用户六图到位并授权阶段4；图已随RR22版本化到main/ref。RR24/RR25落档由本卡覆盖闭环，勿重复领；RR26原图worktree留存。
+- worktree保留，含node_modules junction；未来拆前先核实拆链接。异常CRLF备份RR26.powershell-crlf.patch只作排障档案，勿用于合入。LIGHT释放。
+### [2026-10-11 11:40:25] RR25 | P1 | 🧱🟢已闭环 | docs+发布 | 用户指定重设计阶段2
 - 方案：独立审阅目录02-spec.md；石墨深色/浅色主题、三态线框、完整状态和字段边界；待用户确认后阶段3，参考图到位后阶段4。
 - 新授权：阶段4本设计总指挥逐卡执行其他看板任务；RR22/RR23公告主线优先，RR15–RR19按依赖收尾，详见BACKLOG及方案§8。
 - 槽位：未领卡不占LIGHT，RR21仍在飞勿抢；释放后在 agent/RR25 分支落档 docs/design/02-spec.md。RR24阶段1内容已获用户认可，仓内落档仍待领。
 - 协调注记：RUNBOOK是协议权威；STOP会停止所有会话，不能用“写STOP后本会话继续实施”协调。阶段4按卡与槽位互斥，保持STOP空才工作。
 
 
-### [2026-10-11 11:30:46] RR24 | P1 | 🧱🟠待领 | docs+发布 | 用户指定前端重设计阶段1
+### [2026-10-11 11:30:46] RR24 | P1 | 🧱🟢已闭环 | docs+发布 | 用户指定前端重设计阶段1
 - 已准备：独立审阅目录 01-proposals.md，42条未定稿提案（Luna底稿+主会话校对）；详见 BACKLOG RR24 草稿绝对路径。
 - 槽位：未领卡，不占LIGHT；遵循§4不抢RR21槽。释放后在agent/RR24落入docs/design/01-proposals.md并交付。
 - 阶段停点：只交阶段1候选供用户过目；02方案/03图prompt/参考图后实施按用户四阶段顺序推进。
 
 
-### [2026-10-11 11:17→11:56] RR21 | P1 | 🔧🟡待合入 | ui | 会话 S1011-1113 交付
+### [2026-10-11 11:17→11:56] RR21 | P1 | 🔧🟢已闭环 | ui | 会话 S1011-1113 交付
 - 分支/commit：agent/RR21 @ **2b10c27**（单 commit，基于 main b518bcd；patch 备份
   task_logs/RR21.patch 263893B）
 - 已落：真·悬浮窗——tauri.conf.json 对齐 codex-cockpit widget 字段（出处其
@@ -286,6 +369,8 @@ RR13_done 遗产①–③ + RR14_done 遗产①–④ + RR21_done 遗产①–�
 3. RR09（UI，依赖 RR08）
 4. RR11（发布打磨，依赖 RR09 截图）
 5. RR12（循环锚——首批功能卡合入后执行首轮 REVIEW，之后永续滚动）
+
+
 
 
 

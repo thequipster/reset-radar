@@ -1,0 +1,1347 @@
+From 3edf240185c1a78b527be9e0ecc56efdae666d75 Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 13:46:28 +0800
+Subject: [PATCH] ci: run all Node script tests before desktop builds (RR19)
+
+---
+ .github/workflows/ci.yml                      |   2 +
+ .github/workflows/release.yml                 |   2 +
+ README.md                                     |   5 +-
+ TRUTH.md                                      |   5 +
+ docs/DECISIONS.md                             |   5 +
+ docs/ci-node-20261011.md                      |  13 +
+ docs/design/04-progress.md                    |   4 +
+ package.json                                  |   1 +
+ scripts/check-ci.py                           |   6 +-
+ scripts/check-release-wf.py                   |   3 +
+ scripts/run-node-tests.mjs                    |  57 ++++
+ scripts/run-node-tests.test.mjs               |  73 +++++
+ task_logs/RR19_artifacts/actionlint.txt       |   1 +
+ task_logs/RR19_artifacts/ci-restored.txt      |   1 +
+ task_logs/RR19_artifacts/ci-structure.txt     |   1 +
+ task_logs/RR19_artifacts/domain.txt           |  12 +
+ task_logs/RR19_artifacts/full.txt             |  12 +
+ .../RR19_artifacts/mutation-ci-step-red.txt   |   2 +
+ .../mutation-failure-propagation-red.txt      | 101 ++++++
+ .../mutation-nested-discovery-red.txt         | 111 +++++++
+ task_logs/RR19_artifacts/mutation-proof.txt   |   8 +
+ .../mutation-release-soft-fail-red.txt        |   1 +
+ task_logs/RR19_artifacts/mutations.py         |  23 ++
+ task_logs/RR19_artifacts/node-full.txt        | 289 ++++++++++++++++++
+ task_logs/RR19_artifacts/node-inventory.json  |  10 +
+ task_logs/RR19_artifacts/node-restored.txt    | 289 ++++++++++++++++++
+ task_logs/RR19_artifacts/release-restored.txt |   1 +
+ .../RR19_artifacts/release-structure.txt      |   1 +
+ task_logs/RR19_artifacts/tsc.txt              |   1 +
+ task_logs/RR19_artifacts/versions-links.txt   |   1 +
+ 30 files changed, 1038 insertions(+), 3 deletions(-)
+ create mode 100644 docs/ci-node-20261011.md
+ create mode 100644 scripts/run-node-tests.mjs
+ create mode 100644 scripts/run-node-tests.test.mjs
+ create mode 100644 task_logs/RR19_artifacts/actionlint.txt
+ create mode 100644 task_logs/RR19_artifacts/ci-restored.txt
+ create mode 100644 task_logs/RR19_artifacts/ci-structure.txt
+ create mode 100644 task_logs/RR19_artifacts/domain.txt
+ create mode 100644 task_logs/RR19_artifacts/full.txt
+ create mode 100644 task_logs/RR19_artifacts/mutation-ci-step-red.txt
+ create mode 100644 task_logs/RR19_artifacts/mutation-failure-propagation-red.txt
+ create mode 100644 task_logs/RR19_artifacts/mutation-nested-discovery-red.txt
+ create mode 100644 task_logs/RR19_artifacts/mutation-proof.txt
+ create mode 100644 task_logs/RR19_artifacts/mutation-release-soft-fail-red.txt
+ create mode 100644 task_logs/RR19_artifacts/mutations.py
+ create mode 100644 task_logs/RR19_artifacts/node-full.txt
+ create mode 100644 task_logs/RR19_artifacts/node-inventory.json
+ create mode 100644 task_logs/RR19_artifacts/node-restored.txt
+ create mode 100644 task_logs/RR19_artifacts/release-restored.txt
+ create mode 100644 task_logs/RR19_artifacts/release-structure.txt
+ create mode 100644 task_logs/RR19_artifacts/tsc.txt
+ create mode 100644 task_logs/RR19_artifacts/versions-links.txt
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index daa5b2b..f58908d 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -41,6 +41,8 @@ jobs:
+         run: npx tsc --noEmit
+       - name: Unit tests (vitest)
+         run: npx vitest run
++      - name: Script tests (node:test)
++        run: npm run test:node
+       - name: Rust check
+         run: cargo check --locked --manifest-path src-tauri/Cargo.toml
+       - name: Build desktop app (tauri)
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index d120d22..46d5dbf 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -47,6 +47,8 @@ jobs:
+         run: npx tsc --noEmit
+       - name: Unit tests (vitest)
+         run: npx vitest run
++      - name: Script tests (node:test)
++        run: npm run test:node
+       - name: Build desktop app (tauri)
+         run: npm run tauri build
+       - name: Create release with installers
+diff --git a/README.md b/README.md
+index fdabd30..e5f974b 100644
+--- a/README.md
++++ b/README.md
+@@ -61,7 +61,8 @@ Tauri 2 · React · TypeScript（核心算法为零依赖纯函数，100% 单测
+ ```bash
+ npm install
+ npm run tauri dev     # 开发运行
+-npx vitest run        # 全量测试（86 条）
++npx vitest run        # 前端与纯核心测试
++npm run test:node     # scripts顶层与嵌套Node测试；与CI/发布流水线同入口
+ npm run tauri build   # 构建（注意：gnu 本机构建需 custom-protocol 特性，见 RUNBOOK §10）
+ ```
+ 
+@@ -69,7 +70,7 @@ npm run tauri build   # 构建（注意：gnu 本机构建需 custom-protocol 
+ 
+ ```bash
+ node scripts/check-release.mjs         # 版本两处同步 + README 链接可达
+-python scripts/check-ci.py             # ci.yml 结构（RR02）
++python scripts/check-ci.py             # ci.yml 结构与Node测试必跑（RR02/RR19）
+ python scripts/check-release-wf.py     # release.yml 结构（RR11）
+ ```
+ 
+diff --git a/TRUTH.md b/TRUTH.md
+index 018d8d4..f9e1b40 100644
+--- a/TRUTH.md
++++ b/TRUTH.md
+@@ -11,6 +11,7 @@
+ | codex-resets.com 公开历史 | `https://codex-resets.com/api/v1/resets?limit=100&order=desc` 与 `/api/v1/status` | 强制重置历史日期（announced_at 字符串数组）——风险校准的数据源 |
+ | 参考实现（MIT） | `C:\Users\slsjz\.zcode\workspace\default\quota-analysis\codex-cockpit`（HouSiyuan2001/codex-cockpit v0.3.0-beta.5 完整源码） | 借鉴算法思路时的出处仓。重点文件：`src-tauri/src/reset_forecast.rs`（风险因子）、`src/lib/dynamicQuota.ts`（配速公式）、`src/lib/resetCard.ts` + `docs/reset-card-planner.md`（重置卡规划器，初始化会话亲手写的，可直接移植）、`src-tauri/src/codex.rs`（app-server 握手） |
+ | 本机工具链事实 | 见 §2 锚点 B01–B05 | 构建环境实测结论，夜间会话必读 |
++| Node官方文档 | https://nodejs.org/docs/latest-v24.x/api/typescript.html 与 https://nodejs.org/api/cli.html#--test | Node24内置类型擦除与node:test命令；CI配置沿既有Node24，脚本实测另记 |
+ | 用户裁决 | 本文件 §U 各条 | 最高层级，覆盖一切推断 |
+ 
+ ## §2 已确认锚点
+@@ -167,3 +168,7 @@
+ - 采集前原始59条夹具原字节复制src/lib/__tests__/fixtures/resets-history-20261010.json，SHA256=D3E54A8F986FC8E0E214DF5D2F4A089AA0EF4FD80E7BA1F1BFD3FD8A27F347D5，旧golden统计不因联网更新而重写。
+ - 当前calibrate双源各1行、今日未完结计分n=0；7日严格边界/非法覆盖/排除banked的实际报告测试通过。说明docs/history-refresh-20261011.md、D026；门禁与生产实证最终见RR18_done。
+ - RR18生产补验：GNU custom-protocol ownedPID26652，新来源fetchedAt=2026-10-11T05:36:33.524549900Z、quota/source均ok；只读CDP风险32.1%、hook=ok。输入变化后自然追加32.1，日志188→361字节，44的旧行及原前缀不变，无锁残留， owned进程已关闭。最终报告归档1+应用2行仍n=0；production-history-verified.json、production-dom-fresh.json。
++
++### 2026-10-11 RR19 脚本门禁实证
++- CI/release都新增npm run test:node，入口递归发现5个测试文件（包含scripts/tests/prediction-log.node.mjs），本机Nodev22.23.1真实34/34通过；既有CI Node24配置未改，官方类型擦除文档登记§1。清单node-inventory.json，原文node-restored.txt。
++- 两YAML actionlint1.7.12退出0，check-ci/release结构守卫通过；删除步骤/软失败/遗漏嵌套/吞退出码4变异均红且原字节恢复复绿，mutation-proof.txt。前端/核心147/147与tsc退出0。版本保持0.1.0、13个README相对链接有效；没有远端runner运行或发布动作。
+diff --git a/docs/DECISIONS.md b/docs/DECISIONS.md
+index b125159..2cf1591 100644
+--- a/docs/DECISIONS.md
++++ b/docs/DECISIONS.md
+@@ -237,3 +237,8 @@
+ - banked发卡不等于额度回满（D022/D024）；原始采集两类保留且按类型窗口去重，风险/脚本日志/校准共享纯核心regular筛选。旧算法golden移至采集前原字节归档，新生产数据由真实脚本生成，不手改数值。
+ - 超过7日标stale且保留历史as_of；缺失/非法/未来时间标invalid，不用当前墙钟制造“未重置”观测。UI适配器新增historySource，区别于quota与实时status来源，后续照图UI无需自己判断7日。
+ - REVIEW入口先采集再校准，刷新失败不继续；采集时间在完整成功后记录。仅新增载体及review文档，不改运行协议。现在n=0为真实无已完结样本，目标窗与预测时点审计交RR17。
++
++## D027 RR19 CI与发布构建共用Node测试入口（2026-10-11）
++- RR19要求补Node测试；现有日志测试位于scripts/tests/*.node.mjs，单顶层glob会漏掉。用无依赖Node入口递归发现scripts内*.test.mjs与*.node.mjs并把绝对文件列表交node --test；空清单、启动错误、进程终止和失败测试均非零，不出现无测试假绿。
++- CI和tag发布构建都在Vitest之后跑npm run test:node；两条结构守卫要求该步不可跳过、不可continue-on-error，防止发布路径绕过脚本测试。仅修改配置，不发tag/不push/不触发Release；版本仍0.1.0。
++- D013的Vitest scripts/**排除不改；CI既有Node24不改，支持纯核心.ts原生加载，Node官方文档已登记TRUTH来源。远端GitHub runner未运行，验收边界为本地同入口真实测试+两份YAML/actionlint/结构守卫与红验，不冒称远端绿。
+diff --git a/docs/ci-node-20261011.md b/docs/ci-node-20261011.md
+new file mode 100644
+index 0000000..061986d
+--- /dev/null
++++ b/docs/ci-node-20261011.md
+@@ -0,0 +1,13 @@
++# RR19 Node脚本测试进入构建门禁
++
++CI与发布构建在Vitest之后、Tauri构建之前运行 `npm run test:node`。本地使用同一入口；`scripts/run-node-tests.mjs` 递归枚举scripts内 `.test.mjs` 和 `.node.mjs`，以排序后的绝对文件列表交给真实Node `--test` 子进程，不依赖PowerShell/Bash通配符差异。文件清单为空、启动失败、信号中止和测试失败都非零退出。
++
++目前发现5个测试文件：fetch-history、calibration-report、review-calibration、run-node-tests，以及嵌套scripts/tests/prediction-log.node.mjs。真实执行34项测试通过，包含原30项与入口自身4项测试；Vitest仍排除scripts/**，前端/核心147项全部通过。
++
++两份结构守卫都要求Node步骤无条件执行且失败阻断；actionlint 1.7.12对CI/release两份YAML退出0。版本门禁核对package.json、tauri.conf.json都为0.1.0、README13个相对链接可达；本卡只新增脚本，不升级版本或依赖，不需要改lockfile。
++
++四种变异均红：删除CI Node步骤→结构守卫失败；release步骤continue-on-error=true→发布结构守卫失败；发现规则漏.node.mjs→嵌套发现用例失败；吞掉子进程退出码→退出码透传和真实失败测试用例失败。逐次原字节恢复后Node34/全量147/结构守卫复绿，SHA证据见task_logs/RR19_artifacts/mutation-proof.txt。
++
++验收来源：BACKLOG RR19与首轮review G7；现有CI/RR02、release/RR11及D013（Vitest排除边界）。既有actions SHA pin沿MIT参考codex-cockpit/.github/workflows/release.yml，本卡不换动作。Node原生TS加载参见[Node24官方文档](https://nodejs.org/docs/latest-v24.x/api/typescript.html#type-stripping)，命令参见[Node官方CLI](https://nodejs.org/api/cli.html#--test)。
++
++本机实际Node版本为v22.23.1，CI仍配置既有Node24；node-inventory.json保存真实版本和文件清单。没有push/tag/Release，未运行远端GitHub runner，不将本地绿声称为远端构建成功。构建配置与原有Rust/安装包步骤保持连接，接下来继续RR16/RR17/RR28/RR27。
+diff --git a/docs/design/04-progress.md b/docs/design/04-progress.md
+index 772f81a..798d47d 100644
+--- a/docs/design/04-progress.md
++++ b/docs/design/04-progress.md
+@@ -48,3 +48,7 @@ app已从统一VM获取纯核心候选，真实成功评估自动记录到Tauri
+ ## RR18历史刷新
+ 
+ 真实历史已刷新为60条原始事件，风险/脚本日志/校准统一只消费54条额度重置，6条发卡仍保留原始证据。VM新增historySource元数据，校准超过7日标红且非法时间不计分；REVIEW入口先采集再报告。旧golden原字节归档，数值不随联网更新重写。门禁和生产验证见RR18_done；继续RR19→RR16→RR17→RR28→RR27。
++
++## RR19脚本CI
++
++CI与发布构建共用npm run test:node，递归包含顶层与预测日志嵌套文件；空套件和失败不能假绿。结构/YAML/版本/tsc/147前端核心/34Node与4类变异红恢复均通过；配置未推远端，不声称GitHub runner已跑。详docs/ci-node-20261011.md；下一RR16 watch联通。
+diff --git a/package.json b/package.json
+index 2d00913..267ff0a 100644
+--- a/package.json
++++ b/package.json
+@@ -7,6 +7,7 @@
+     "dev": "vite",
+     "build": "tsc && vite build",
+     "test": "vitest run",
++    "test:node": "node scripts/run-node-tests.mjs",
+     "calibrate": "node scripts/calibrate.mjs",
+     "log-prediction": "node scripts/log-prediction.mjs",
+     "tauri": "tauri"
+diff --git a/scripts/check-ci.py b/scripts/check-ci.py
+index aa73d5d..ee1d406 100644
+--- a/scripts/check-ci.py
++++ b/scripts/check-ci.py
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env python3
+ """RR02 门禁断言：.github/workflows/ci.yml 步骤结构与卡面修向逐条对照 + README 徽章接线。
+ 
+-口径来源：BACKLOG RR02 修向——windows-latest；npm ci → tsc → vitest → cargo check →
++口径来源：BACKLOG RR02/RR19 修向——windows-latest；npm ci → tsc → vitest → node:test → cargo check →
+ tauri build（CI 用 MSVC 无 dll 问题，TRUTH B02/D009）→ 产物上传 artifact；README 徽章接线。
+ 本脚本即该验证口径的可复现实现（RR02 基于 main 无 tsc/vitest 对象，门禁等价口径见 D011）。
+ 依赖：python3 + PyYAML（本机 6.0.3 实测可用）。用法：python scripts/check-ci.py
+@@ -20,6 +20,7 @@ EXPECT_RUNS = [
+     "npm ci",
+     "npx tsc --noEmit",
+     "npx vitest run",
++    "npm run test:node",
+     "cargo check --locked --manifest-path src-tauri/Cargo.toml",
+     "npm run tauri build",
+ ]
+@@ -53,6 +54,9 @@ if job:
+     runs = [s["run"] for s in steps if "run" in s]
+     check(runs == EXPECT_RUNS,
+           f"run 步骤序列与卡面修向不符：期望 {EXPECT_RUNS}，实际 {runs}")
++    node_tests = [s for s in steps if s.get("run") == "npm run test:node"]
++    check(len(node_tests) == 1 and not node_tests[0].get("continue-on-error") and not node_tests[0].get("if"),
++          "node:test 必须无条件运行且失败阻断流水线")
+     last = steps[-1] if steps else {}
+     check(str(last.get("uses", "")).startswith("actions/upload-artifact@"),
+           "最后一步应为 actions/upload-artifact")
+diff --git a/scripts/check-release-wf.py b/scripts/check-release-wf.py
+index cfadee5..55d028b 100644
+--- a/scripts/check-release-wf.py
++++ b/scripts/check-release-wf.py
+@@ -51,6 +51,9 @@ joined = "\n".join(runs)
+ check("node scripts/check-release.mjs --tag" in joined, "缺版本/tag 一致性守卫步骤")
+ check("npx tsc --noEmit" in joined, "缺 tsc 门禁")
+ check("npx vitest run" in joined, "缺 vitest 门禁")
++node_tests = [s for s in steps if s.get("run") == "npm run test:node"]
++check(len(node_tests) == 1 and not node_tests[0].get("continue-on-error") and not node_tests[0].get("if"),
++      "node:test 必须无条件运行且失败阻断发布构建")
+ check("npm run tauri build" in joined, "缺 tauri 构建")
+ check("gh release create" in joined, "缺 gh release create（产物挂 Release）")
+ check("--verify-tag" in joined, "gh release create 必须带 --verify-tag")
+diff --git a/scripts/run-node-tests.mjs b/scripts/run-node-tests.mjs
+new file mode 100644
+index 0000000..cc7b6df
+--- /dev/null
++++ b/scripts/run-node-tests.mjs
+@@ -0,0 +1,57 @@
++import { readdirSync } from 'node:fs';
++import { dirname, join, resolve } from 'node:path';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import { spawnSync } from 'node:child_process';
++
++const scriptDir = dirname(fileURLToPath(import.meta.url));
++const defaultRoot = resolve(scriptDir, '..');
++
++// 递归收集 scripts 下的 Node 测试文件，并按绝对路径稳定排序。
++export function discoverNodeTests(root = defaultRoot) {
++  const scriptsDir = join(resolve(root), 'scripts');
++  const files = [];
++
++  function visit(dir) {
++    for (const entry of readdirSync(dir, { withFileTypes: true })) {
++      const path = join(dir, entry.name);
++      if (entry.isDirectory()) visit(path);
++      else if (entry.isFile() && (entry.name.endsWith('.test.mjs') || entry.name.endsWith('.node.mjs'))) {
++        files.push(resolve(path));
++      }
++    }
++  }
++
++  visit(scriptsDir);
++  return files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
++}
++
++// 统一从 Node 子进程运行，便于注入 spawn 做行为测试。
++export function runNodeTests({ root = defaultRoot, spawn = spawnSync } = {}) {
++  const files = discoverNodeTests(root);
++  if (files.length === 0) {
++    process.stderr.write('未发现 scripts 下的 Node 测试文件。\n');
++    return 1;
++  }
++
++  let result;
++  try {
++    result = spawn(process.execPath, ['--test', ...files], { stdio: 'inherit' });
++  } catch (error) {
++    process.stderr.write(`启动 Node 测试失败：${error.message}\n`);
++    return 1;
++  }
++  if (result.error) {
++    process.stderr.write(`启动 Node 测试失败：${result.error.message}\n`);
++    return 1;
++  }
++  if (result.signal) {
++    process.stderr.write(`Node 测试进程被信号终止：${result.signal}\n`);
++    return 1;
++  }
++  return Number.isInteger(result.status) ? result.status : 1;
++}
++
++// 仅直接执行此文件时启动测试；作为模块导入不产生副作用。
++if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
++  process.exitCode = runNodeTests();
++}
+diff --git a/scripts/run-node-tests.test.mjs b/scripts/run-node-tests.test.mjs
+new file mode 100644
+index 0000000..82bffd6
+--- /dev/null
++++ b/scripts/run-node-tests.test.mjs
+@@ -0,0 +1,73 @@
++import assert from 'node:assert/strict';
++import { spawnSync } from 'node:child_process';
++import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join, resolve, sep } from 'node:path';
++import test from 'node:test';
++import { discoverNodeTests, runNodeTests } from './run-node-tests.mjs';
++
++const tempPrefix = 'reset-radar-node-runner-test-';
++
++function withTempRoot(fn) {
++  const root = mkdtempSync(join(tmpdir(), tempPrefix));
++  try {
++    mkdirSync(join(root, 'scripts'), { recursive: true });
++    fn(root);
++  } finally {
++    const target = resolve(root);
++    const tempRoot = resolve(tmpdir());
++    assert.ok(target.startsWith(`${tempRoot}${sep}`), '临时目录必须位于 os.tmpdir() 内');
++    assert.ok(target.slice(tempRoot.length + 1).startsWith(tempPrefix), '临时目录必须有本测试专用前缀');
++    rmSync(target, { recursive: true, force: true });
++  }
++}
++
++test('递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序', () => {
++  withTempRoot((root) => {
++    const scripts = join(root, 'scripts');
++    mkdirSync(join(scripts, 'nested', 'deep'), { recursive: true });
++    writeFileSync(join(scripts, 'z.test.mjs'), '');
++    writeFileSync(join(scripts, 'nested', 'deep', 'a.node.mjs'), '');
++    writeFileSync(join(scripts, 'nested', 'ignored.mjs'), '');
++    writeFileSync(join(scripts, 'notes.test.js'), '');
++    const found = discoverNodeTests(root);
++    assert.deepEqual(found, [
++      resolve(scripts, 'nested', 'deep', 'a.node.mjs'),
++      resolve(scripts, 'z.test.mjs'),
++    ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
++  });
++});
++
++test('空清单拒绝启动 Node 子进程', () => {
++  withTempRoot((root) => {
++    let called = false;
++    const status = runNodeTests({ root, spawn: () => { called = true; return { status: 0 }; } });
++    assert.equal(status, 1);
++    assert.equal(called, false);
++  });
++});
++
++test('透传子进程退出码及启动失败、信号失败', () => {
++  withTempRoot((root) => {
++    writeFileSync(join(root, 'scripts', 'sample.node.mjs'), '');
++    let invocation;
++    assert.equal(runNodeTests({ root, spawn: (...args) => { invocation = args; return { status: 7 }; } }), 7);
++    assert.equal(invocation[0], process.execPath);
++    assert.equal(invocation[1][0], '--test');
++    assert.equal(invocation[1].at(-1), resolve(root, 'scripts', 'sample.node.mjs'));
++    assert.equal(runNodeTests({ root, spawn: () => ({ status: null, signal: 'SIGTERM' }) }), 1);
++    assert.equal(runNodeTests({ root, spawn: () => ({ status: null, error: new Error('spawn failed') }) }), 1);
++  });
++});
++
++test('真实 Node 测试进程失败时入口返回非零', () => {
++  withTempRoot((root) => {
++    writeFileSync(join(root, 'scripts', 'broken.test.mjs'), "import test from 'node:test'; test('故意失败', () => { throw new Error('expected failure'); });\n");
++    // node:test 会用该变量标记测试 worker；清除后才能真实启动嵌套 Node 测试进程。
++    const runInFreshNodeContext = (command, args, options) => spawnSync(command, args, {
++      ...options,
++      env: { ...process.env, NODE_TEST_CONTEXT: undefined },
++    });
++    assert.notEqual(runNodeTests({ root, spawn: runInFreshNodeContext }), 0);
++  });
++});
+diff --git a/task_logs/RR19_artifacts/actionlint.txt b/task_logs/RR19_artifacts/actionlint.txt
+new file mode 100644
+index 0000000..b784ce4
+--- /dev/null
++++ b/task_logs/RR19_artifacts/actionlint.txt
+@@ -0,0 +1 @@
++actionlint exit=0
+diff --git a/task_logs/RR19_artifacts/ci-restored.txt b/task_logs/RR19_artifacts/ci-restored.txt
+new file mode 100644
+index 0000000..31ac41e
+--- /dev/null
++++ b/task_logs/RR19_artifacts/ci-restored.txt
+@@ -0,0 +1 @@
++check-ci OK: 6 run 步骤与卡面修向一致；徽章已接线
+diff --git a/task_logs/RR19_artifacts/ci-structure.txt b/task_logs/RR19_artifacts/ci-structure.txt
+new file mode 100644
+index 0000000..31ac41e
+--- /dev/null
++++ b/task_logs/RR19_artifacts/ci-structure.txt
+@@ -0,0 +1 @@
++check-ci OK: 6 run 步骤与卡面修向一致；徽章已接线
+diff --git a/task_logs/RR19_artifacts/domain.txt b/task_logs/RR19_artifacts/domain.txt
+new file mode 100644
+index 0000000..9499094
+--- /dev/null
++++ b/task_logs/RR19_artifacts/domain.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR19
++
++
++ Test Files  10 passed (10)
++      Tests  119 passed (119)
++   Start at  13:44:45
++   Duration  955ms (import 50%, transform 34%, tests 11%, worker 6%)
++
++    Isolate  10 workers spawned · ~109ms startup each (spawn + environment, per file)
++             at least ~436ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR19_artifacts/full.txt b/task_logs/RR19_artifacts/full.txt
+new file mode 100644
+index 0000000..21ea2c6
+--- /dev/null
++++ b/task_logs/RR19_artifacts/full.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR19
++
++
++ Test Files  16 passed (16)
++      Tests  147 passed (147)
++   Start at  13:45:13
++   Duration  1.67s (import 52%, transform 31%, tests 10%, worker 7%)
++
++    Isolate  16 workers spawned · ~124ms startup each (spawn + environment, per file)
++             at least ~866ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR19_artifacts/mutation-ci-step-red.txt b/task_logs/RR19_artifacts/mutation-ci-step-red.txt
+new file mode 100644
+index 0000000..356beb1
+--- /dev/null
++++ b/task_logs/RR19_artifacts/mutation-ci-step-red.txt
+@@ -0,0 +1,2 @@
++FAIL: run 步骤序列与卡面修向不符：期望 ['npm ci', 'npx tsc --noEmit', 'npx vitest run', 'npm run test:node', 'cargo check --locked --manifest-path src-tauri/Cargo.toml', 'npm run tauri build']，实际 ['npm ci', 'npx tsc --noEmit', 'npx vitest run', 'cargo check --locked --manifest-path src-tauri/Cargo.toml', 'npm run tauri build']
++FAIL: node:test 必须无条件运行且失败阻断流水线
+diff --git a/task_logs/RR19_artifacts/mutation-failure-propagation-red.txt b/task_logs/RR19_artifacts/mutation-failure-propagation-red.txt
+new file mode 100644
+index 0000000..8c16d5c
+--- /dev/null
++++ b/task_logs/RR19_artifacts/mutation-failure-propagation-red.txt
+@@ -0,0 +1,101 @@
++TAP version 13
++# 未发现 scripts 下的 Node 测试文件。
++# TAP version 13
++# \# Subtest: 故意失败
++# not ok 1 - 故意失败
++#   ---
++#   duration_ms: 0.5824
++#   type: 'test'
++#   location: 'C:\\\\Users\\\\slsjz\\\\AppData\\\\Local\\\\Temp\\\\reset-radar-node-runner-test-cHIUD6\\\\scripts\\\\broken.test.mjs:1:31'
++#   failureType: 'testCodeFailure'
++#   error: 'expected failure'
++#   code: 'ERR_TEST_FAILURE'
++#   stack: |-
++#     TestContext.<anonymous> (file:///C:/Users/slsjz/AppData/Local/Temp/reset-radar-node-runner-test-cHIUD6/scripts/broken.test.mjs:1:58)
++#     Test.runInAsyncScope (node:async_hooks:214:14)
++#     Test.run (node:internal/test_runner/test:1047:25)
++#     Test.start (node:internal/test_runner/test:944:17)
++#     startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++#   ...
++# 1..1
++# \# tests 1
++# \# suites 0
++# \# pass 0
++# \# fail 1
++# \# cancelled 0
++# \# skipped 0
++# \# todo 0
++# \# duration_ms 78.2769
++# Subtest: 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++ok 1 - 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++  ---
++  duration_ms: 6.0177
++  type: 'test'
++  ...
++# Subtest: 空清单拒绝启动 Node 子进程
++ok 2 - 空清单拒绝启动 Node 子进程
++  ---
++  duration_ms: 1.5753
++  type: 'test'
++  ...
++# Subtest: 透传子进程退出码及启动失败、信号失败
++not ok 3 - 透传子进程退出码及启动失败、信号失败
++  ---
++  duration_ms: 2.248
++  type: 'test'
++  location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\run-node-tests.test.mjs:50:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    
++    0 !== 7
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: 7
++  actual: 0
++  operator: 'strictEqual'
++  stack: |-
++    file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:54:12
++    withTempRoot (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:15:5)
++    TestContext.<anonymous> (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:51:3)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
++    Test.postRun (node:internal/test_runner/test:1173:19)
++    Test.run (node:internal/test_runner/test:1101:12)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: 真实 Node 测试进程失败时入口返回非零
++not ok 4 - 真实 Node 测试进程失败时入口返回非零
++  ---
++  duration_ms: 129.9959
++  type: 'test'
++  location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\run-node-tests.test.mjs:63:1'
++  failureType: 'testCodeFailure'
++  error: 'Expected "actual" to be strictly unequal to: 0'
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: 0
++  actual: 0
++  operator: 'notStrictEqual'
++  stack: |-
++    file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:71:12
++    withTempRoot (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:15:5)
++    TestContext.<anonymous> (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:64:3)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
++    Test.postRun (node:internal/test_runner/test:1173:19)
++    Test.run (node:internal/test_runner/test:1101:12)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 2
++# fail 2
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 227.0955
+diff --git a/task_logs/RR19_artifacts/mutation-nested-discovery-red.txt b/task_logs/RR19_artifacts/mutation-nested-discovery-red.txt
+new file mode 100644
+index 0000000..e3b3463
+--- /dev/null
++++ b/task_logs/RR19_artifacts/mutation-nested-discovery-red.txt
+@@ -0,0 +1,111 @@
++TAP version 13
++# 未发现 scripts 下的 Node 测试文件。
++# 未发现 scripts 下的 Node 测试文件。
++# TAP version 13
++# \# Subtest: 故意失败
++# not ok 1 - 故意失败
++#   ---
++#   duration_ms: 0.4561
++#   type: 'test'
++#   location: 'C:\\\\Users\\\\slsjz\\\\AppData\\\\Local\\\\Temp\\\\reset-radar-node-runner-test-zS8q9q\\\\scripts\\\\broken.test.mjs:1:31'
++#   failureType: 'testCodeFailure'
++#   error: 'expected failure'
++#   code: 'ERR_TEST_FAILURE'
++#   stack: |-
++#     TestContext.<anonymous> (file:///C:/Users/slsjz/AppData/Local/Temp/reset-radar-node-runner-test-zS8q9q/scripts/broken.test.mjs:1:58)
++#     Test.runInAsyncScope (node:async_hooks:214:14)
++#     Test.run (node:internal/test_runner/test:1047:25)
++#     Test.start (node:internal/test_runner/test:944:17)
++#     startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++#   ...
++# 1..1
++# \# tests 1
++# \# suites 0
++# \# pass 0
++# \# fail 1
++# \# cancelled 0
++# \# skipped 0
++# \# todo 0
++# \# duration_ms 66.5088
++# Subtest: 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++not ok 1 - 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++  ---
++  duration_ms: 6.6871
++  type: 'test'
++  location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\run-node-tests.test.mjs:25:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly deep-equal:
++    + actual - expected
++    
++      [
++    -   'C:\\Users\\slsjz\\AppData\\Local\\Temp\\reset-radar-node-runner-test-LDqBnK\\scripts\\nested\\deep\\a.node.mjs',
++        'C:\\Users\\slsjz\\AppData\\Local\\Temp\\reset-radar-node-runner-test-LDqBnK\\scripts\\z.test.mjs'
++      ]
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected:
++    0: 'C:\\Users\\slsjz\\AppData\\Local\\Temp\\reset-radar-node-runner-test-LDqBnK\\scripts\\nested\\deep\\a.node.mjs'
++    1: 'C:\\Users\\slsjz\\AppData\\Local\\Temp\\reset-radar-node-runner-test-LDqBnK\\scripts\\z.test.mjs'
++  actual:
++    0: 'C:\\Users\\slsjz\\AppData\\Local\\Temp\\reset-radar-node-runner-test-LDqBnK\\scripts\\z.test.mjs'
++  operator: 'deepStrictEqual'
++  stack: |-
++    file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:34:12
++    withTempRoot (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:15:5)
++    TestContext.<anonymous> (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:26:3)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.start (node:internal/test_runner/test:944:17)
++    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++  ...
++# Subtest: 空清单拒绝启动 Node 子进程
++ok 2 - 空清单拒绝启动 Node 子进程
++  ---
++  duration_ms: 1.5519
++  type: 'test'
++  ...
++# Subtest: 透传子进程退出码及启动失败、信号失败
++not ok 3 - 透传子进程退出码及启动失败、信号失败
++  ---
++  duration_ms: 1.8355
++  type: 'test'
++  location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\run-node-tests.test.mjs:50:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    
++    1 !== 7
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: 7
++  actual: 1
++  operator: 'strictEqual'
++  stack: |-
++    file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:54:12
++    withTempRoot (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:15:5)
++    TestContext.<anonymous> (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR19/scripts/run-node-tests.test.mjs:51:3)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
++    Test.postRun (node:internal/test_runner/test:1173:19)
++    Test.run (node:internal/test_runner/test:1101:12)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: 真实 Node 测试进程失败时入口返回非零
++ok 4 - 真实 Node 测试进程失败时入口返回非零
++  ---
++  duration_ms: 119.2881
++  type: 'test'
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 2
++# fail 2
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 206.0857
+diff --git a/task_logs/RR19_artifacts/mutation-proof.txt b/task_logs/RR19_artifacts/mutation-proof.txt
+new file mode 100644
+index 0000000..1580546
+--- /dev/null
++++ b/task_logs/RR19_artifacts/mutation-proof.txt
+@@ -0,0 +1,8 @@
++ci-step: red exit=1
++ci-step: restored SHA256=bf7648992460905f9ff54c65bcd76ca6a32e0f2af38fe45e9db443683f52a1cd
++release-soft-fail: red exit=1
++release-soft-fail: restored SHA256=760b200c3187894d9c4530c9f202a0079587d823683238006b03fd2557a69dc6
++nested-discovery: red exit=1
++nested-discovery: restored SHA256=0599a2421a49a1d041ab57ad29e1f62b91f3246c8e06074bb00e969882ffe441
++failure-propagation: red exit=1
++failure-propagation: restored SHA256=0599a2421a49a1d041ab57ad29e1f62b91f3246c8e06074bb00e969882ffe441
+diff --git a/task_logs/RR19_artifacts/mutation-release-soft-fail-red.txt b/task_logs/RR19_artifacts/mutation-release-soft-fail-red.txt
+new file mode 100644
+index 0000000..8518735
+--- /dev/null
++++ b/task_logs/RR19_artifacts/mutation-release-soft-fail-red.txt
+@@ -0,0 +1 @@
++✗ node:test 必须无条件运行且失败阻断发布构建
+diff --git a/task_logs/RR19_artifacts/mutations.py b/task_logs/RR19_artifacts/mutations.py
+new file mode 100644
+index 0000000..7603248
+--- /dev/null
++++ b/task_logs/RR19_artifacts/mutations.py
+@@ -0,0 +1,23 @@
++from pathlib import Path
++import subprocess,sys,hashlib
++root=Path.cwd();out=root/'task_logs/RR19_artifacts'
++cases=[
++ ('ci-step', '.github/workflows/ci.yml', '      - name: Script tests (node:test)\n        run: npm run test:node\n', '', [sys.executable,'scripts/check-ci.py']),
++ ('release-soft-fail', '.github/workflows/release.yml', '      - name: Script tests (node:test)\n        run: npm run test:node\n', '      - name: Script tests (node:test)\n        continue-on-error: true\n        run: npm run test:node\n', [sys.executable,'scripts/check-release-wf.py']),
++ ('nested-discovery', 'scripts/run-node-tests.mjs', " || entry.name.endsWith('.node.mjs')", '', ['node','--test','scripts/run-node-tests.test.mjs']),
++ ('failure-propagation', 'scripts/run-node-tests.mjs', 'return Number.isInteger(result.status) ? result.status : 1;', 'return 0;', ['node','--test','scripts/run-node-tests.test.mjs']),
++]
++proof=[]
++for name,file,a,b,cmd in cases:
++ p=root/file; original=p.read_bytes();text=original.decode('utf8').replace('\r\n','\n');assert text.count(a)==1
++ try:
++  p.write_text(text.replace(a,b),encoding='utf8')
++  result=subprocess.run(cmd,cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
++  (out/f'mutation-{name}-red.txt').write_bytes(result.stdout)
++  assert result.returncode!=0, name+' survived'
++  proof.append(f'{name}: red exit={result.returncode}')
++ finally:
++  p.write_bytes(original);assert p.read_bytes()==original
++ proof.append(f'{name}: restored SHA256={hashlib.sha256(original).hexdigest()}')
++(out/'mutation-proof.txt').write_text('\n'.join(proof)+'\n',encoding='utf8')
++print('\n'.join(proof))
+diff --git a/task_logs/RR19_artifacts/node-full.txt b/task_logs/RR19_artifacts/node-full.txt
+new file mode 100644
+index 0000000..cd0b6fe
+--- /dev/null
++++ b/task_logs/RR19_artifacts/node-full.txt
+@@ -0,0 +1,289 @@
++
++> reset-radar@0.1.0 test:node
++> node scripts/run-node-tests.mjs
++
++TAP version 13
++# Subtest: 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++ok 1 - 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++  ---
++  duration_ms: 4.0414
++  type: 'test'
++  ...
++# Subtest: 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++ok 2 - 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++  ---
++  duration_ms: 0.7591
++  type: 'test'
++  ...
++# Subtest: 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++ok 3 - 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++  ---
++  duration_ms: 0.3375
++  type: 'test'
++  ...
++# Subtest: parseIsoMs
++    # Subtest: 合法 ISO（毫秒/Z）→ epoch 毫秒
++    ok 1 - 合法 ISO（毫秒/Z）→ epoch 毫秒
++      ---
++      duration_ms: 0.6067
++      type: 'test'
++      ...
++    # Subtest: 非法输入 → null
++    ok 2 - 非法输入 → null
++      ---
++      duration_ms: 0.1937
++      type: 'test'
++      ...
++    1..2
++ok 4 - parseIsoMs
++  ---
++  duration_ms: 1.5121
++  type: 'suite'
++  ...
++# Subtest: normalizeEvent
++    # Subtest: snake_case → camelCase，缺 source 容错
++    ok 1 - snake_case → camelCase，缺 source 容错
++      ---
++      duration_ms: 0.176
++      type: 'test'
++      ...
++    1..1
++ok 5 - normalizeEvent
++  ---
++  duration_ms: 0.2631
++  type: 'suite'
++  ...
++# Subtest: sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++    # Subtest: 不可解析日期被丢弃
++    ok 1 - 不可解析日期被丢弃
++      ---
++      duration_ms: 1.0817
++      type: 'test'
++      ...
++    # Subtest: 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++    ok 2 - 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++      ---
++      duration_ms: 0.6845
++      type: 'test'
++      ...
++    # Subtest: 倒序输出（最新在前）
++    ok 3 - 倒序输出（最新在前）
++      ---
++      duration_ms: 0.2611
++      type: 'test'
++      ...
++    # Subtest: 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++    ok 4 - 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++      ---
++      duration_ms: 0.3356
++      type: 'test'
++      ...
++    # Subtest: 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++    ok 5 - 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++      ---
++      duration_ms: 0.2581
++      type: 'test'
++      ...
++    1..5
++ok 6 - sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++  ---
++  duration_ms: 2.9446
++  type: 'suite'
++  ...
++# Subtest: buildDocument（上游封装校验）
++    # Subtest: 跨类型交错不打断同类型5分钟去重
++    ok 1 - 跨类型交错不打断同类型5分钟去重
++      ---
++      duration_ms: 0.2525
++      type: 'test'
++      ...
++    # Subtest: 缺字段或坏形状直接 reject
++    ok 2 - 缺字段或坏形状直接 reject
++      ---
++      duration_ms: 1.5076
++      type: 'test'
++      ...
++    # Subtest: 兼容真实 API 的 object/null 可选字段并保留 status 原形
++    ok 3 - 兼容真实 API 的 object/null 可选字段并保留 status 原形
++      ---
++      duration_ms: 0.2499
++      type: 'test'
++      ...
++    1..3
++ok 7 - buildDocument（上游封装校验）
++  ---
++  duration_ms: 2.1574
++  type: 'suite'
++  ...
++# Subtest: weekdayBeijing（D004 北京零点边界）
++    # Subtest: 北京 16:00:00Z 恰跨零点 → 次日星期
++    ok 1 - 北京 16:00:00Z 恰跨零点 → 次日星期
++      ---
++      duration_ms: 0.1301
++      type: 'test'
++      ...
++    # Subtest: 15:59:59Z 仍属北京当日
++    ok 2 - 15:59:59Z 仍属北京当日
++      ---
++      duration_ms: 0.064
++      type: 'test'
++      ...
++    # Subtest: 实测锚点 2026-10-08T03:44:55Z → 北京周四
++    ok 3 - 实测锚点 2026-10-08T03:44:55Z → 北京周四
++      ---
++      duration_ms: 0.0565
++      type: 'test'
++      ...
++    1..3
++ok 8 - weekdayBeijing（D004 北京零点边界）
++  ---
++  duration_ms: 0.3853
++  type: 'suite'
++  ...
++# Subtest: summarize
++    # Subtest: count/earliest/latest/星期直方图
++    ok 1 - count/earliest/latest/星期直方图
++      ---
++      duration_ms: 0.1528
++      type: 'test'
++      ...
++    # Subtest: 空输入 → count 0 且两端为 null
++    ok 2 - 空输入 → count 0 且两端为 null
++      ---
++      duration_ms: 0.0705
++      type: 'test'
++      ...
++    1..2
++ok 9 - summarize
++  ---
++  duration_ms: 0.2798
++  type: 'suite'
++  ...
++# Subtest: 先刷新历史，再运行校准；输出流按用途分流
++ok 10 - 先刷新历史，再运行校准；输出流按用途分流
++  ---
++  duration_ms: 1.6307
++  type: 'test'
++  ...
++# Subtest: fetch 失败时非零退出并且不运行 calibrate
++ok 11 - fetch 失败时非零退出并且不运行 calibrate
++  ---
++  duration_ms: 0.2486
++  type: 'test'
++  ...
++# Subtest: calibrate 失败时非零退出且不输出部分 Markdown
++ok 12 - calibrate 失败时非零退出且不输出部分 Markdown
++  ---
++  duration_ms: 0.3637
++  type: 'test'
++  ...
++# 未发现 scripts 下的 Node 测试文件。
++# Node 测试进程被信号终止：SIGTERM
++# 启动 Node 测试失败：spawn failed
++# TAP version 13
++# \# Subtest: 故意失败
++# not ok 1 - 故意失败
++#   ---
++#   duration_ms: 0.507
++#   type: 'test'
++#   location: 'C:\\\\Users\\\\slsjz\\\\AppData\\\\Local\\\\Temp\\\\reset-radar-node-runner-test-N1v1nH\\\\scripts\\\\broken.test.mjs:1:31'
++#   failureType: 'testCodeFailure'
++#   error: 'expected failure'
++#   code: 'ERR_TEST_FAILURE'
++#   stack: |-
++#     TestContext.<anonymous> (file:///C:/Users/slsjz/AppData/Local/Temp/reset-radar-node-runner-test-N1v1nH/scripts/broken.test.mjs:1:58)
++#     Test.runInAsyncScope (node:async_hooks:214:14)
++#     Test.run (node:internal/test_runner/test:1047:25)
++#     Test.start (node:internal/test_runner/test:944:17)
++#     startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++#   ...
++# 1..1
++# \# tests 1
++# \# suites 0
++# \# pass 0
++# \# fail 1
++# \# cancelled 0
++# \# skipped 0
++# \# todo 0
++# \# duration_ms 73.5274
++# Subtest: 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++ok 13 - 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++  ---
++  duration_ms: 8.7415
++  type: 'test'
++  ...
++# Subtest: 空清单拒绝启动 Node 子进程
++ok 14 - 空清单拒绝启动 Node 子进程
++  ---
++  duration_ms: 2.3765
++  type: 'test'
++  ...
++# Subtest: 透传子进程退出码及启动失败、信号失败
++ok 15 - 透传子进程退出码及启动失败、信号失败
++  ---
++  duration_ms: 3.4433
++  type: 'test'
++  ...
++# Subtest: 真实 Node 测试进程失败时入口返回非零
++ok 16 - 真实 Node 测试进程失败时入口返回非零
++  ---
++  duration_ms: 129.7155
++  type: 'test'
++  ...
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 17 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.5551
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 18 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.3386
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 19 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 4.9734
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 20 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 11.0562
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 21 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 2.8418
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 22 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 100.2897
++  type: 'test'
++  ...
++# Subtest: unknown or duplicate path options fail instead of writing canonical data
++ok 23 - unknown or duplicate path options fail instead of writing canonical data
++  ---
++  duration_ms: 0.2806
++  type: 'test'
++  ...
++# Subtest: missing file is labelled but read errors make calibration fail explicitly
++ok 24 - missing file is labelled but read errors make calibration fail explicitly
++  ---
++  duration_ms: 94.1728
++  type: 'test'
++  ...
++1..24
++# tests 34
++# suites 6
++# pass 34
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 347.2847
+diff --git a/task_logs/RR19_artifacts/node-inventory.json b/task_logs/RR19_artifacts/node-inventory.json
+new file mode 100644
+index 0000000..e00b3d1
+--- /dev/null
++++ b/task_logs/RR19_artifacts/node-inventory.json
+@@ -0,0 +1,10 @@
++{
++  "node": "v22.23.1",
++  "files": [
++    "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\calibration-report.test.mjs",
++    "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\fetch-history.test.mjs",
++    "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\review-calibration.test.mjs",
++    "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\run-node-tests.test.mjs",
++    "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR19\\scripts\\tests\\prediction-log.node.mjs"
++  ]
++}
+diff --git a/task_logs/RR19_artifacts/node-restored.txt b/task_logs/RR19_artifacts/node-restored.txt
+new file mode 100644
+index 0000000..88124b9
+--- /dev/null
++++ b/task_logs/RR19_artifacts/node-restored.txt
+@@ -0,0 +1,289 @@
++
++> reset-radar@0.1.0 test:node
++> node scripts/run-node-tests.mjs
++
++TAP version 13
++# Subtest: 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++ok 1 - 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++  ---
++  duration_ms: 3.0907
++  type: 'test'
++  ...
++# Subtest: 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++ok 2 - 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++  ---
++  duration_ms: 0.5175
++  type: 'test'
++  ...
++# Subtest: 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++ok 3 - 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++  ---
++  duration_ms: 0.3006
++  type: 'test'
++  ...
++# Subtest: parseIsoMs
++    # Subtest: 合法 ISO（毫秒/Z）→ epoch 毫秒
++    ok 1 - 合法 ISO（毫秒/Z）→ epoch 毫秒
++      ---
++      duration_ms: 0.8897
++      type: 'test'
++      ...
++    # Subtest: 非法输入 → null
++    ok 2 - 非法输入 → null
++      ---
++      duration_ms: 0.4509
++      type: 'test'
++      ...
++    1..2
++ok 4 - parseIsoMs
++  ---
++  duration_ms: 2.4175
++  type: 'suite'
++  ...
++# Subtest: normalizeEvent
++    # Subtest: snake_case → camelCase，缺 source 容错
++    ok 1 - snake_case → camelCase，缺 source 容错
++      ---
++      duration_ms: 0.2516
++      type: 'test'
++      ...
++    1..1
++ok 5 - normalizeEvent
++  ---
++  duration_ms: 0.3815
++  type: 'suite'
++  ...
++# Subtest: sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++    # Subtest: 不可解析日期被丢弃
++    ok 1 - 不可解析日期被丢弃
++      ---
++      duration_ms: 1.4703
++      type: 'test'
++      ...
++    # Subtest: 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++    ok 2 - 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++      ---
++      duration_ms: 0.9624
++      type: 'test'
++      ...
++    # Subtest: 倒序输出（最新在前）
++    ok 3 - 倒序输出（最新在前）
++      ---
++      duration_ms: 0.3492
++      type: 'test'
++      ...
++    # Subtest: 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++    ok 4 - 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++      ---
++      duration_ms: 0.4647
++      type: 'test'
++      ...
++    # Subtest: 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++    ok 5 - 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++      ---
++      duration_ms: 0.3819
++      type: 'test'
++      ...
++    1..5
++ok 6 - sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++  ---
++  duration_ms: 4.1025
++  type: 'suite'
++  ...
++# Subtest: buildDocument（上游封装校验）
++    # Subtest: 跨类型交错不打断同类型5分钟去重
++    ok 1 - 跨类型交错不打断同类型5分钟去重
++      ---
++      duration_ms: 0.3622
++      type: 'test'
++      ...
++    # Subtest: 缺字段或坏形状直接 reject
++    ok 2 - 缺字段或坏形状直接 reject
++      ---
++      duration_ms: 1.7872
++      type: 'test'
++      ...
++    # Subtest: 兼容真实 API 的 object/null 可选字段并保留 status 原形
++    ok 3 - 兼容真实 API 的 object/null 可选字段并保留 status 原形
++      ---
++      duration_ms: 0.3996
++      type: 'test'
++      ...
++    1..3
++ok 7 - buildDocument（上游封装校验）
++  ---
++  duration_ms: 2.7626
++  type: 'suite'
++  ...
++# Subtest: weekdayBeijing（D004 北京零点边界）
++    # Subtest: 北京 16:00:00Z 恰跨零点 → 次日星期
++    ok 1 - 北京 16:00:00Z 恰跨零点 → 次日星期
++      ---
++      duration_ms: 0.2124
++      type: 'test'
++      ...
++    # Subtest: 15:59:59Z 仍属北京当日
++    ok 2 - 15:59:59Z 仍属北京当日
++      ---
++      duration_ms: 0.0858
++      type: 'test'
++      ...
++    # Subtest: 实测锚点 2026-10-08T03:44:55Z → 北京周四
++    ok 3 - 实测锚点 2026-10-08T03:44:55Z → 北京周四
++      ---
++      duration_ms: 0.0605
++      type: 'test'
++      ...
++    1..3
++ok 8 - weekdayBeijing（D004 北京零点边界）
++  ---
++  duration_ms: 0.55
++  type: 'suite'
++  ...
++# Subtest: summarize
++    # Subtest: count/earliest/latest/星期直方图
++    ok 1 - count/earliest/latest/星期直方图
++      ---
++      duration_ms: 0.2211
++      type: 'test'
++      ...
++    # Subtest: 空输入 → count 0 且两端为 null
++    ok 2 - 空输入 → count 0 且两端为 null
++      ---
++      duration_ms: 0.1188
++      type: 'test'
++      ...
++    1..2
++ok 9 - summarize
++  ---
++  duration_ms: 0.4434
++  type: 'suite'
++  ...
++# Subtest: 先刷新历史，再运行校准；输出流按用途分流
++ok 10 - 先刷新历史，再运行校准；输出流按用途分流
++  ---
++  duration_ms: 1.0767
++  type: 'test'
++  ...
++# Subtest: fetch 失败时非零退出并且不运行 calibrate
++ok 11 - fetch 失败时非零退出并且不运行 calibrate
++  ---
++  duration_ms: 0.2112
++  type: 'test'
++  ...
++# Subtest: calibrate 失败时非零退出且不输出部分 Markdown
++ok 12 - calibrate 失败时非零退出且不输出部分 Markdown
++  ---
++  duration_ms: 0.2344
++  type: 'test'
++  ...
++# 未发现 scripts 下的 Node 测试文件。
++# Node 测试进程被信号终止：SIGTERM
++# 启动 Node 测试失败：spawn failed
++# TAP version 13
++# \# Subtest: 故意失败
++# not ok 1 - 故意失败
++#   ---
++#   duration_ms: 0.7347
++#   type: 'test'
++#   location: 'C:\\\\Users\\\\slsjz\\\\AppData\\\\Local\\\\Temp\\\\reset-radar-node-runner-test-B9hfmx\\\\scripts\\\\broken.test.mjs:1:31'
++#   failureType: 'testCodeFailure'
++#   error: 'expected failure'
++#   code: 'ERR_TEST_FAILURE'
++#   stack: |-
++#     TestContext.<anonymous> (file:///C:/Users/slsjz/AppData/Local/Temp/reset-radar-node-runner-test-B9hfmx/scripts/broken.test.mjs:1:58)
++#     Test.runInAsyncScope (node:async_hooks:214:14)
++#     Test.run (node:internal/test_runner/test:1047:25)
++#     Test.start (node:internal/test_runner/test:944:17)
++#     startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++#   ...
++# 1..1
++# \# tests 1
++# \# suites 0
++# \# pass 0
++# \# fail 1
++# \# cancelled 0
++# \# skipped 0
++# \# todo 0
++# \# duration_ms 76.9978
++# Subtest: 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++ok 13 - 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++  ---
++  duration_ms: 11.1301
++  type: 'test'
++  ...
++# Subtest: 空清单拒绝启动 Node 子进程
++ok 14 - 空清单拒绝启动 Node 子进程
++  ---
++  duration_ms: 3.2535
++  type: 'test'
++  ...
++# Subtest: 透传子进程退出码及启动失败、信号失败
++ok 15 - 透传子进程退出码及启动失败、信号失败
++  ---
++  duration_ms: 3.4883
++  type: 'test'
++  ...
++# Subtest: 真实 Node 测试进程失败时入口返回非零
++ok 16 - 真实 Node 测试进程失败时入口返回非零
++  ---
++  duration_ms: 138.2266
++  type: 'test'
++  ...
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 17 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.5076
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 18 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.4322
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 19 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 5.129
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 20 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 9.8473
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 21 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 3.4596
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 22 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 103.8529
++  type: 'test'
++  ...
++# Subtest: unknown or duplicate path options fail instead of writing canonical data
++ok 23 - unknown or duplicate path options fail instead of writing canonical data
++  ---
++  duration_ms: 0.267
++  type: 'test'
++  ...
++# Subtest: missing file is labelled but read errors make calibration fail explicitly
++ok 24 - missing file is labelled but read errors make calibration fail explicitly
++  ---
++  duration_ms: 102.0665
++  type: 'test'
++  ...
++1..24
++# tests 34
++# suites 6
++# pass 34
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 358.3575
+diff --git a/task_logs/RR19_artifacts/release-restored.txt b/task_logs/RR19_artifacts/release-restored.txt
+new file mode 100644
+index 0000000..9602c04
+--- /dev/null
++++ b/task_logs/RR19_artifacts/release-restored.txt
+@@ -0,0 +1 @@
++release.yml 结构门禁通过：11 步、4 个 action 全 SHA pin
+diff --git a/task_logs/RR19_artifacts/release-structure.txt b/task_logs/RR19_artifacts/release-structure.txt
+new file mode 100644
+index 0000000..9602c04
+--- /dev/null
++++ b/task_logs/RR19_artifacts/release-structure.txt
+@@ -0,0 +1 @@
++release.yml 结构门禁通过：11 步、4 个 action 全 SHA pin
+diff --git a/task_logs/RR19_artifacts/tsc.txt b/task_logs/RR19_artifacts/tsc.txt
+new file mode 100644
+index 0000000..06deb41
+--- /dev/null
++++ b/task_logs/RR19_artifacts/tsc.txt
+@@ -0,0 +1 @@
++tsc exit=0
+diff --git a/task_logs/RR19_artifacts/versions-links.txt b/task_logs/RR19_artifacts/versions-links.txt
+new file mode 100644
+index 0000000..a527020
+--- /dev/null
++++ b/task_logs/RR19_artifacts/versions-links.txt
+@@ -0,0 +1 @@
++check-release OK：版本同步 0.1.0；README 相对链接 13 条全部可达
+-- 
+2.52.0.windows.1
+

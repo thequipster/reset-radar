@@ -1,0 +1,675 @@
+From c53fc42e9ac37765fc773f7f79bda48b526ff26a Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 14:44:56 +0800
+Subject: [PATCH] feat(calibration): read-only summary bridge from generated
+ snapshot (RR28)
+
+---
+ data/calibration.json                         |   6 +-
+ docs/calibration-latest.md                    |   4 +-
+ scripts/refresh-calibration.mjs               |  10 +-
+ scripts/refresh-calibration.test.mjs          |  18 ++-
+ src-tauri/src/calibration_summary.rs          |  56 +++++++
+ src-tauri/src/lib.rs                          |  10 +-
+ src/lib/__tests__/calibration.summary.test.ts | 109 ++++++++++++++
+ src/lib/calibrationSummary.ts                 | 137 ++++++++++++++++++
+ src/lib/index.ts                              |   1 +
+ src/ui/adapters.ts                            |   6 +
+ .../appdir-calibration-live.json              |  73 ++++++++++
+ task_logs/RR28_artifacts/mutation-proof.md    |  14 ++
+ 12 files changed, 429 insertions(+), 15 deletions(-)
+ create mode 100644 src-tauri/src/calibration_summary.rs
+ create mode 100644 src/lib/__tests__/calibration.summary.test.ts
+ create mode 100644 src/lib/calibrationSummary.ts
+ create mode 100644 task_logs/RR28_artifacts/appdir-calibration-live.json
+ create mode 100644 task_logs/RR28_artifacts/mutation-proof.md
+
+diff --git a/data/calibration.json b/data/calibration.json
+index a5a25b0..041ec39 100644
+--- a/data/calibration.json
++++ b/data/calibration.json
+@@ -1,12 +1,12 @@
+ {
+   "schema": "reset-radar/calibration@1",
+-  "generatedAt": "2026-10-11T06:30:53.872Z",
++  "generatedAt": "2026-10-11T06:44:44.582Z",
+   "state": "fresh",
+   "historySource": {
+     "state": "fresh",
+     "fetchedAt": "2026-10-11T06:30:53.872Z",
+     "asOf": "2026-10-11T06:30:53.872Z",
+-    "ageDays": 0,
++    "ageDays": 0.009614699074074074,
+     "totalEvents": 60,
+     "quotaResetEvents": 54,
+     "excludedEvents": 6
+@@ -57,7 +57,7 @@
+     "skipped": 0,
+     "files": [
+       {
+-        "path": "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR17\\data\\predictions.jsonl",
++        "path": "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR28\\data\\predictions.jsonl",
+         "label": "仓内归档",
+         "missing": false,
+         "rows": 1
+diff --git a/docs/calibration-latest.md b/docs/calibration-latest.md
+index 70b471d..5e8c2f3 100644
+--- a/docs/calibration-latest.md
++++ b/docs/calibration-latest.md
+@@ -1,6 +1,6 @@
+ # 校准报告（calibration-latest）
+ 
+-> 生成：2026-10-11T06:30:53.872Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
++> 生成：2026-10-11T06:44:44.582Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
+ 
+ - 重置历史：data/resets-history.json —— 60 条原始事件 / 54 条额度重置（仅regular；排除 6 条）（fetchedAt 2026-10-11T06:30:53.872Z）
+ - as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-11T06:30:53.872Z
+@@ -14,7 +14,7 @@
+ 
+ - 仅同一次预先留存的baseline与watch预测配对，窗口(start,end]已被历史覆盖；不从当前watch或四舍五入因子倒填旧预测。样本不足时指标为空，不能据此宣称25%权重更好。
+ 
+-- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar_wt\RR17\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：2 行有效；合计 3 行有效
++- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar_wt\RR28\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：2 行有效；合计 3 行有效
+ - 计分窗口：0 个（每天首条合法预测的未来24h，已被历史覆盖；其中发生重置 0 个）
+ 
+ - 排除：旧行无窗口 3；非法 0；事后记录 0；待窗口完成 0；超出历史覆盖 0；同日后补 0。旧预测不倒填；事件只匹配(start,end]，不是预测当日。
+diff --git a/scripts/refresh-calibration.mjs b/scripts/refresh-calibration.mjs
+index 9847d11..7d26eac 100644
+--- a/scripts/refresh-calibration.mjs
++++ b/scripts/refresh-calibration.mjs
+@@ -22,7 +22,8 @@ async function atomicWrite(path, contents) {
+   }
+ }
+ 
+-export async function refreshCalibration({ root = defaultRoot, generatedAt = new Date(), predictionSources } = {}) {
++export async function refreshCalibration({ root = defaultRoot, generatedAt = new Date(), predictionSources,
++  summaryOutPath = null } = {}) {
+   const repoRoot = resolve(root);
+   const historyPath = join(repoRoot, 'data', 'resets-history.json');
+   const history = JSON.parse(await readFile(historyPath, 'utf8'));
+@@ -46,8 +47,13 @@ export async function refreshCalibration({ root = defaultRoot, generatedAt = new
+     predictions,
+     generatedAt: generatedAt.toISOString(),
+   });
+-  await atomicWrite(join(repoRoot, 'data', 'calibration.json'), `${JSON.stringify(artifact, null, 2)}\n`);
++  const artifactText = `${JSON.stringify(artifact, null, 2)}\n`;
++  await atomicWrite(join(repoRoot, 'data', 'calibration.json'), artifactText);
+   await atomicWrite(join(repoRoot, 'docs', 'calibration-latest.md'), markdown);
++  // RR28：同一快照原子写入应用配置目录（read_calibration_summary 的只读输入），
++  // 与 canonical 预测日志同目录；测试用 summaryOutPath 重定向到临时目录。
++  const appSummaryPath = summaryOutPath ?? join(dirname(canonicalPredictionPath()), 'calibration.json');
++  await atomicWrite(appSummaryPath, artifactText);
+   return artifact;
+ }
+ 
+diff --git a/scripts/refresh-calibration.test.mjs b/scripts/refresh-calibration.test.mjs
+index 50a0666..e1073b4 100644
+--- a/scripts/refresh-calibration.test.mjs
++++ b/scripts/refresh-calibration.test.mjs
+@@ -18,6 +18,8 @@ test('refreshCalibration writes deterministic outcomes without changing predicti
+   const historyPath = join(root, 'data', 'resets-history.json');
+   const sources = [{ path: predictionPath, label: '仓内归档' }, { path: canonicalPath, label: '应用日志' }];
+   const generatedAt = new Date('2026-10-03T00:00:00.000Z');
++  // finally 清理也要引用：声明在 try 之外（应用目录副本的重定向路径）。
++  const summaryOutPath = join(root, 'appdir', 'calibration.json');
+   try {
+     await mkdir(join(root, 'data'), { recursive: true });
+     await writeFile(predictionPath, predictionBytes, 'utf8');
+@@ -26,21 +28,23 @@ test('refreshCalibration writes deterministic outcomes without changing predicti
+       upstream: { pagination: { has_more: false } }, events,
+     });
+     await writeFile(historyPath, JSON.stringify(makeHistory([])), 'utf8');
+-    const withoutReset = await refreshCalibration({ root, generatedAt, predictionSources: sources });
++    const withoutReset = await refreshCalibration({ root, generatedAt, predictionSources: sources, summaryOutPath });
+     assert.deepEqual(withoutReset.outcomes.map((row) => row.realized), [false]);
+     assert.equal(withoutReset.score.brier, 0.75 ** 2);
+ 
+     await writeFile(historyPath, JSON.stringify(makeHistory([
+       { resetType: 'regular', announcedAt: '2026-10-01T12:00:00.000Z' },
+     ])), 'utf8');
+-    const withReset = await refreshCalibration({ root, generatedAt, predictionSources: sources });
++    const withReset = await refreshCalibration({ root, generatedAt, predictionSources: sources, summaryOutPath });
+     assert.deepEqual(withReset.outcomes.map((row) => row.realized), [true]);
+     assert.equal(withReset.score.brier, 0.25 ** 2);
+     const artifactPath = join(root, 'data', 'calibration.json');
+     const reportPath = join(root, 'docs', 'calibration-latest.md');
+     const artifactBytes = await readFile(artifactPath);
+     const reportBytes = await readFile(reportPath);
+-    await refreshCalibration({ root, generatedAt, predictionSources: sources });
++    await refreshCalibration({ root, generatedAt, predictionSources: sources, summaryOutPath });
++    // RR28：应用目录副本与仓内快照逐字节相同，且同样确定性重写。
++    assert.deepEqual(await readFile(summaryOutPath), artifactBytes);
+     assert.deepEqual(await readFile(artifactPath), artifactBytes);
+     assert.deepEqual(await readFile(reportPath), reportBytes);
+     assert.deepEqual(await readFile(predictionPath), Buffer.from(predictionBytes));
+@@ -53,13 +57,13 @@ test('refreshCalibration writes deterministic outcomes without changing predicti
+     assert.deepEqual(await readFile(artifactPath), artifactBytes);
+ 
+     await writeFile(historyPath, JSON.stringify(makeHistory([])), 'utf8');
+-    const stale = await refreshCalibration({ root, generatedAt: new Date('2026-10-11T00:00:00Z'), predictionSources: sources });
++    const stale = await refreshCalibration({ root, generatedAt: new Date('2026-10-11T00:00:00Z'), predictionSources: sources, summaryOutPath });
+     assert.equal(stale.state, 'stale');
+     assert.equal(stale.historySource.asOf, '2026-10-03T00:00:00.000Z');
+     assert.match(await readFile(reportPath, 'utf8'), /历史数据已过期/);
+     // 恢复相同源生成，随后坏JSON必须保留这一代完整产物。
+     await writeFile(historyPath, JSON.stringify(makeHistory([{ resetType: 'regular', announcedAt: '2026-10-01T12:00:00.000Z' }])), 'utf8');
+-    await refreshCalibration({ root, generatedAt, predictionSources: sources });
++    await refreshCalibration({ root, generatedAt, predictionSources: sources, summaryOutPath });
+ 
+     await writeFile(historyPath, '{bad json', 'utf8');
+     await assert.rejects(refreshCalibration({ root, generatedAt, predictionSources: sources }));
+@@ -69,9 +73,9 @@ test('refreshCalibration writes deterministic outcomes without changing predicti
+   } finally {
+     // 只删除该测试显式创建的文件，并在递归清理前复核安全前缀。
+     assert.equal(resolve(root).startsWith(`${tempBase}${sep}reset-radar-rr17-`), true);
+-    const files = [predictionPath, canonicalPath, historyPath, join(root, 'data', 'calibration.json'), join(root, 'docs', 'calibration-latest.md')];
++    const files = [predictionPath, canonicalPath, historyPath, join(root, 'data', 'calibration.json'), join(root, 'docs', 'calibration-latest.md'), summaryOutPath];
+     for (const path of files) await rm(path, { force: true });
+-    for (const path of [join(root, 'data'), join(root, 'docs')]) {
++    for (const path of [join(root, 'data'), join(root, 'docs'), join(root, 'appdir')]) {
+       try { await rmdir(path); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
+     }
+     assert.deepEqual(await readdir(root), []);
+diff --git a/src-tauri/src/calibration_summary.rs b/src-tauri/src/calibration_summary.rs
+new file mode 100644
+index 0000000..2c6efbd
+--- /dev/null
++++ b/src-tauri/src/calibration_summary.rs
+@@ -0,0 +1,56 @@
++//! RR28：应用配置目录 calibration.json 的只读IO（脚本 refresh-calibration 是唯一写者）。
++//! 零业务：不解析JSON语义、不算指标、不判新鲜度——校验与映射唯一源
++//! src/lib/calibrationSummary.ts（ARCHITECTURE §2；02-spec「只读桥接」）。
++use std::{fs, path::{Path, PathBuf}};
++use serde::Serialize;
++
++#[derive(Serialize)]
++#[serde(rename_all = "camelCase")]
++pub struct SummaryRead { pub path: String, pub content: String }
++
++pub fn summary_path(dir: &Path) -> PathBuf { dir.join("calibration.json") }
++
++/// 文件缺失=空内容（TS侧判missing）；其他读取失败报错，不冒充缺失。
++pub fn read_summary(dir: &Path) -> Result<SummaryRead, String> {
++    let path = summary_path(dir);
++    let content = match fs::read_to_string(&path) {
++        Ok(value) => value,
++        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
++        Err(error) => return Err(format!("calibration summary read failed: {error}")),
++    };
++    Ok(SummaryRead { path: path.to_string_lossy().into_owned(), content })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn missing_file_reads_as_empty_not_error() {
++        let dir = std::env::temp_dir().join(format!("reset-radar-summary-missing-{}", std::process::id()));
++        let read = read_summary(&dir).unwrap();
++        assert_eq!(read.content, "");
++        assert!(read.path.ends_with("calibration.json"));
++    }
++
++    #[test]
++    fn roundtrip_reads_writer_bytes_verbatim() {
++        let dir = std::env::temp_dir().join(format!("reset-radar-summary-round-{}-{}",
++            std::process::id(), chrono::Utc::now().timestamp_nanos_opt().unwrap()));
++        fs::create_dir_all(&dir).unwrap();
++        let bytes = "{\"schema\":\"reset-radar/calibration@1\"}\n";
++        fs::write(summary_path(&dir), bytes).unwrap();
++        assert_eq!(read_summary(&dir).unwrap().content, bytes);
++        fs::remove_dir_all(&dir).unwrap();
++    }
++
++    #[test]
++    fn read_failure_is_not_reported_as_missing() {
++        // 目录占住文件路径 → 读为目录报错：必须Err，不得当空摘要（predictions.rs 同款口径）。
++        let dir = std::env::temp_dir().join(format!("reset-radar-summary-fail-{}-{}",
++            std::process::id(), chrono::Utc::now().timestamp_nanos_opt().unwrap()));
++        fs::create_dir_all(summary_path(&dir)).unwrap();
++        assert!(read_summary(&dir).is_err());
++        fs::remove_dir_all(&dir).unwrap();
++    }
++}
+diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+index 6fde3a5..cbb8882 100644
+--- a/src-tauri/src/lib.rs
++++ b/src-tauri/src/lib.rs
+@@ -8,6 +8,7 @@ mod models;
+ mod snapshots;
+ mod reset_status;
+ mod predictions;
++mod calibration_summary;
+ 
+ use std::sync::Mutex;
+ use std::time::{Duration, Instant};
+@@ -110,7 +111,7 @@ pub fn run() {
+             });
+             Ok(())
+         })
+-        .invoke_handler(tauri::generate_handler![get_snapshots, refresh_snapshots, read_prediction_log, append_prediction_log])
++        .invoke_handler(tauri::generate_handler![get_snapshots, refresh_snapshots, read_prediction_log, append_prediction_log, read_calibration_summary])
+         .run(tauri::generate_context!())
+         .expect("error while running tauri application");
+ }
+@@ -233,3 +234,10 @@ fn append_prediction_log(state: State<'_, AppState>, expected_content: String, l
+     let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
+     predictions::append_line(dir.as_ref().ok_or("application config directory unavailable")?, &expected_content, &line)
+ }
++
++/// RR28只读校准摘要：固定app_config_dir，不接受调用者传路径；内容校验在TS核心。
++#[tauri::command]
++fn read_calibration_summary(state: State<'_, AppState>) -> Result<calibration_summary::SummaryRead, String> {
++    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
++    calibration_summary::read_summary(dir.as_ref().ok_or("application config directory unavailable")?)
++}
+diff --git a/src/lib/__tests__/calibration.summary.test.ts b/src/lib/__tests__/calibration.summary.test.ts
+new file mode 100644
+index 0000000..e30364f
+--- /dev/null
++++ b/src/lib/__tests__/calibration.summary.test.ts
+@@ -0,0 +1,109 @@
++// RR28 域测试：校准摘要只读映射。真值=scripts/refresh-calibration 落盘的
++// reset-radar/calibration@1 快照（唯一生产者，buildCalibrationSnapshot 直序列化）；
++// golden 对账用核心真实输出回灌，不手造第二份指标。
++import { describe, expect, it } from "vitest";
++import { parseCalibrationSummary } from "../calibrationSummary.ts";
++import { buildCalibrationSnapshot } from "../calibrationSnapshot.ts";
++import type { PredictionRecord } from "../predictions.ts";
++
++const NOW = new Date("2026-10-10T05:00:00Z");
++const ROW: PredictionRecord = {
++  date: "2026-10-08", predictedRisk: 80, factorsDigest: "",
++  fetchedAt: "2026-10-08T05:00:00Z", windowStart: "2026-10-08T05:00:00Z", windowEnd: "2026-10-09T05:00:00Z",
++};
++const HISTORY = (events: unknown[], fetchedAt = NOW.toISOString()) => ({
++  fetchedAt, events, upstream: { pagination: { has_more: false } },
++});
++const serialize = (snapshot: unknown) => `${JSON.stringify(snapshot)}\n`;
++
++describe("三态判定", () => {
++  it("空输入=missing：null/undefined/空白串", () => {
++    expect(parseCalibrationSummary(null)).toEqual({ status: "missing" });
++    expect(parseCalibrationSummary(undefined)).toEqual({ status: "missing" });
++    expect(parseCalibrationSummary("")).toEqual({ status: "missing" });
++    expect(parseCalibrationSummary("  \r\n ")).toEqual({ status: "missing" });
++  });
++
++  it("坏JSON或契约不符=invalid：整体判废不做部分修补", () => {
++    const ok = serialize(buildCalibrationSnapshot(HISTORY([{ resetType: "regular", announcedAt: "2026-10-08T06:00:00Z" }]), [ROW], NOW));
++    // 变异构造器：深拷贝真实快照后覆写单个字段（spread 目标先收窄成 record）。
++    const mutate = (path: string[], value: unknown) => {
++      const clone = JSON.parse(ok) as Record<string, unknown>;
++      let cursor = clone;
++      for (let i = 0; i < path.length - 1; i += 1) {
++        cursor = cursor[path[i]] as Record<string, unknown>;
++      }
++      cursor[path[path.length - 1]] = value;
++      return serialize(clone);
++    };
++    expect(parseCalibrationSummary("not-json")).toEqual({ status: "invalid" });
++    expect(parseCalibrationSummary("[]")).toEqual({ status: "invalid" });
++    expect(parseCalibrationSummary(mutate(["schema"], "reset-radar/calibration@2"))).toEqual({ status: "invalid" });
++    expect(parseCalibrationSummary(mutate(["state"], "unknown"))).toEqual({ status: "invalid" });
++    expect(parseCalibrationSummary(mutate(["score"], null))).toEqual({ status: "invalid" });
++    expect(parseCalibrationSummary(mutate(["score", "n"], -1))).toEqual({ status: "invalid" });
++    // n>0 必须有有限指标；n=0 指标必须为 null——两头都堵，脏数据不能虚报也不能漏报。
++    // golden 是 n=1+brier 实数：brier→null 覆盖「n>0 无指标」，n→0 覆盖「n=0 带指标」。
++    expect(parseCalibrationSummary(mutate(["score", "brier"], null))).toEqual({ status: "invalid" });
++    expect(parseCalibrationSummary(mutate(["score", "n"], 0))).toEqual({ status: "invalid" });
++    expect(parseCalibrationSummary(mutate(["watchComparison", "pairedSamples"], "many"))).toEqual({ status: "invalid" });
++    expect(parseCalibrationSummary(mutate(["excluded", "legacy"], undefined))).toEqual({ status: "invalid" });
++    expect(parseCalibrationSummary(mutate(["outcomes"], "none"))).toEqual({ status: "invalid" });
++  });
++});
++
++describe("golden 对账：核心真实输出 → 序列化 → 映射", () => {
++  it("有计分样本：字段与快照逐项相等", () => {
++    const events = [{ resetType: "regular", announcedAt: "2026-10-08T06:00:00Z" }];
++    const snapshot = buildCalibrationSnapshot(HISTORY(events), [ROW], NOW);
++    const view = parseCalibrationSummary(serialize(snapshot));
++    expect(view.status).toBe("ok");
++    if (view.status !== "ok") return;
++    expect(view.data).toEqual({
++      state: "fresh",
++      generatedAt: NOW.toISOString(),
++      historyAsOf: NOW.toISOString(),
++      coverageStart: null,
++      sampleCount: 1,
++      realizedWindows: 1,
++      brier: snapshot.score.brier,
++      hitRate: snapshot.score.hitRate,
++      thresholdPercent: 50,
++      watchPairedSamples: 0,
++      excluded: { legacy: 0, invalid: 0, late: 0, pending: 0, outsideHistory: 0, duplicate: 0 },
++    });
++  });
++
++  it("零样本（旧行全排除）= ok 且 n=0 指标 null：生产当前真实形态", () => {
++    const legacyRow = { date: "2026-10-09", predictedRisk: 32.1 } as unknown as PredictionRecord;
++    const snapshot = buildCalibrationSnapshot(HISTORY([]), [legacyRow], NOW);
++    expect(snapshot.score.n).toBe(0);
++    const view = parseCalibrationSummary(serialize(snapshot));
++    expect(view).toEqual({
++      status: "ok",
++      data: {
++        state: "fresh",
++        generatedAt: NOW.toISOString(),
++        historyAsOf: NOW.toISOString(),
++        coverageStart: null,
++        sampleCount: 0,
++        realizedWindows: 0,
++        brier: null,
++        hitRate: null,
++        thresholdPercent: 50,
++        watchPairedSamples: 0,
++        excluded: { legacy: 1, invalid: 0, late: 0, pending: 0, outsideHistory: 0, duplicate: 0 },
++      },
++    });
++  });
++
++  it("stale 与分页截断覆盖边界透传不改动", () => {
++    const stale = parseCalibrationSummary(
++      serialize(buildCalibrationSnapshot(HISTORY([{ resetType: "regular", announcedAt: "2026-10-08T06:00:00Z" }], "2026-10-01T00:00:00Z"), [ROW], NOW)),
++    );
++    expect(stale).toMatchObject({ status: "ok", data: { state: "stale", historyAsOf: "2026-10-01T00:00:00.000Z" } });
++    const truncated = { ...HISTORY([{ resetType: "regular", announcedAt: "2026-10-09T06:00:00Z" }]), upstream: { pagination: { has_more: true } } };
++    const partial = parseCalibrationSummary(serialize(buildCalibrationSnapshot(truncated, [ROW], NOW)));
++    expect(partial).toMatchObject({ status: "ok", data: { sampleCount: 0, excluded: { outsideHistory: 1 } } });
++  });
++});
+diff --git a/src/lib/calibrationSummary.ts b/src/lib/calibrationSummary.ts
+new file mode 100644
+index 0000000..3444f33
+--- /dev/null
++++ b/src/lib/calibrationSummary.ts
+@@ -0,0 +1,137 @@
++// RR28：校准摘要只读桥接的纯映射层——把脚本生成的 calibration.json（schema
++// reset-radar/calibration@1，唯一生产者 scripts/refresh-calibration.mjs 调
++// buildCalibrationSnapshot）映射成 UI 可直接消费的可空摘要。
++// 本模块零算法：不重算任何指标，只做形状校验与字段透传（ARCHITECTURE §2 分层；
++// 02-spec「不在React实现另一份评分算法」）。三态：missing（文件缺失/空）/ invalid
++// （坏 JSON 或契约不符）/ ok（真实计分结果，含 n=0 的诚实零样本）。
++import type { HistoryFreshnessState } from "./history.ts";
++
++export const CALIBRATION_SNAPSHOT_SCHEMA = "reset-radar/calibration@1";
++
++/** ok 态摘要字段（全部来自快照原文，无推导）。 */
++export interface CalibrationSummaryData {
++  state: HistoryFreshnessState; // 历史来源状态（fresh/stale/invalid）
++  generatedAt: string | null; // 快照生成时刻（脚本运行时刻）
++  historyAsOf: string | null; // 计分 as_of（历史 fetchedAt）
++  coverageStart: string | null; // 历史全覆盖=null；分页截断=最早已返回 regular
++  sampleCount: number; // 已计分 24h 窗口数（n）
++  realizedWindows: number; // 其中实际发生重置的窗口数
++  brier: number | null; // n=0 时 null（calibration.ts 口径）
++  hitRate: number | null;
++  thresholdPercent: number;
++  watchPairedSamples: number; // watch 同样本配对数
++  excluded: {
++    legacy: number; // 旧行无窗口
++    invalid: number;
++    late: number; // 事后记录
++    pending: number; // 窗口未完成
++    outsideHistory: number; // 早于历史覆盖
++    duplicate: number; // 同日后补
++  };
++}
++
++export type CalibrationSummaryView =
++  | { status: "missing" }
++  | { status: "invalid" }
++  | { status: "ok"; data: CalibrationSummaryData };
++
++const STATES: readonly HistoryFreshnessState[] = ["fresh", "stale", "invalid"];
++
++function isFiniteCount(value: unknown): value is number {
++  return typeof value === "number" && Number.isFinite(value) && value >= 0;
++}
++
++function optionalIso(value: unknown): string | null {
++  return typeof value === "string" && value.length > 0 ? value : null;
++}
++
++function metric(value: unknown): number | null {
++  return typeof value === "number" && Number.isFinite(value) ? value : null;
++}
++
++/**
++ * 快照原文 → 摘要视图。空/全空白 = missing（文件尚未生成）；JSON 或契约非法 =
++ * invalid（UI 提示重新生成，不用旧数冒充）；其余 = ok。任何字段不符整体判 invalid，
++ * 不做部分修补——摘要要么完整可信要么明确失效。
++ */
++export function parseCalibrationSummary(content: string | null | undefined): CalibrationSummaryView {
++  if (typeof content !== "string" || content.trim() === "") return { status: "missing" };
++  let parsed: unknown;
++  try {
++    parsed = JSON.parse(content);
++  } catch {
++    return { status: "invalid" };
++  }
++  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return { status: "invalid" };
++  const snapshot = parsed as Record<string, unknown>;
++  if (snapshot.schema !== CALIBRATION_SNAPSHOT_SCHEMA) return { status: "invalid" };
++
++  const state = snapshot.state;
++  if (typeof state !== "string" || !STATES.includes(state as HistoryFreshnessState)) {
++    return { status: "invalid" };
++  }
++  const score = snapshot.score;
++  if (typeof score !== "object" || score === null || Array.isArray(score)) return { status: "invalid" };
++  const scoreRecord = score as Record<string, unknown>;
++  if (!isFiniteCount(scoreRecord.n)) return { status: "invalid" };
++  const brier = metric(scoreRecord.brier);
++  const hitRate = metric(scoreRecord.hitRate);
++  // n>0 时指标必须存在且有限；n=0 时必须为 null（calibration.ts 契约，防脏数据虚报）。
++  if (scoreRecord.n > 0 && (brier === null || hitRate === null)) return { status: "invalid" };
++  if (scoreRecord.n === 0 && (scoreRecord.brier !== null || scoreRecord.hitRate !== null)) {
++    return { status: "invalid" };
++  }
++  if (typeof scoreRecord.thresholdPercent !== "number" || !Number.isFinite(scoreRecord.thresholdPercent)) {
++    return { status: "invalid" };
++  }
++
++  const watch = snapshot.watchComparison;
++  if (typeof watch !== "object" || watch === null || Array.isArray(watch)) return { status: "invalid" };
++  if (!isFiniteCount((watch as Record<string, unknown>).pairedSamples)) return { status: "invalid" };
++
++  const excludedSource = snapshot.excluded;
++  if (typeof excludedSource !== "object" || excludedSource === null || Array.isArray(excludedSource)) {
++    return { status: "invalid" };
++  }
++  const excludedRecord = excludedSource as Record<string, unknown>;
++  // 快照原文用 kebab-case 键（calibrationWindows.ts WindowExclusion 序列化形）。
++  const excludedCounts = [
++    excludedRecord.legacy,
++    excludedRecord.invalid,
++    excludedRecord.late,
++    excludedRecord.pending,
++    excludedRecord["outside-history"],
++    excludedRecord.duplicate,
++  ];
++  if (!excludedCounts.every(isFiniteCount)) return { status: "invalid" };
++  const [legacy, invalid, late, pending, outsideHistory, duplicate] = excludedCounts as number[];
++
++  const outcomes = snapshot.outcomes;
++  if (!Array.isArray(outcomes)) return { status: "invalid" };
++  const realizedWindows = outcomes.filter(
++    (row) => typeof row === "object" && row !== null && (row as Record<string, unknown>).realized === true,
++  ).length;
++
++  const historySource = snapshot.historySource;
++  const historyAsOf =
++    typeof historySource === "object" && historySource !== null && !Array.isArray(historySource)
++      ? optionalIso((historySource as Record<string, unknown>).asOf)
++      : null;
++
++  return {
++    status: "ok",
++    data: {
++      state: state as HistoryFreshnessState,
++      generatedAt: optionalIso(snapshot.generatedAt),
++      historyAsOf,
++      coverageStart: optionalIso(snapshot.coverageStart),
++      sampleCount: scoreRecord.n,
++      realizedWindows,
++      brier,
++      hitRate,
++      thresholdPercent: scoreRecord.thresholdPercent,
++      watchPairedSamples: (watch as Record<string, unknown>).pairedSamples as number,
++      excluded: { legacy, invalid, late, pending, outsideHistory, duplicate },
++    },
++  };
++}
+diff --git a/src/lib/index.ts b/src/lib/index.ts
+index 93b4a6a..c1c7209 100644
+--- a/src/lib/index.ts
++++ b/src/lib/index.ts
+@@ -12,5 +12,6 @@ export * from "./watchSignal";
+ export * from "./watchCalibration";
+ export * from "./calibrationWindows";
+ export * from "./calibrationSnapshot";
++export * from "./calibrationSummary";
+ export * from "./historyPrediction";
+ export * from "./history";
+diff --git a/src/ui/adapters.ts b/src/ui/adapters.ts
+index 1270d23..7d5568e 100644
+--- a/src/ui/adapters.ts
++++ b/src/ui/adapters.ts
+@@ -16,6 +16,8 @@ import {
+   type ResetStatusEvaluation,
+   assessHistorySource,
+   type HistorySourceAssessment,
++  parseCalibrationSummary,
++  type CalibrationSummaryView,
+ } from "../lib";
+ import type { ProviderSnapshot } from "./types";
+ 
+@@ -45,6 +47,8 @@ export interface DashboardViewModel {
+   prediction: PredictionRecord | null;
+   /** 离线历史独立来源时刻/数量/过期状态，不和实时公告混成一个状态。 */
+   historySource: HistorySourceAssessment | null;
++  /** RR28只读校准摘要：missing=尚未生成，invalid=坏文件需重生成，ok=真实计分（n=0=积累中）。 */
++  calibrationSummary: CalibrationSummaryView;
+ }
+ 
+ /**
+@@ -57,6 +61,7 @@ export function buildDashboard(
+   history: readonly string[],
+   now: Date = new Date(),
+   historyDocument?: unknown,
++  calibrationSummaryContent?: string | null,
+ ): DashboardViewModel {
+   const observedAt =
+     snapshot.rateLimitSnapshot?.observedAt ?? snapshot.updatedAt;
+@@ -135,6 +140,7 @@ export function buildDashboard(
+     resetStatus: status != null && statusEvaluation != null ? { ...status, ...statusEvaluation } : null,
+     riskEvaluatedAt: modelAsOf.toISOString(),
+     historySource: historyDocument === undefined ? null : assessHistorySource(historyDocument, now),
++    calibrationSummary: parseCalibrationSummary(calibrationSummaryContent),
+     prediction: buildPredictionRecord({ risk, evaluatedAt: modelAsOf.toISOString(), recordedAt: now,
+       quotaStatus: snapshot.status, resetSourceState: statusEvaluation?.state ?? null }),
+   };
+diff --git a/task_logs/RR28_artifacts/appdir-calibration-live.json b/task_logs/RR28_artifacts/appdir-calibration-live.json
+new file mode 100644
+index 0000000..041ec39
+--- /dev/null
++++ b/task_logs/RR28_artifacts/appdir-calibration-live.json
+@@ -0,0 +1,73 @@
++{
++  "schema": "reset-radar/calibration@1",
++  "generatedAt": "2026-10-11T06:44:44.582Z",
++  "state": "fresh",
++  "historySource": {
++    "state": "fresh",
++    "fetchedAt": "2026-10-11T06:30:53.872Z",
++    "asOf": "2026-10-11T06:30:53.872Z",
++    "ageDays": 0.009614699074074074,
++    "totalEvents": 60,
++    "quotaResetEvents": 54,
++    "excludedEvents": 6
++  },
++  "coverageStart": null,
++  "excluded": {
++    "legacy": 3,
++    "invalid": 0,
++    "late": 0,
++    "pending": 0,
++    "outside-history": 0,
++    "duplicate": 0
++  },
++  "score": {
++    "n": 0,
++    "brier": null,
++    "hitRate": null,
++    "thresholdPercent": 50,
++    "baseRate": null,
++    "byWeek": [],
++    "reliability": []
++  },
++  "watchComparison": {
++    "weight": 0.25,
++    "pairedSamples": 0,
++    "withoutWatch": {
++      "n": 0,
++      "brier": null,
++      "hitRate": null,
++      "thresholdPercent": 50,
++      "baseRate": null,
++      "byWeek": [],
++      "reliability": []
++    },
++    "withWatch": {
++      "n": 0,
++      "brier": null,
++      "hitRate": null,
++      "thresholdPercent": 50,
++      "baseRate": null,
++      "byWeek": [],
++      "reliability": []
++    }
++  },
++  "outcomes": [],
++  "predictionSources": {
++    "read": 3,
++    "skipped": 0,
++    "files": [
++      {
++        "path": "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR28\\data\\predictions.jsonl",
++        "label": "仓内归档",
++        "missing": false,
++        "rows": 1
++      },
++      {
++        "path": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\predictions.jsonl",
++        "label": "应用日志",
++        "missing": false,
++        "rows": 2
++      }
++    ]
++  }
++}
+diff --git a/task_logs/RR28_artifacts/mutation-proof.md b/task_logs/RR28_artifacts/mutation-proof.md
+new file mode 100644
+index 0000000..8c2299d
+--- /dev/null
++++ b/task_logs/RR28_artifacts/mutation-proof.md
+@@ -0,0 +1,14 @@
++# RR28 变异红验记录（2026-10-11，S1011-RR28）
++
++## M1 TS 映射器：删 schema 校验
++- 改动：删 `if (snapshot.schema !== CALIBRATION_SNAPSHOT_SCHEMA) return { status: "invalid" };`
++- 结果：红 1（「坏JSON或契约不符=invalid」组：schema@2 快照被放行为 ok）；复原后 5/5 绿。
++
++## M2 TS 映射器：删 n>0 必须有指标规则
++- 改动：删 `if (scoreRecord.n > 0 && (brier === null || hitRate === null)) return invalid;`
++- 结果：红 1（golden n=1+brier→null 变异样本被放行）；复原后绿。
++
++## M3 Rust：读失败吞成空内容
++- 改动：read_summary 的非 NotFound 错误分支改为返回 String::new()（把读失败冒充 missing）
++- 结果：cargo test --lib calibration_summary **FAILED 1**（read_failure_is_not_reported_as_missing）；
++  原字节复原后 3/3 绿（全量 32 passed）。
+-- 
+2.52.0.windows.1
+

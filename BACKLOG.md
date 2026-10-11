@@ -301,3 +301,83 @@
 - 2026-10-11 11:40:25 RR24 用户认可阶段1内容，仓内落档仍待领；RR25 新立阶段2方案落档卡，保留阶段确认停点。
 - 2026-10-11 11:40:25 阶段4授权补记：本设计总指挥执行除UI外其他看板任务，计划RR22→RR23→RR15→RR18→RR19→RR16→RR17→UI/契约补卡→RR12验收；RR21他人在飞勿抢，已闭环成果核验复用。执行前重读状态，逐卡分会话，不绕过槽位/门禁/STOP；发布动作仍留用户。
 - 2026-10-11 11:56 RR21 🟡待合入（agent/RR21 @ 2b10c27 单 commit 基于 main b518bcd；四绿全过：tsc✅ 域 src/ui 15/15✅ 全量 93/93 0failed✅〔基线89→93只升〕 变异红验✅〔胶囊高76→560病灶值→红2→复原绿〕 cargo check --tests 5.19s✅ check-release 13链接✅；实证：胶囊 920×152=2×(460×76) 悬浮条收紧/展开 920×1296 前端 LogicalSize 动态长高/DPI 192/屏幕DC实拍四角=桌面像素→gnu transparent 生效未走降级/EXSTYLE TOPMOST+NOACTIVATE/识图子代理两图 PASS；真值=codex-cockpit tauri.conf.json widget 逐字段+其 lib.rs:210-233+capabilities 三权限+DOM 实测定尺寸；证据 task_logs/RR21_done.md；worktree 留 MERGE 班拆/junction 先 rmdir；**注：本卡交付悬浮窗本体，公告横幅未含**——RR22/RR23 立卡时言明并入 RR21 设计，但公告数据链（core 纯函数+运行时 /status）尚未落地，横幅应随 RR22/RR23 消费卡实施；排障遗产4条留 REVIEW〔PrintWindow 透明伪象判别法/preview 端口占用/「校准」2字孤行小瑕疵/RR14 遗产①③ 随本卡闭环〕）
+
+### RR26 | P1 | 🧱建卡🟠在飞 | docs+发布 | 立卡/领卡 S1011-design3（用户进入阶段3）
+- 现象：用户要求生图提示词只说明UIUX，明确撤销风格/配色约束；前两阶段文档尚在独立审阅目录。
+- 证据：当前用户消息、RR24/25已审阅文档、adapters视图契约；RR21待合入，LIGHT已释放。
+- 修向：agent/RR26独立worktree落档docs/design/01-proposals.md、02-spec.md、03-image-prompts.md；02视觉部分按最新用户裁决改为待参考图决定，03提供6张各自可复制的场景/视角/区域/UIUX/比例提示词，无hex或固定风格。仅文档，不执行阶段4代码。
+- 验证口径：tsc、UI域、全量vitest；文档契约核验+变异红验（撤销“卡数未知”语义必须红，恢复绿）；done附用户裁决/字段出处/独立文档校验结果，生图表现待用户生成参考图后验收。
+- 状态行：2026-10-11 11:57:14 🟠在飞（LIGHT；三份文档统一落档，RR24/25落档事项并入本卡追溯，不另领两卡）。
+
+- 2026-10-11 12:05:03 RR26 🟡待合入（agent/RR26 @961fdfb；三阶段文档+6组无视觉限制UIUX提示词；tsc/UI11/全量89/文档验收绿+未知卡误变0文档变异红验exit1复原绿；主仓git apply --check标准RR26.patch通过；done在task_logs/RR26_done.md，worktree留待用户回图/后续合入）。
+- 2026-10-11 12:05:03 RR24/RR25落档事项已并入RR26交付，勿重复领；随RR26合入后同步闭环。用户明确撤销具体风格/配色/字体/材质对图AI的限制，覆盖旧卡面石墨青绿描述；UIUX/阶段4其它卡执行授权保留。
+
+- 2026-10-11 12:33:26 RR21/RR26 🟢已闭环：MERGE S1011-design4，2b10c27→0fe0159 / 961fdfb→bca3ba4；逐路径树恒等，主仓tsc/93tests/设计验收/cargo check --tests绿。RR24/RR25由RR26覆盖落档，闭环勿重领。RR26有用户未跟踪六张参考图故保留worktree，RR21暂保留避免junction风险。
+- 2026-10-11 12:33:26 RR22 🟠在飞：S1011-design4，agent/RR22基线bca3ba4；用户阶段4授权，公告语义以02-spec分离模型概率/计划优先。
+
+### RR27 | P1 | 🔧修卡🟠待领 | ui | 阶段4参考图实施（S1011-design4立卡）
+- 现象：悬浮窗本体虽已RR21修复，src/ui仍旧视觉，两态尚无peek；用户已提供六张图并授权照图重构。
+- 证据：TRUTH §U阶段4授权；docs/design/02-spec.md、04-progress.md及ref六图（RR22原字节归档）；adapters.ts为唯一数字契约。
+- 修向：在agent/RR27重构src/ui/，CSS Modules+主题token、自己画SVG入icons；compact/peek/expanded、顶栏拖动区、主题记忆、动效/减少动效、loading/empty/error/stale/partial-null/卡0与未知、未来与待核实公告。只映射VM，禁止业务公式；动态窗口尺寸与NOACTIVATE键盘焦点实测。校准摘要仅消费RR28只读契约，不抄演示数据；DPI/manifest旧修复保留。
+- 验证口径：UI域行为测试/tsc/全量vitest/核心交互变异红验；动Rust则cargo check --tests；GNU release带custom-protocol，实际截图覆盖三态/主题/异常，子代理读盘审460px无横滚及按钮可达；完成报告含截图/门禁/借鉴出处。
+- 状态行：2026-10-11 🟠待领；依赖RR23完成公告VM契约、RR28校准只读契约；不占LIGHT，勿在RR22在飞期间抢槽。
+
+### RR28 | P2 | 🧱建卡🟠待领 | data-layer+core | 校准摘要只读桥接（S1011-design4立卡）
+- 现象：用户已批准展开页校准入口，但当前VM没有运行时样本数/Brier/命中率，不能填图稿假成绩。
+- 证据：ARCHITECTURE §2/§4持续校准与分层；02-spec字段新增表；src/lib/calibration.ts为算法唯一源，docs/calibration-latest.md当前零完结样本。
+- 修向：读取RR15统一预测日志与RR18新鲜历史，薄壳调用src/lib/calibration，形成可空只读摘要/来源时刻/样本数/失败状态；Rust仅IO，React零评分公式，计分口径继续北京零点/完结日/同日首行。零样本显示待积累；无需新增UI业务规则。若脚本先生成摘要，用只读Tauri命令取真实文件并标明生成时刻。
+- 验证口径：真实生成器输出和核心既有校准golden对账、零样本/坏JSON/文件缺失/过期状态、只读契约测试；tsc/域/全量/变异红验+动Rust的cargo check --tests；出处/产物路径写done。
+- 状态行：2026-10-11 🟠待领；依赖RR15/RR18/RR17，前置RR27消费，未领不占槽。
+- 2026-10-11 12:42:36 RR22 🟡待合入：c8321dc，27文件+664/-10；核心93/全量108/tsc绿；变异红6+红1字节恢复绿；D022修正确定性公告概率推断，参考图归档；RR27/RR28新增未领卡，详卡面。
+- 2026-10-11 12:44:16 RR22 🟢已闭环：c8321dc→main1142551，27路径树恒等，主仓tsc/108tests/设计验收绿；RR22 worktree安全拆除（junction先以Directory.Delete非递归拆）；RR21已注销，仅空目录句柄占用暂留，main node_modules完整。RR21/RR22分支归档保留，不force；RR26用户图原件保留。下一卡RR23，RR27/RR28待前置。
+- 2026-10-11 12:47:01 RR23 🟠在飞：S1011-RR23，agent/RR23基线1142551；status采集/缓存/失败独立于额度，生产adapter消费公告，门禁含Rust与TLS实证。
+
+- 2026-10-11 13:06:14 RR23 🟡待合入：98d9bbc，34文件；tsc/110域/125全量/Rust24/TLS与生产落盘绿；TS红8、Rust红2原字节恢复绿；done/patch齐备，LIGHT释放。
+
+- 2026-10-11 13:07:13 RR23 🟢已闭环：98d9bbc→main1f67601，全树恒等；主仓tsc/125tests/cargo check --tests绿，生产status+额度落盘已实证。worktree安全拆除，分支归档保留，LIGHT/MERGE释放；下一卡RR15，UI RR27待前置。
+
+- 2026-10-11 13:08:01 RR15 🟠在飞：S1011-RR15，agent/RR15基线1f67601；日志路径汇流与app真实记录，严格TS单一幂等实现。
+
+- 2026-10-11 13:23:17 RR15 🟡待合入：a246165，52文件；tsc/118域/137全量/Rust29/Node8，4类变异红恢复，release+真实自动记录/重启不重复/脚本互读绿；LIGHT释放，done/patch齐备。
+
+- 2026-10-11 13:25:31 RR15 🟢已闭环：a246165→main44f2bba，52路径及全树恒等；主仓tsc/137tests/Node8/Rustcheck/calibrate绿，生产日志已自动生成并验证重启不重复。worktree安全先拆junction再移除、branch归档、wip归档；LIGHT/MERGE释放，下一RR18历史更新/regular筛选。
+
+- 2026-10-11 13:27:05 RR18 🟠在飞：S1011-RR18，agent/RR18 base44f2bba；7日守卫与脚本刷新、regular/banked消费者核对，旧golden保留原字节。
+
+- 2026-10-11 13:38:55 RR18 🟡待合入 62d71e1；真实历史60/54/6，7日守卫，旧golden归档，VM历史元数据；四绿及3红恢复，生产日志保留；LIGHT释放。
+
+- 2026-10-11 13:40:27 RR18 🟢已闭环 main7e406e0←62d71e1；全树恒等，主仓tsc147/Node30/calibrate绿；worktree安全拆除、旧日志保留；MERGE释放，下一RR19。
+
+- 2026-10-11 13:41:45 S1011-RR19 领RR19 LIGHT，base7e406e0；Node CI入口/全套件覆盖/失败传播/版本对账。
+
+- 2026-10-11 13:47:17 S1011-RR19 🟡交付3edf240，四绿/Node34/结构YAML/4红恢复，LIGHT释放；占MERGE自合入。
+
+- 2026-10-11 13:48:23 RR19 🟢已闭环 3edf240→main17fc22c，全树恒等、tsc147TS/34Node/结构YAML/版本绿；安全拆worktree，LIGHT/MERGE释放；下一RR16。
+
+- 2026-10-11 13:49:23 S1011-RR16 🟠领卡LIGHT；base17fc22c，watch有效性/既有25%权重/校准分列。
+
+- 2026-10-11 14:00:37 RR16 🟡待合入（f7890a5，39路径，tsc/146域/170全/37Node/4红恢复/Vite/native/生产null-watch与361B保留；done/patch齐）。
+
+- 2026-10-11 14:01:31 RR16 🟢已闭环（f7890a5→main299c1d5，树恒等；主仓tsc/170/37Node/校准绿，worktree先安全拆junction再移除，wip移档，branch保留归档）。
+
+- 2026-10-11 14:02:09 S1011-RR17 领卡LIGHT；base299c1d5，修正预测目标24h并自动对账。
+- 2026-10-11 14:36:30 RR17 🟡待合入：agent/RR17 @657da35 单commit基于main299c1d5；四绿147/177/38Node；三组变异红恢复；自动对答案产物data/calibration.json+docs报告落地；详见task_logs/RR17_done.md。
+- 2026-10-11 14:40:30 RR17 🟢已闭环 main971be17；主仓复验tsc/177TS/38Node绿。→下一卡RR28（校准摘要只读桥接）。
+- 2026-10-11 14:48:20 RR28 🟡待合入：c53fc42；只读桥接（脚本写应用目录快照→Rust读→TS映射→VM）；182TS/38Node/Rust32；详见task_logs/RR28_done.md。
+- 2026-10-11 14:53:00 RR28 🟢已闭环 main c546b52；主仓复验绿。→下一卡RR27（照六图UI重构）。
+- 2026-10-11 15:40:00 RR27 🟡待合入：95c3a98；三态UI/主题/SVG/全状态/截图三轮复审8/8；详见task_logs/RR27_done.md。
+- 2026-10-11 15:45:30 RR27 🟢已闭环 main a362c4e；主仓复验绿。→RR12第2轮REVIEW。
+
+### RR29 | P3 | 🔧修卡🟠待领 | ui | 立卡 S1011-RR12r2（REVIEW 第2轮 G1）
+- 现象：RR27 已实测 Escape/按钮可达，但 NOACTIVATE 点击激活后的 Tab 全键盘遍历顺序、深浅主题逐前景/背景组合 4.5:1 对比度数值、credits-zero 决策卡视口截图未逐一留证。
+- 证据：docs/review-20261011-round2.md G1；RR27_done 排障遗产三条；docs/screenshots/ 现有 12 张缺口。
+- 修向：computer-use/CDP 键序探针遍历三态控件并截图；对比度按 widget.css token 实值逐组合计算留档；补拍 credits-zero 顶部视口。
+- 验证口径：键序覆盖全部可交互控件；对比度报告（每组合值+出处）；新截图过识图子代理。
+- 状态行：2026-10-11 15:50 🟠待领（未领不占槽）。
+
+### RR30 | P3 | 🎣挖卡🟠待领 | docs+发布 | 立卡 S1011-RR12r2（REVIEW 第2轮 G2）
+- 现象：CI（windows-latest=MSVC）release 产物是否内嵌/生效 dpiAware 未取证；RR20 只实证了 GNU 路径。
+- 证据：RR20_done MSVC 注记；.github/workflows/release.yml runs-on: windows-latest；TRUTH B10。
+- 修向：用户 push 触发 CI 首跑后，下载产物 dump manifest/实证 DPI 声明；无声明则立修卡补 MSVC 分支。**依赖用户执行 push（发布动作留给用户）。**
+- 验证口径：MSVC exe manifest 原文或等效实证落 task_logs；结论回填 TRUTH §2。
+- 状态行：2026-10-11 15:50 🟠待领（依赖用户 CI 首跑；未跑前不可宣称验证）。

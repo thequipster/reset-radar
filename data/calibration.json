@@ -1,12 +1,12 @@
 {
   "schema": "reset-radar/calibration@1",
-  "generatedAt": "2026-10-11T06:44:44.582Z",
+  "generatedAt": "2026-10-11T07:34:13.520Z",
   "state": "fresh",
   "historySource": {
     "state": "fresh",
-    "fetchedAt": "2026-10-11T06:30:53.872Z",
-    "asOf": "2026-10-11T06:30:53.872Z",
-    "ageDays": 0.009614699074074074,
+    "fetchedAt": "2026-10-11T07:34:13.520Z",
+    "asOf": "2026-10-11T07:34:13.520Z",
+    "ageDays": 0,
     "totalEvents": 60,
     "quotaResetEvents": 54,
     "excludedEvents": 6
@@ -15,7 +15,7 @@
   "excluded": {
     "legacy": 3,
     "invalid": 0,
-    "late": 0,
+    "late": 1,
     "pending": 0,
     "outside-history": 0,
     "duplicate": 0
@@ -53,11 +53,11 @@
   },
   "outcomes": [],
   "predictionSources": {
-    "read": 3,
+    "read": 4,
     "skipped": 0,
     "files": [
       {
-        "path": "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR28\\data\\predictions.jsonl",
+        "path": "C:\\Users\\slsjz\\Desktop\\reset-radar\\data\\predictions.jsonl",
         "label": "仓内归档",
         "missing": false,
         "rows": 1
@@ -66,7 +66,7 @@
         "path": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\predictions.jsonl",
         "label": "应用日志",
         "missing": false,
-        "rows": 2
+        "rows": 3
       }
     ]
   }

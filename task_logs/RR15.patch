@@ -1,0 +1,2029 @@
+From a24616534f26e117e29fbeb89505fdeebca1847c Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 13:22:26 +0800
+Subject: [PATCH] feat(predictions): persist desktop forecasts and unify
+ calibration log sources
+
+---
+ TRUTH.md                                      |   7 ++
+ docs/DECISIONS.md                             |   7 ++
+ docs/design/04-progress.md                    |   4 +
+ docs/prediction-runtime-20261011.md           |  26 ++++
+ scripts/calibrate.mjs                         |  63 +++++-----
+ scripts/log-prediction.mjs                    |  31 ++---
+ scripts/prediction-files.mjs                  | 116 ++++++++++++++++++
+ scripts/tests/prediction-log.node.mjs         | 106 ++++++++++++++++
+ src-tauri/src/lib.rs                          |  17 ++-
+ src-tauri/src/predictions.rs                  | 112 +++++++++++++++++
+ src/App.tsx                                   |   5 +
+ src/data/__tests__/predictionLog.io.test.ts   |  48 ++++++++
+ src/data/predictionLog.ts                     |  27 ++++
+ src/lib/__tests__/predictions.runtime.test.ts |  34 +++++
+ src/lib/predictions.ts                        |  26 +++-
+ src/ui/__tests__/ui.prediction-log.test.ts    |  23 ++++
+ src/ui/adapters.ts                            |   5 +
+ src/ui/usePredictionLog.ts                    |  32 +++++
+ .../RR15_artifacts/calibration-dual-source.md |  36 ++++++
+ .../calibration-runtime-only.md               |  36 ++++++
+ .../RR15_artifacts/cargo-check-green.txt      |   4 +
+ .../RR15_artifacts/cargo-final-green.txt      |   2 +
+ .../RR15_artifacts/domain-final-green.txt     |  12 ++
+ task_logs/RR15_artifacts/domain-initial.txt   |  12 ++
+ task_logs/RR15_artifacts/full-final-green.txt |  12 ++
+ task_logs/RR15_artifacts/full-green.txt       |  14 +++
+ .../independent-risk-mutant-red.txt           |  44 +++++++
+ task_logs/RR15_artifacts/node-final-green.txt |  46 +++++++
+ task_logs/RR15_artifacts/node-green.txt       |  46 +++++++
+ task_logs/RR15_artifacts/node-mutant-red.txt  |  70 +++++++++++
+ .../RR15_artifacts/node-restored-green.txt    |  48 ++++++++
+ .../RR15_artifacts/node-verified-green.txt    |  58 +++++++++
+ task_logs/RR15_artifacts/probe-log-state.mjs  |  27 ++++
+ .../production-dom-after-refresh.json         |   6 +
+ .../RR15_artifacts/production-dom-final.json  |   6 +
+ .../RR15_artifacts/production-dom-first.json  |   6 +
+ .../production-dom-restart.json               |   6 +
+ .../production-dom-verified.json              |   6 +
+ .../production-log-first-verified.json        |  14 +++
+ .../production-restart-idempotent.json        |  10 ++
+ .../production-verified-idempotent.json       |  17 +++
+ task_logs/RR15_artifacts/release-build.txt    |   8 ++
+ .../RR15_artifacts/release-final-build.txt    |   8 ++
+ .../RR15_artifacts/release-verified-build.txt |   8 ++
+ task_logs/RR15_artifacts/rust-final-green.txt |  43 +++++++
+ task_logs/RR15_artifacts/rust-mutant-red.txt  |  35 ++++++
+ .../RR15_artifacts/rust-restored-green.txt    |  45 +++++++
+ .../RR15_artifacts/ts-mutant-red-verified.txt |  33 +++++
+ task_logs/RR15_artifacts/ts-mutant-red.txt    |  33 +++++
+ task_logs/RR15_artifacts/tsc-green.txt        |   2 +
+ task_logs/RR15_artifacts/vite-build.txt       |  15 +++
+ task_logs/RR15_artifacts/vite-final-build.txt |  13 ++
+ 52 files changed, 1413 insertions(+), 57 deletions(-)
+ create mode 100644 docs/prediction-runtime-20261011.md
+ create mode 100644 scripts/prediction-files.mjs
+ create mode 100644 scripts/tests/prediction-log.node.mjs
+ create mode 100644 src-tauri/src/predictions.rs
+ create mode 100644 src/data/__tests__/predictionLog.io.test.ts
+ create mode 100644 src/data/predictionLog.ts
+ create mode 100644 src/lib/__tests__/predictions.runtime.test.ts
+ create mode 100644 src/ui/__tests__/ui.prediction-log.test.ts
+ create mode 100644 src/ui/usePredictionLog.ts
+ create mode 100644 task_logs/RR15_artifacts/calibration-dual-source.md
+ create mode 100644 task_logs/RR15_artifacts/calibration-runtime-only.md
+ create mode 100644 task_logs/RR15_artifacts/cargo-check-green.txt
+ create mode 100644 task_logs/RR15_artifacts/cargo-final-green.txt
+ create mode 100644 task_logs/RR15_artifacts/domain-final-green.txt
+ create mode 100644 task_logs/RR15_artifacts/domain-initial.txt
+ create mode 100644 task_logs/RR15_artifacts/full-final-green.txt
+ create mode 100644 task_logs/RR15_artifacts/full-green.txt
+ create mode 100644 task_logs/RR15_artifacts/independent-risk-mutant-red.txt
+ create mode 100644 task_logs/RR15_artifacts/node-final-green.txt
+ create mode 100644 task_logs/RR15_artifacts/node-green.txt
+ create mode 100644 task_logs/RR15_artifacts/node-mutant-red.txt
+ create mode 100644 task_logs/RR15_artifacts/node-restored-green.txt
+ create mode 100644 task_logs/RR15_artifacts/node-verified-green.txt
+ create mode 100644 task_logs/RR15_artifacts/probe-log-state.mjs
+ create mode 100644 task_logs/RR15_artifacts/production-dom-after-refresh.json
+ create mode 100644 task_logs/RR15_artifacts/production-dom-final.json
+ create mode 100644 task_logs/RR15_artifacts/production-dom-first.json
+ create mode 100644 task_logs/RR15_artifacts/production-dom-restart.json
+ create mode 100644 task_logs/RR15_artifacts/production-dom-verified.json
+ create mode 100644 task_logs/RR15_artifacts/production-log-first-verified.json
+ create mode 100644 task_logs/RR15_artifacts/production-restart-idempotent.json
+ create mode 100644 task_logs/RR15_artifacts/production-verified-idempotent.json
+ create mode 100644 task_logs/RR15_artifacts/release-build.txt
+ create mode 100644 task_logs/RR15_artifacts/release-final-build.txt
+ create mode 100644 task_logs/RR15_artifacts/release-verified-build.txt
+ create mode 100644 task_logs/RR15_artifacts/rust-final-green.txt
+ create mode 100644 task_logs/RR15_artifacts/rust-mutant-red.txt
+ create mode 100644 task_logs/RR15_artifacts/rust-restored-green.txt
+ create mode 100644 task_logs/RR15_artifacts/ts-mutant-red-verified.txt
+ create mode 100644 task_logs/RR15_artifacts/ts-mutant-red.txt
+ create mode 100644 task_logs/RR15_artifacts/tsc-green.txt
+ create mode 100644 task_logs/RR15_artifacts/vite-build.txt
+ create mode 100644 task_logs/RR15_artifacts/vite-final-build.txt
+
+diff --git a/TRUTH.md b/TRUTH.md
+index 4f1a446..ac98dd5 100644
+--- a/TRUTH.md
++++ b/TRUTH.md
+@@ -154,3 +154,10 @@
+ - latest_reset.id=2109132167112782291、reset_type=regular、announced_at=2026-10-11T04:01:09.000Z；scheduled_reset和active_watch均null。新增15分钟缓存、失败保留旧字段但不用于行动的契约，详见docs/runtime-status-20261011.md及D024。
+ - 单测24通过/1手动网络测试默认忽略；显式网络测试1通过。轮询900秒误改60秒令缓存边界及freshUntil测试失败，原字节恢复24通过。
+ - GNU release带custom-protocol实跑：`task_logs/RR23_artifacts/production-cache-smoke.json`，owned PID32568启动于05:05:10Z且已关闭；额度status=ok、observedAt=05:05:13.773898400Z；公告status=ok、fetchedAt=05:05:12.553657700Z，成功落于app.resetradar.desktop/last-snapshots.json，两时钟分开。
++
++### 2026-10-11 RR15 生产预测日志汇流实证
++- 路径回源：Tauri2.12.2安装源码src/path/desktop.rs:239（dirs::config_dir/identifier）与官方https://v2.tauri.app/reference/javascript/api/namespacepath/#appconfigdir，当前tauri.conf.json:5 identifier=app.resetradar.desktop，无override。Windows生产落APPDATA/app.resetradar.desktop/predictions.jsonl，与last-snapshots同目录；其他平台仅分支单测。
++- 本卡app真实生成首条记录，文件创建时刻2026-10-11T05:17:20.7454402Z、row fetchedAt=05:17:20.742Z、date=2026-10-11、predictedRisk=44；CDP只读main.dataset.predictionLogState=ok且tauri=true，未调用写命令造数据。此前运行目录文件不存在；证据production-log-first-verified.json与production-dom-first.json。
++- 重启ownedPID30192：05:18:12Z重新采集成功，日志188bytes→188bytes完全相同，无遗留.lock；production-restart-idempotent.json。默认calibrate实际同时读取仓内1行+应用1行，--path生产文件仅读1行；今日未完结，计分n=0，未伪造命中率。两份报告在RR15_artifacts。
++- TS137/137、Rust29passed+1手动网络ignored、Node6/6；目标日/额度独立/路径/CAS变异均红且原字节恢复绿。完整门禁与借鉴出处见RR15_done.md；新幂等业务仍唯一src/lib/predictions.ts，不在Rust复算。
++- RR15最终复验补记：Node补测未知/重复参数和读失败，8/8绿；最终release ownedPID31512在05:21:45Z启动，重新采集来源ok，刷新前后CDP hook=ok、日志188字节完全不变、锁已释放（production-verified-idempotent.json）。首轮时间探针用ConvertFrom-Json默认DateTime转换丢原ISO时区，已改-DateKind String；新鲜缓存可先完成风险记录，探针必须另等实际后台新采集，不能将一次早观察当采集失败。
+diff --git a/docs/DECISIONS.md b/docs/DECISIONS.md
+index 96c53d0..39fa3a7 100644
+--- a/docs/DECISIONS.md
++++ b/docs/DECISIONS.md
+@@ -225,3 +225,10 @@
+ - 新鲜来源用当前评估时刻验证公告与latest_reset，不能用旧额度observedAt忽略新发布的计划或继续执行过期计划。VM新增riskEvaluatedAt、resetStatus及独立fetched/generated/lastAttempt时间；额度observedAt与status不被覆盖。
+ - 最新确认regular事件按时间戳去重并入风险历史；banked只是发卡，不能算自动回满。离线历史已有banked条目，RR18刷新/消费者核对时一并处理；不手改夹具数值。
+ - sources成功过期与sources失败都保留旧公告展示信息，actionableReset=null；没有整个来源字段时后向兼容旧golden。计划/概率分别显示，React不实现业务策略；watch本卡原样透传，RR16接既有单一权重与比较。
++
++## D025 RR15 生产预测日志路径汇流，Rust仅IO（2026-10-11，S1011-RR15）
++- RR15倾向路径被现有Tauri app_config_dir具体化：Windows APPDATA/app.resetradar.desktop/predictions.jsonl，与last-snapshots.json共目录，identifier见tauri.conf.json；mac/Linux脚本对应同一Tauri配置目录约定。无需另建reset-radar目录产生第二条断链。
++- ARCHITECTURE要求算法唯一src/lib，覆盖卡面“Rust每日首评幂等”的实现细节：buildPredictionRecord/appendPredictionLog纯TS生成候选与判重，React/Node只是调用，Rust只提供固定路径读盘及expectedContent比较后追加，绝不再写0.5规则或北京日期公式。
++- app仅记录真实有效风险评估：公告来源存在但非ok不写；来源新鲜时风险与额度独立，额度失败不抹去有效风险预测。无来源旧契约只有quota为ok才沿原as_of记录。候选date是riskEvaluatedAt北京日，fetchedAt为执行时间；demo不落盘，旧快照不是新的成功预测。
++- app与Node用同名predictions.jsonl.lock create_new排他锁，持锁比对读取内容再append，竞争后重读核心重算；只追加新行与必要的末尾换行，不改坏行/旧字节。不自动删未知持有者的锁，失败明确返回busy/error；app有限重试防止永久等待。
++- log-prediction默认写生产文件；calibrate默认双源按实际记录fetchedAt稳定排序，同时间归档先，核心继续同日首行。--path指定独立来源方便归档/测试；不自动将生产记录写回受锁数据夹具。RR17/RR28沿本路径消费，历史新鲜度仍交RR18处理。
+diff --git a/docs/design/04-progress.md b/docs/design/04-progress.md
+index 10ba4ea..8c87d7d 100644
+--- a/docs/design/04-progress.md
++++ b/docs/design/04-progress.md
+@@ -40,3 +40,7 @@ tsc退出0；核心域93/93、全量108/108（原93+新增公告15）；两个
+ ## RR23运行时接线
+ 
+ Rust已把/status来源并行接到额度快照，15分钟缓存/失败保留/首刷联网/旧缓存兼容；VM独立透传来源时刻、错误与过期状态，有效公告才输入核心规划。新确认regular事件去重入历史，watch暂透传交RR16，UI外观仍待RR27。真实HTTPS原文与门禁见task_logs/RR23_artifacts，交付与落盘实证最终记录于RR23_done.md。
++
++## RR15预测日志汇流
++
++app已从统一VM获取纯核心候选，真实成功评估自动记录到Tauri应用配置目录；Rust仅读/CAS追加，Node同名文件锁共用核心阈值，calibrate默认双源、--path可独立读取。浏览器demo与过期来源不写，旧契约热启动stale不写；新鲜来源下风险与额度失败独立，坏行及旧字节保留。具体运行实证见RR15_done及docs/prediction-runtime-20261011.md；历史新鲜度/自动回测/校准UI仍依后续卡。
+diff --git a/docs/prediction-runtime-20261011.md b/docs/prediction-runtime-20261011.md
+new file mode 100644
+index 0000000..c88edd3
+--- /dev/null
++++ b/docs/prediction-runtime-20261011.md
+@@ -0,0 +1,26 @@
++# 生产预测日志汇流（RR15）
++
++生产路径为Tauri app_config_dir中的`predictions.jsonl`，Windows即`%APPDATA%/app.resetradar.desktop/predictions.jsonl`，与额度缓存同目录。Rust不接受任意路径，两个命令分别读取原文和比较原文后追加新JSON行。
++
++## 单一业务实现
++
++`buildDashboard`把风险评估时刻、状态和风险交给`src/lib/predictions.ts`生成候选。真实有效风险评估才触发`usePredictionLog`；浏览器预览不落盘，公告来源失败/过期不冒充新预测。风险与额度独立：来源新鲜时额度失败仍记录风险；无来源旧契约依quota观测时刻，热启动stale不落盘。目标date按评估时刻的北京日键，记录执行时间fetchedAt另存，跨日不能混用。
++
++`src/data/predictionLog.ts`读取原文并调用既有`appendPredictionLog`：每日首条追加、与同日最后条漂移严格大于0.5补行。Rust只做结构校验/持锁CAS/追加/同步磁盘，没有日期公式、漂移常数或风险算法。并发冲突重读核心判断，最多5次重试；写入失败向hook返回error和message，RR27将排版呈现。
++
++## 文件安全与脚本
++
++- Node与Rust共用`predictions.jsonl.lock`排他create_new锁，写入持有者PID和创建时间方便诊断；只清理自身成功获得的锁。锁忙不会删除他人的锁，也不根据年龄擅自判断进程已死。
++- 保留所有已有字节（包括坏JSON、CRLF和未结尾的残行）；必要时仅追加换行分隔符，再追加核心生成的新行。文件不被truncate，不回写修复历史。
++- 正常写入后同步到磁盘。若写盘途中失败，错误原样报告，已存在残行仍保留；下次追加会分隔残行。异常退出可能遗留锁，须确认PID及其他写者均已停止后处理；应用会报告占用，避免无限等待。
++- `node scripts/log-prediction.mjs`默认写生产文件；`--path <file>`仅指定该文件。脚本评估仍以历史fetchedAt为as_of，先运行fetch-history可保证新鲜；RR18负责统一历史刷新和regular筛选。
++- `node scripts/calibrate.mjs`默认读取仓库data/predictions.jsonl与生产文件，同一路径去重；有效fetchedAt按执行时间稳定排序，同时间归档先；缺/非法时间置于有效时间之后且保留源内行序。计分继续核心同日首条与完结北京日规则，坏行计数、文件缺失明确标注、读取错误退出1。
++- `node scripts/calibrate.mjs --path <file>`仅读取指定文件，方便对独立归档复现。脚本不把生产日志偷偷改写到版本化夹具。RR17/RR28沿本路径读取。
++
++## 来源与验证
++
++路径依据本仓tauri.conf.json:5 identifier、lib.rs setup调用app_config_dir；安装依赖tauri2.12.2 src/path/desktop.rs:239直接使用dirs::config_dir()/identifier，当前未配置目录override。Windows运行事实以本轮生产落盘证据为准，mac/Linux仅路径分支单测，没有冒称在这些平台运行。
++
++官方路径语义：[Tauri appConfigDir/configDir](https://v2.tauri.app/reference/javascript/api/namespacepath/#appconfigdir)。业务依据ARCHITECTURE分层、D004北京日边界、D019单一幂等核心与D025路径汇流。RR15卡面提及D020路径裁决编号已有DPI事项占用，本轮顺延D025，未修改历史编号。
++
++门禁、变异红恢复与生产程序自动写入/脚本互读/重启幂等实证见主仓task_logs/RR15_done.md及RR15_artifacts。本卡不重构视觉，无新UI截图；全项目最终完成仍依赖后续历史、校准与RR27参考图界面。
+diff --git a/scripts/calibrate.mjs b/scripts/calibrate.mjs
+index 2d02566..eca419c 100644
+--- a/scripts/calibrate.mjs
++++ b/scripts/calibrate.mjs
+@@ -1,6 +1,7 @@
+ #!/usr/bin/env node
+ // scripts/calibrate.mjs —— RR07：预测 vs 实际 对答案，渲染校准报告 Markdown（REVIEW artifact）。
+-// 用法（RUNBOOK §9.1 固定命令）：node scripts/calibrate.mjs > docs/calibration-latest.md
++// 用法（RUNBOOK §9.1）：node scripts/calibrate.mjs [--path <路径>] > docs/calibration-latest.md
++// 默认合并仓内归档与应用 canonical 日志；--path 仅读取指定文件。
+ // 计分实现单一源于 src/lib/calibration.ts（RUNBOOK §1.4 单一实现源，本脚本零算法）；
+ // 经 node ≥22.18 原生 type-stripping 直载 .ts（本机 v22.23.1 实测；lib 内 import 链带
+ // .ts 扩展 + tsconfig allowImportingTsExtensions，见 docs/DECISIONS.md D016）。
+@@ -8,10 +9,23 @@
+ // 未被历史覆盖的预测日按「未完结」剔除，绝不误判为 realized=false。
+ 
+ import { readFileSync } from "node:fs";
++import { join, resolve } from "node:path";
+ import { fileURLToPath } from "node:url";
+ import { joinPredictionsWithResets, scorePredictions } from "../src/lib/calibration.ts";
++import {
++  canonicalPredictionPath,
++  parsePredictionPathArg,
++  readPredictionFiles,
++  resolvePredictionPaths,
++} from "./prediction-files.mjs";
+ 
+ const root = fileURLToPath(new URL("../", import.meta.url));
++const override = parsePredictionPathArg(process.argv.slice(2));
++const predictionSources = resolvePredictionPaths({
++  override,
++  archivePath: join(root, "data/predictions.jsonl"),
++  canonicalPath: canonicalPredictionPath(),
++});
+ const generatedAt = new Date().toISOString();
+ const lines = [];
+ const emit = (s = "") => lines.push(s);
+@@ -26,36 +40,17 @@ function readJsonIfExists(path, label) {
+   }
+ }
+ 
+-// —— data/predictions.jsonl：逐行 JSON，坏行跳过并计数（ stderr 可见，不改写数据）——
+-function readPredictionRows() {
+-  let raw;
+-  try {
+-    raw = readFileSync(`${root}data/predictions.jsonl`, "utf8");
+-  } catch (err) {
+-    if (err?.code === "ENOENT") return { missing: true };
+-    throw err;
+-  }
+-  const rows = [];
+-  let skipped = 0;
+-  for (const line of raw.split(/\r?\n/)) {
+-    const t = line.trim();
+-    if (!t) continue;
+-    try {
+-      const obj = JSON.parse(t);
+-      if (typeof obj?.date === "string" && Number.isFinite(obj?.predictedRisk)) {
+-        rows.push({ date: obj.date, predictedRisk: obj.predictedRisk, fetchedAt: obj.fetchedAt });
+-      } else {
+-        skipped += 1;
+-      }
+-    } catch {
+-      skipped += 1;
+-    }
+-  }
+-  return { rows, skipped };
+-}
+-
+ const history = readJsonIfExists("data/resets-history.json", "历史夹具");
+-const predictions = readPredictionRows();
++let predictions;
++try { predictions = readPredictionFiles(predictionSources); }
++catch (err) {
++  console.error(`[calibrate] ${err.message}`);
++  process.exit(1);
++}
++const predictionPathSummary = predictions.files.map((file) =>
++  `${file.label} ${resolve(file.path)}：${file.missing ? "缺失" : `${file.rows} 行有效`}`,
++).join("；");
++const noPredictionFiles = predictions.files.every((file) => file.missing);
+ 
+ emit("# 校准报告（calibration-latest）");
+ emit();
+@@ -88,12 +83,12 @@ emit(
+ );
+ emit(`- as_of（数据新鲜度时刻）= 夹具 fetchedAt：${asOf.toISOString()}`);
+ 
+-if (predictions.missing) {
+-  emit(`- 预测日志：data/predictions.jsonl —— 尚不存在（RR10 落盘器未运行/未合入）`);
++if (noPredictionFiles) {
++  emit(`- 预测日志来源：${predictionPathSummary}`);
+   emit();
+   emit("## ⚠️ 暂无预测日志，无可计分样本");
+   emit();
+-  emit("- 校准闭环需要先积累「每日预测 → 落盘」（RR10：data/predictions.jsonl 只追加）。");
++  emit("- 校准闭环需要先积累「每日预测 → 落盘」（应用自动记录，或运行npm run log-prediction）。");
+   emit("- 该文件出现后本报告自动给出完整指标；此前本文件仅作报告骨架（REVIEW 拍仍会生成）。");
+   emit();
+   emit("## 指标口径（供对照）");
+@@ -109,7 +104,7 @@ if (predictions.missing) {
+ }
+ 
+ emit(
+-  `- 预测日志：data/predictions.jsonl —— ${predictions.rows.length} 行有效${predictions.skipped ? ` / ${predictions.skipped} 行坏行跳过` : ""}`,
++  `- 预测日志来源：${predictionPathSummary}；合计 ${predictions.rows.length} 行有效${predictions.skipped ? ` / ${predictions.skipped} 行坏行跳过` : ""}`,
+ );
+ 
+ const outcomes = joinPredictionsWithResets(predictions.rows, announcedAt, asOf);
+diff --git a/scripts/log-prediction.mjs b/scripts/log-prediction.mjs
+index ac67c6c..29f7b96 100644
+--- a/scripts/log-prediction.mjs
++++ b/scripts/log-prediction.mjs
+@@ -1,21 +1,25 @@
+ #!/usr/bin/env node
+-// scripts/log-prediction.mjs —— RR10：每日评估落盘器（幂等追加 data/predictions.jsonl）。
+-// 用法：node scripts/log-prediction.mjs（建议先 node scripts/fetch-history.mjs 刷新夹具）。
++// scripts/log-prediction.mjs —— RR10/RR15：每日评估落盘器（幂等追加生产predictions.jsonl）。
++// 用法：默认写应用 canonical 文件；可用 --path <路径> 指定唯一写入文件。
++// 建议先 node scripts/fetch-history.mjs 刷新夹具。
+ // 算法单一源 src/lib（RUNBOOK §1.4）：风险=assessResetRisk、幂等=appendPredictionLog——
+ // 本脚本零算法，只做读夹具/调核心/追加写（先例 calibrate.mjs，D016 node ≥22.18 原生
+ // type-stripping 直载 .ts）。
+ // as_of = 历史夹具 fetchedAt（数据新鲜度时刻，与 calibrate.mjs 同口径）：date=as_of 北京日键
+ // ——夹具滞后时评估的是「数据新鲜度所在日」（诚实语义），所以先刷新夹具再落盘。
+-// 数据锁（RUNBOOK §1.5）：本脚本是 predictions.jsonl 的唯一写者，只追加、绝不修改既有行。
++// 数据锁（RUNBOOK §1.5）：脚本与app共用核心判重，只追加、绝不修改既有行。
+ 
+-import { appendFileSync, readFileSync } from "node:fs";
++import { readFileSync } from "node:fs";
++import { resolve } from "node:path";
+ import { fileURLToPath } from "node:url";
+ 
+ import { appendPredictionLog, digestFactors, predictionDateKey } from "../src/lib/predictions.ts";
+ import { assessResetRisk } from "../src/lib/risk.ts";
++import { appendPredictionFile, canonicalPredictionPath, parsePredictionPathArg } from "./prediction-files.mjs";
+ 
+ const root = fileURLToPath(new URL("../", import.meta.url));
+-const logPath = `${root}data/predictions.jsonl`;
++const override = parsePredictionPathArg(process.argv.slice(2));
++const logPath = override ?? canonicalPredictionPath();
+ 
+ const history = JSON.parse(readFileSync(`${root}data/resets-history.json`, "utf8"));
+ const announcedAt = history.events
+@@ -36,25 +40,12 @@ const candidate = {
+   fetchedAt: new Date().toISOString(),
+ };
+ 
+-let existing = [];
+-try {
+-  existing = readFileSync(logPath, "utf8")
+-    .split(/\r?\n/)
+-    .filter((line) => line.trim());
+-} catch (err) {
+-  if (err?.code !== "ENOENT") throw err; // 首次落盘：文件尚不存在
+-}
+-
+-const outcome = appendPredictionLog(existing, candidate);
+-if (outcome.appended) {
+-  // 新行一律取自 appendPredictionLog 的序列化结果（单一序列化源）
+-  appendFileSync(logPath, outcome.lines[outcome.lines.length - 1] + "\n");
+-}
++const outcome = appendPredictionFile(logPath, (existing) => appendPredictionLog(existing, candidate));
+ 
+ console.log(
+   `[log-prediction] date=${candidate.date} predictedRisk=${candidate.predictedRisk}` +
+     ` → ${outcome.appended ? `追加（${outcome.reason}）` : `不追加（${outcome.reason}）`}` +
+-    `；日志现有 ${outcome.lines.length} 行`,
++  `；日志现有 ${outcome.lines.length} 行；文件 ${resolve(logPath)}`,
+ );
+ if (outcome.appended) {
+   console.log(`[log-prediction] factorsDigest=${candidate.factorsDigest}`);
+diff --git a/scripts/prediction-files.mjs b/scripts/prediction-files.mjs
+new file mode 100644
+index 0000000..79b45c8
+--- /dev/null
++++ b/scripts/prediction-files.mjs
+@@ -0,0 +1,116 @@
++// 预测日志的文件路径、来源读取与跨进程追加锁。
++import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync, fsyncSync } from "node:fs";
++import { dirname, resolve, win32, posix } from "node:path";
++import { homedir } from "node:os";
++
++// 来源：src-tauri/tauri.conf.json:5 identifier，app_config_dir为config_dir/identifier。
++const APP_ID = "app.resetradar.desktop";
++
++export function parsePredictionPathArg(args, cwd = process.cwd(), pathApi = process.platform === "win32" ? win32 : posix) {
++  const index = args.indexOf("--path");
++  if (args.length === 0) return null;
++  if (index < 0) throw new Error("未知参数；用法：--path <文件路径>");
++  if (index !== 0 || args.length > 2) throw new Error("仅支持一个 --path <文件路径> 参数");
++  const value = args[index + 1];
++  if (!value || value.startsWith("--")) throw new Error("--path 后需要一个文件路径");
++  return pathApi.isAbsolute(value) ? pathApi.normalize(value) : pathApi.resolve(cwd, value);
++}
++
++export function canonicalPredictionPath({ platform = process.platform, env = process.env, home = homedir(), pathApi } = {}) {
++  const api = pathApi ?? (platform === "win32" ? win32 : posix);
++  if (platform === "win32") {
++    const base = env.APPDATA || api.join(home, "AppData", "Roaming");
++    return api.join(base, APP_ID, "predictions.jsonl");
++  }
++  if (platform === "darwin") return api.join(home, "Library", "Application Support", APP_ID, "predictions.jsonl");
++  const base = env.XDG_CONFIG_HOME || api.join(home, ".config");
++  return api.join(base, APP_ID, "predictions.jsonl");
++}
++
++export function resolvePredictionPaths({ override, archivePath, canonicalPath }) {
++  if (override) return [{ path: override, label: "指定文件" }];
++  const paths = [{ path: archivePath, label: "仓内归档" }, { path: canonicalPath, label: "应用日志" }];
++  const seen = new Set();
++  return paths.filter(({ path }) => {
++    const key = process.platform === "win32" ? path.toLowerCase() : path;
++    if (seen.has(key)) return false;
++    seen.add(key);
++    return true;
++  });
++}
++
++export function readPredictionFiles(sources) {
++  const rows = [];
++  const files = [];
++  let skipped = 0;
++  for (let sourceIndex = 0; sourceIndex < sources.length; sourceIndex += 1) {
++    const source = sources[sourceIndex];
++    let raw;
++    try {
++      raw = readFileSync(source.path, "utf8");
++    } catch (err) {
++      if (err?.code === "ENOENT") {
++        files.push({ ...source, missing: true, rows: 0 });
++        continue;
++      }
++      throw new Error(`读取预测日志失败 ${source.path}: ${err.message}`, { cause: err });
++    }
++    let count = 0;
++    for (const line of raw.split(/\r?\n/)) {
++      const text = line.trim();
++      if (!text) continue;
++      try {
++        const obj = JSON.parse(text);
++        if (typeof obj?.date === "string" && Number.isFinite(obj?.predictedRisk)) {
++          rows.push({ date: obj.date, predictedRisk: obj.predictedRisk, fetchedAt: obj.fetchedAt,
++            source: source.label, sourceIndex, rowIndex: count });
++          count += 1;
++        } else skipped += 1;
++      } catch { skipped += 1; }
++    }
++    files.push({ ...source, missing: false, rows: count });
++  }
++  rows.sort((a, b) => {
++    const ta = Date.parse(a.fetchedAt ?? "");
++    const tb = Date.parse(b.fetchedAt ?? "");
++    const va = Number.isFinite(ta), vb = Number.isFinite(tb);
++    if (va && vb && ta !== tb) return ta - tb;
++    if (va !== vb) return va ? -1 : 1;
++    return a.sourceIndex - b.sourceIndex || a.rowIndex - b.rowIndex;
++  });
++  return { rows: rows.map(({ source, sourceIndex, rowIndex, ...row }) => row), skipped, files };
++}
++
++export function appendPredictionFile(path, decide) {
++  mkdirSync(dirname(path), { recursive: true });
++  const lockPath = `${path}.lock`;
++  let lockFd;
++  try {
++    lockFd = openSync(lockPath, "wx");
++  } catch (err) {
++    if (err?.code === "EEXIST") throw new Error(`预测日志正被其他进程写入（锁文件：${lockPath}）`);
++    throw err;
++  }
++  try {
++    // 留下持有者供崩溃后诊断，不自动清理未知锁。
++    writeFileSync(lockFd, JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }) + "\n");
++    // 锁内读取并调用 src/lib 幂等函数判断，避免并发进程覆盖对方新行。
++    let raw = "";
++    try { raw = readFileSync(path, "utf8"); }
++    catch (err) { if (err?.code !== "ENOENT") throw err; }
++    const current = raw.split(/\r?\n/).filter((line) => line.trim());
++    const refreshed = decide(current);
++    if (!refreshed.appended) return refreshed;
++    const needsSeparator = raw.length > 0 && !raw.endsWith("\n");
++    const fd = openSync(path, "a");
++    try {
++      writeFileSync(fd, `${needsSeparator ? "\n" : ""}${refreshed.lines[refreshed.lines.length - 1]}\n`);
++      fsyncSync(fd);
++    } finally { closeSync(fd); }
++    return refreshed;
++  } finally {
++    closeSync(lockFd);
++    unlinkSync(lockPath);
++  }
++}
++
+diff --git a/scripts/tests/prediction-log.node.mjs b/scripts/tests/prediction-log.node.mjs
+new file mode 100644
+index 0000000..b24fd74
+--- /dev/null
++++ b/scripts/tests/prediction-log.node.mjs
+@@ -0,0 +1,106 @@
++// RR15 文件路径与追加锁验证（node:test，避免被 Vitest 的浏览器配置扫描）。
++import test from "node:test";
++import assert from "node:assert/strict";
++import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join, win32, posix, resolve, dirname, basename } from "node:path";
++import { fileURLToPath } from "node:url";
++import { spawnSync } from "node:child_process";
++import {
++  appendPredictionFile,
++  canonicalPredictionPath,
++  parsePredictionPathArg,
++  readPredictionFiles,
++  resolvePredictionPaths,
++} from "../prediction-files.mjs";
++
++function withTemp(run) {
++  const dir = mkdtempSync(join(tmpdir(), "rr15-predictions-"));
++  try { run(dir); } finally {
++    assert.equal(dirname(resolve(dir)), resolve(tmpdir()));
++    assert.ok(basename(dir).startsWith("rr15-predictions-"));
++    rmSync(dir, { recursive: true });
++  }
++}
++
++test("--path resolves relative paths and preserves absolute paths", () => {
++  assert.equal(parsePredictionPathArg(["--path", "logs/p.jsonl"], "/repo", posix), "/repo/logs/p.jsonl");
++  assert.equal(parsePredictionPathArg(["--path", "D:\\logs\\p.jsonl"], "C:\\repo", win32), "D:\\logs\\p.jsonl");
++  assert.throws(() => parsePredictionPathArg(["--path"], "/repo", posix), /需要一个文件路径/);
++});
++
++test("canonical paths follow Tauri identifier on each platform", () => {
++  assert.equal(canonicalPredictionPath({ platform: "win32", env: { APPDATA: "C:\\Users\\u\\Roaming" }, home: "C:\\Users\\u", pathApi: win32 }), "C:\\Users\\u\\Roaming\\app.resetradar.desktop\\predictions.jsonl");
++  assert.equal(canonicalPredictionPath({ platform: "darwin", env: {}, home: "/Users/u", pathApi: posix }), "/Users/u/Library/Application Support/app.resetradar.desktop/predictions.jsonl");
++  assert.equal(canonicalPredictionPath({ platform: "linux", env: { XDG_CONFIG_HOME: "/tmp/config" }, home: "/home/u", pathApi: posix }), "/tmp/config/app.resetradar.desktop/predictions.jsonl");
++});
++
++test("default inputs deduplicate same path and sort by fetchedAt with archive first on ties", () => {
++  withTemp((dir) => {
++    const archive = join(dir, "archive.jsonl");
++    const canonical = join(dir, "app.jsonl");
++    writeFileSync(archive, [
++      JSON.stringify({ date: "2026-01-02", predictedRisk: 2, fetchedAt: "2026-01-02T00:00:00Z" }),
++      "{bad}",
++      JSON.stringify({ date: "2026-01-01", predictedRisk: 1, fetchedAt: "2026-01-01T00:00:00Z" }),
++    ].join("\n"));
++    writeFileSync(canonical, JSON.stringify({ date: "2026-01-03", predictedRisk: 3, fetchedAt: "2026-01-02T00:00:00Z" }));
++    assert.equal(resolvePredictionPaths({ archivePath: archive, canonicalPath: archive }).length, 1);
++    const data = readPredictionFiles(resolvePredictionPaths({ archivePath: archive, canonicalPath: canonical }));
++    assert.deepEqual(data.rows.map((row) => row.date), ["2026-01-01", "2026-01-02", "2026-01-03"]);
++    assert.equal(data.files.length, 2);
++    assert.equal(data.rows[1].date, "2026-01-02"); // 同时间仓内归档在应用日志之前
++    assert.equal(data.skipped, 1);
++  });
++});
++
++test("append preserves existing bytes and inserts a separator for a missing final newline", () => {
++  withTemp((dir) => {
++    const path = join(dir, "nested", "predictions.jsonl");
++    mkdirSync(join(dir, "nested"));
++    const original = '{"date":"2026-01-01","predictedRisk":10}\n{bad-json}';
++    writeFileSync(path, original);
++    const outcome = appendPredictionFile(path, (rows) => ({ appended: true, lines: [...rows, '{"date":"2026-01-02","predictedRisk":20}'] }));
++    assert.equal(outcome.appended, true);
++    assert.equal(readFileSync(path, "utf8"), `${original}\n{"date":"2026-01-02","predictedRisk":20}\n`);
++    assert.equal(existsSync(`${path}.lock`), false);
++  });
++});
++
++test("busy lock fails clearly and never removes the other process lock", () => {
++  withTemp((dir) => {
++    const path = join(dir, "predictions.jsonl");
++    writeFileSync(`${path}.lock`, "owner");
++    assert.throws(() => appendPredictionFile(path, () => ({ appended: true, lines: ["new"] })), /正被其他进程写入/);
++    assert.equal(readFileSync(`${path}.lock`, "utf8"), "owner");
++  });
++});
++
++test("log CLI --path writes only to the requested temporary file", () => {
++  withTemp((dir) => {
++    const path = join(dir, "custom", "predictions.jsonl");
++    const script = fileURLToPath(new URL("../log-prediction.mjs", import.meta.url));
++    const result = spawnSync(process.execPath, [script, "--path", path], { encoding: "utf8" });
++    assert.equal(result.status, 0, result.stderr);
++    assert.match(result.stdout, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
++    assert.equal(readFileSync(path, "utf8").trim().split(/\r?\n/).length, 1);
++  });
++});
++
++test("unknown or duplicate path options fail instead of writing canonical data", () => {
++  assert.throws(() => parsePredictionPathArg(["--paht", "logs/p.jsonl"]), /未知参数/);
++  assert.throws(() => parsePredictionPathArg(["--path", "one", "--path", "two"]), /仅支持一个/);
++});
++
++test("missing file is labelled but read errors make calibration fail explicitly", () => {
++  withTemp((dir) => {
++    const missing = join(dir, "missing.jsonl");
++    const empty = readPredictionFiles([{ path: missing, label: "指定" }]);
++    assert.equal(empty.files[0].missing, true); assert.deepEqual(empty.rows, []);
++    assert.throws(() => readPredictionFiles([{ path: dir, label: "不可读文件" }]), /读取预测日志失败/);
++    const script = fileURLToPath(new URL("../calibrate.mjs", import.meta.url));
++    const result = spawnSync(process.execPath, [script, "--path", dir], { encoding: "utf8" });
++    assert.equal(result.status, 1); assert.match(result.stderr, /读取预测日志失败/);
++    assert.doesNotMatch(result.stdout, /暂无预测日志/);
++  });
++});
+diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+index 56a76fe..6fde3a5 100644
+--- a/src-tauri/src/lib.rs
++++ b/src-tauri/src/lib.rs
+@@ -7,6 +7,7 @@ mod codex;
+ mod models;
+ mod snapshots;
+ mod reset_status;
++mod predictions;
+ 
+ use std::sync::Mutex;
+ use std::time::{Duration, Instant};
+@@ -109,7 +110,7 @@ pub fn run() {
+             });
+             Ok(())
+         })
+-        .invoke_handler(tauri::generate_handler![get_snapshots, refresh_snapshots])
++        .invoke_handler(tauri::generate_handler![get_snapshots, refresh_snapshots, read_prediction_log, append_prediction_log])
+         .run(tauri::generate_context!())
+         .expect("error while running tauri application");
+ }
+@@ -218,3 +219,17 @@ mod build_manifest {
+         );
+     }
+ }
++
++/// RR15固定app_config_dir读取日志；不接受调用者传路径。
++#[tauri::command]
++fn read_prediction_log(state: State<'_, AppState>) -> Result<predictions::LogRead, String> {
++    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
++    predictions::read_log(dir.as_ref().ok_or("application config directory unavailable")?)
++}
++
++/// 只追加TS核心已生成的新行；文件级锁与expectedContent保证跨写者串行。
++#[tauri::command]
++fn append_prediction_log(state: State<'_, AppState>, expected_content: String, line: String) -> Result<predictions::AppendResult, String> {
++    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
++    predictions::append_line(dir.as_ref().ok_or("application config directory unavailable")?, &expected_content, &line)
++}
+diff --git a/src-tauri/src/predictions.rs b/src-tauri/src/predictions.rs
+new file mode 100644
+index 0000000..ac096d2
+--- /dev/null
++++ b/src-tauri/src/predictions.rs
+@@ -0,0 +1,112 @@
++//! RR15：固定应用配置目录的预测日志IO，不实现日期/漂移/幂等业务规则。
++//! ARCHITECTURE §2、D025；候选与判重唯一源src/lib/predictions.ts。
++use std::{fs::{self, File, OpenOptions}, io::Write, path::{Path, PathBuf}};
++use serde::Serialize;
++
++#[derive(Serialize)]
++#[serde(rename_all = "camelCase")]
++pub struct LogRead { pub path: String, pub content: String }
++
++#[derive(Debug, PartialEq, Serialize)]
++#[serde(rename_all = "lowercase")]
++pub enum AppendResult { Appended, Conflict, Busy }
++
++pub fn log_path(dir: &Path) -> PathBuf { dir.join("predictions.jsonl") }
++
++pub fn read_log(dir: &Path) -> Result<LogRead, String> {
++    let path = log_path(dir);
++    let content = match fs::read_to_string(&path) {
++        Ok(value) => value,
++        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
++        Err(error) => return Err(format!("prediction log read failed: {error}")),
++    };
++    Ok(LogRead { path: path.to_string_lossy().into_owned(), content })
++}
++
++/// Rust与Node共享create_new锁。只释放本次成功获得的锁；不猜他人锁是否过期。
++struct FileLock { file: Option<File>, path: PathBuf }
++impl Drop for FileLock {
++    fn drop(&mut self) {
++        drop(self.file.take()); // Windows先关句柄再删自己的锁文件。
++        let _ = fs::remove_file(&self.path);
++    }
++}
++
++/// expectedContent是核心判重所依据的原文；持锁CAS保证竞争者不能重复追加。
++pub fn append_line(dir: &Path, expected_content: &str, line: &str) -> Result<AppendResult, String> {
++    if line.contains(['\n', '\r']) { return Err("prediction record must be one JSON line".into()); }
++    let value: serde_json::Value = serde_json::from_str(line).map_err(|e| format!("invalid prediction JSON: {e}"))?;
++    if !value.is_object() || !value["date"].is_string() || !value["predictedRisk"].is_number()
++        || !value["factorsDigest"].is_string() || !value["fetchedAt"].is_string() {
++        return Err("prediction record missing contract fields".into());
++    }
++    fs::create_dir_all(dir).map_err(|e| format!("prediction directory failed: {e}"))?;
++    let lock_path = dir.join("predictions.jsonl.lock");
++    let file = match OpenOptions::new().write(true).create_new(true).open(&lock_path) {
++        Ok(file) => file,
++        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(AppendResult::Busy),
++        Err(error) => return Err(format!("prediction lock failed: {error}")),
++    };
++    let mut lock = FileLock { file: Some(file), path: lock_path };
++    // 仅诊断持有者，不据此自动删锁（进程崩溃需确认无写者后恢复）。
++    lock.file.as_mut().unwrap().write_all(format!("{{\"pid\":{},\"createdAt\":\"{}\"}}\n",
++        std::process::id(), chrono::Utc::now().to_rfc3339()).as_bytes())
++        .map_err(|e| format!("prediction lock metadata failed: {e}"))?;
++    let current = read_log(dir)?.content;
++    if current != expected_content { return Ok(AppendResult::Conflict); }
++    let mut file = OpenOptions::new().append(true).create(true).open(log_path(dir))
++        .map_err(|e| format!("prediction append open failed: {e}"))?;
++    let separator = if !current.is_empty() && !current.ends_with('\n') { "\n" } else { "" };
++    file.write_all(format!("{separator}{line}\n").as_bytes()).map_err(|e| format!("prediction append failed: {e}"))?;
++    file.sync_data().map_err(|e| format!("prediction sync failed: {e}"))?;
++    Ok(AppendResult::Appended)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    const ROW: &str = r#"{"date":"2026-10-11","predictedRisk":25.4,"factorsDigest":"weekday=3","fetchedAt":"2026-10-11T05:00:00Z"}"#;
++    fn temp_dir(name: &str) -> PathBuf {
++        std::env::temp_dir().join(format!("reset-radar-predictions-{name}-{}-{}", std::process::id(), chrono::Utc::now().timestamp_nanos_opt().unwrap()))
++    }
++    #[test]
++    fn cold_read_and_compare_append_roundtrip() {
++        let dir = temp_dir("roundtrip");
++        assert_eq!(read_log(&dir).unwrap().content, "");
++        assert_eq!(append_line(&dir, "", ROW).unwrap(), AppendResult::Appended);
++        assert_eq!(read_log(&dir).unwrap().content, format!("{ROW}\n"));
++        // 同一过期读取不能再次追加；业务是否需补行仍由TS决定。
++        assert_eq!(append_line(&dir, "", ROW).unwrap(), AppendResult::Conflict);
++        assert_eq!(read_log(&dir).unwrap().content, format!("{ROW}\n"));
++        assert!(!dir.join("predictions.jsonl.lock").exists());
++        fs::remove_dir_all(dir).unwrap();
++    }
++    #[test]
++    fn preserves_bad_lines_crlf_and_unterminated_tail_bytes() {
++        let dir = temp_dir("bytes"); fs::create_dir_all(&dir).unwrap();
++        let original = "bad-line\r\nnot-json";
++        fs::write(log_path(&dir), original).unwrap();
++        append_line(&dir, original, ROW).unwrap();
++        assert_eq!(fs::read(log_path(&dir)).unwrap(), format!("{original}\n{ROW}\n").as_bytes());
++        fs::remove_dir_all(dir).unwrap();
++    }
++    #[test]
++    fn busy_lock_does_not_remove_another_writers_lock() {
++        let dir = temp_dir("busy");fs::create_dir_all(&dir).unwrap();
++        let lock = dir.join("predictions.jsonl.lock");fs::write(&lock, "other-writer").unwrap();
++        assert_eq!(append_line(&dir, "", ROW).unwrap(), AppendResult::Busy);
++        assert_eq!(fs::read_to_string(&lock).unwrap(), "other-writer");
++        assert!(!log_path(&dir).exists()); fs::remove_dir_all(dir).unwrap();
++    }
++    #[test]
++    fn contract_rejects_multiline_or_invalid_data_without_files() {
++        let dir = temp_dir("invalid");
++        for invalid in ["{}", "not-json", "[]", "{}\n{}"] { assert!(append_line(&dir, "", invalid).is_err()); }
++        assert!(!dir.exists());
++    }
++    #[test]
++    fn read_failure_is_not_reported_as_empty_history() {
++        let dir = temp_dir("read-failure");fs::create_dir_all(log_path(&dir)).unwrap();
++        assert!(read_log(&dir).is_err());fs::remove_dir_all(dir).unwrap();
++    }
++}
+diff --git a/src/App.tsx b/src/App.tsx
+index 06e7e98..28571f5 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -9,6 +9,7 @@ import { initialExpanded } from "./ui/appState";
+ import Capsule from "./ui/Capsule";
+ import ExpandedCard from "./ui/ExpandedCard";
+ import { RESET_HISTORY_ANNOUNCED_AT } from "./ui/history";
++import { usePredictionLog } from "./ui/usePredictionLog";
+ import { useSnapshots } from "./ui/useSnapshots";
+ import { applyWidgetSize, closeWidget } from "./ui/widgetWindow";
+ 
+@@ -40,10 +41,13 @@ export default function App() {
+   const codex = snapshots.find((item) => item.provider === "codex") ?? snapshots[0];
+   const vm = codex != null ? buildDashboard(codex, RESET_HISTORY_ANNOUNCED_AT) : null;
+ 
++  const predictionLog = usePredictionLog(vm?.prediction ?? null, live, vm?.updatedAt ?? "");
++
+   if (vm == null) {
+     return (
+       <main
+         data-tauri-drag-region
++        data-prediction-log-state={predictionLog.status}
+         style={{
+           minHeight: "100vh",
+           display: "flex",
+@@ -74,6 +78,7 @@ export default function App() {
+   return (
+     <main
+       data-tauri-drag-region
++      data-prediction-log-state={predictionLog.status}
+       style={{
+         minHeight: "100vh",
+         boxSizing: "border-box",
+diff --git a/src/data/__tests__/predictionLog.io.test.ts b/src/data/__tests__/predictionLog.io.test.ts
+new file mode 100644
+index 0000000..ce09000
+--- /dev/null
++++ b/src/data/__tests__/predictionLog.io.test.ts
+@@ -0,0 +1,48 @@
++import { describe, expect, it } from "vitest";
++import { persistPrediction, type PredictionLogPort } from "../predictionLog";
++import type { PredictionRecord } from "../../lib";
++const row: PredictionRecord = { date: "2026-10-11", predictedRisk: 25.4, factorsDigest: "weekday=3", fetchedAt: "2026-10-11T05:00:00Z" };
++function store(initial = "") {
++  let content = initial; let appended = 0;
++  const port: PredictionLogPort = {
++    read: async () => ({ path: "app/predictions.jsonl", content }),
++    append: async (expected, line) => {
++      if (expected !== content) return "conflict";
++      content += (content && !content.endsWith("\n") ? "\n" : "") + line + "\n"; appended++; return "appended";
++    },
++  };
++  return { port, contents: () => content, writes: () => appended };
++}
++describe("预测日志IO编排", () => {
++  it("首评/噪声/0.5边界/0.6漂移均使用核心规则", async () => {
++    const data = store();
++    expect((await persistPrediction(data.port, row)).reason).toBe("first-of-day");
++    expect((await persistPrediction(data.port, row)).appended).toBe(false);
++    expect((await persistPrediction(data.port, { ...row, predictedRisk: 25.9 })).appended).toBe(false);
++    expect((await persistPrediction(data.port, { ...row, predictedRisk: 26 })).reason).toBe("risk-drift");
++    expect(data.writes()).toBe(2);
++  });
++  it("同时首次评估通过CAS重读不会写两条同值记录", async () => {
++    const data = store();
++    const results = await Promise.all([persistPrediction(data.port, row, async () => {}), persistPrediction(data.port, row, async () => {})]);
++    expect(data.writes()).toBe(1);
++    expect(results.map((r) => r.appended).sort()).toEqual([false, true]);
++  });
++  it("坏行/CRLF/未结尾换行的原文作为CAS依据，不重写已有字节", async () => {
++    const original = "bad\r\ntruncated"; const data = store(original);
++    await persistPrediction(data.port, row);
++    expect(data.contents().startsWith(original + "\n")).toBe(true);
++    expect(data.writes()).toBe(1);
++  });
++  it("busy有限重试；之后报失败，不能伪造成功", async () => {
++    let attempts = 0;
++    const port: PredictionLogPort = { read: async () => ({ path: "x", content: "" }), append: async () => { attempts++; return "busy"; } };
++    await expect(persistPrediction(port, row, async () => {})).rejects.toThrow("其他写者");
++    expect(attempts).toBe(5);
++  });
++  it("读盘失败原样报告且不调用追加", async () => {
++    let writes = 0;
++    const port: PredictionLogPort = { read: async () => { throw new Error("denied"); }, append: async () => { writes++; return "appended"; } };
++    await expect(persistPrediction(port, row)).rejects.toThrow("denied"); expect(writes).toBe(0);
++  });
++});
+diff --git a/src/data/predictionLog.ts b/src/data/predictionLog.ts
+new file mode 100644
+index 0000000..39aeb86
+--- /dev/null
++++ b/src/data/predictionLog.ts
+@@ -0,0 +1,27 @@
++// RR15数据IO薄壳：读→调用纯核心→CAS追加；并发冲突重读，业务阈值不复制。
++import { appendPredictionLog, type PredictionRecord, type AppendOutcome } from "../lib/predictions.ts";
++
++export interface PredictionLogPort {
++  read(): Promise<{ path: string; content: string }>;
++  append(expectedContent: string, line: string): Promise<"appended" | "conflict" | "busy">;
++}
++export interface PredictionWriteResult {
++  path: string;
++  appended: boolean;
++  reason: AppendOutcome["reason"];
++}
++
++export async function persistPrediction(port: PredictionLogPort, candidate: PredictionRecord,
++  pause: () => Promise<void> = () => new Promise((resolve) => setTimeout(resolve, 150)),
++): Promise<PredictionWriteResult> {
++  // D025：最多5次短暂竞争重试（总等待至多600ms），绝不永久等待锁。
++  for (let attempt = 0; attempt < 5; attempt++) {
++    const current = await port.read();
++    const outcome = appendPredictionLog(current.content.split(/\r?\n/).filter((line) => line.trim()), candidate);
++    if (!outcome.appended) return { path: current.path, appended: false, reason: outcome.reason };
++    const result = await port.append(current.content, outcome.lines[outcome.lines.length - 1]!);
++    if (result === "appended") return { path: current.path, appended: true, reason: outcome.reason };
++    if (attempt < 4) await pause();
++  }
++  throw new Error("预测日志被其他写者占用或持续变化，请在下一次刷新后重试。");
++}
+diff --git a/src/lib/__tests__/predictions.runtime.test.ts b/src/lib/__tests__/predictions.runtime.test.ts
+new file mode 100644
+index 0000000..214de44
+--- /dev/null
++++ b/src/lib/__tests__/predictions.runtime.test.ts
+@@ -0,0 +1,34 @@
++import { describe, expect, it } from "vitest";
++import { buildPredictionRecord, digestFactors } from "../predictions";
++import { assessResetRisk } from "../risk";
++const now = new Date("2026-10-11T17:00:00Z");
++const base = () => ({ risk: assessResetRisk([], now), evaluatedAt: "2026-10-11T15:59:00Z",
++  recordedAt: now, quotaStatus: "ok", resetSourceState: "ok" as string | null });
++
++describe("运行时预测候选", () => {
++  it("记录风险评估北京日，执行时间不改变目标日", () => {
++    const input = base(); const row = buildPredictionRecord(input)!;
++    expect(row.date).toBe("2026-10-11"); // recordedAt北京已经次日。
++    expect(row.fetchedAt).toBe(now.toISOString());
++    expect(row.predictedRisk).toBe(input.risk.score);
++    expect(row.factorsDigest).toBe(digestFactors(input.risk.factors));
++  });
++  it("旧契约没有公告来源可记录；存在但失败/过期的来源不冒充新预测", () => {
++    expect(buildPredictionRecord({ ...base(), resetSourceState: null })).not.toBeNull();
++    for (const state of ["stale", "error"]) expect(buildPredictionRecord({ ...base(), resetSourceState: state })).toBeNull();
++  });
++  it("额度失败不妨碍独立的新鲜风险；旧契约stale额度不能当新评估", () => {
++    for (const quotaStatus of ["stale", "error", "unavailable"]) {
++      expect(buildPredictionRecord({ ...base(), quotaStatus })).not.toBeNull();
++      expect(buildPredictionRecord({ ...base(), quotaStatus, resetSourceState: null })).toBeNull();
++    }
++  });
++  it("非法/未来评估和记录时间不能生成日志", () => {
++    for (const evaluatedAt of ["invalid", "2026-10-11T17:00:01Z"]) expect(buildPredictionRecord({ ...base(), evaluatedAt })).toBeNull();
++    expect(buildPredictionRecord({ ...base(), recordedAt: new Date(NaN) })).toBeNull();
++  });
++  it("缺失或不可信分数不生成伪预测", () => {
++    expect(buildPredictionRecord({ ...base(), risk: null })).toBeNull();
++    for (const score of [NaN, Infinity, -1, 101]) expect(buildPredictionRecord({ ...base(), risk: { ...base().risk, score } })).toBeNull();
++  });
++});
+diff --git a/src/lib/predictions.ts b/src/lib/predictions.ts
+index e42e3e0..215a9fe 100644
+--- a/src/lib/predictions.ts
++++ b/src/lib/predictions.ts
+@@ -5,10 +5,10 @@
+ // （先例 calibrate.mjs，D016 node 直载 .ts）。
+ // 行 schema（卡面四字段，序列化顺序即此）：{date, predictedRisk, factorsDigest, fetchedAt}；
+ // date=北京日历键（D004 唯一日边界，复用 resetCard.beijingCalendarDateKey）。
+-// 数据锁（RUNBOOK §1.5）：predictions.jsonl 只追加不修改，唯一写者=落盘器脚本。
++// 数据锁（RUNBOOK §1.5）：日志只追加不修改；脚本与app薄壳共用本核心规则（RR15/D025）。
+ 
+ import { beijingCalendarDateKey } from "./resetCard.ts";
+-import type { RiskFactor } from "./risk.ts";
++import type { RiskFactor, ResetRisk } from "./risk.ts";
+ 
+ /** 同日补行阈值（0-100 分制）。依据：risk.score 输出固定 1 位小数（risk.ts round1），
+  *  0.5=显示精度下界——漂移超 0.5 才是可感知变化，≤0.5 视为噪声不补行。AI 裁决 D019。 */
+@@ -94,3 +94,25 @@ export function appendPredictionLog(
+   }
+   return { lines: [...existing], appended: false, reason: "suppressed-noise" };
+ }
++
++/** RR15：生产评估→记录。状态与日期检查只在核心，浏览器demo由IO壳禁止写盘。 */
++export function buildPredictionRecord(input: {
++  risk: ResetRisk | null;
++  evaluatedAt: string;
++  recordedAt: Date;
++  quotaStatus: string;
++  resetSourceState: string | null;
++}): PredictionRecord | null {
++  const evaluatedMs = Date.parse(input.evaluatedAt);
++  const recordedMs = input.recordedAt.getTime();
++  // 风险不依赖额度余额：有新鲜公告来源时额度失败仍可记录；旧契约靠quota观测时刻。
++  if ((input.resetSourceState === null ? input.quotaStatus !== "ok" : input.resetSourceState !== "ok")
++    || !input.risk || !Number.isFinite(input.risk.score) || input.risk.score < 0 || input.risk.score > 100
++    || !Number.isFinite(evaluatedMs) || !Number.isFinite(recordedMs) || evaluatedMs > recordedMs) return null;
++  return {
++    date: predictionDateKey(new Date(evaluatedMs)),
++    predictedRisk: input.risk.score,
++    factorsDigest: digestFactors(input.risk.factors),
++    fetchedAt: input.recordedAt.toISOString(),
++  };
++}
+diff --git a/src/ui/__tests__/ui.prediction-log.test.ts b/src/ui/__tests__/ui.prediction-log.test.ts
+new file mode 100644
+index 0000000..b3e9b7b
+--- /dev/null
++++ b/src/ui/__tests__/ui.prediction-log.test.ts
+@@ -0,0 +1,23 @@
++import { describe, expect, it } from "vitest";
++import { buildDashboard } from "../adapters";
++import { sourceSnapshot } from "../../lib/__tests__/fixtures/resetStatus";
++import { buildPredictionRecord } from "../../lib";
++import type { ProviderSnapshot } from "../types";
++const now = new Date("2026-10-11T05:00:00Z");
++const input = (): ProviderSnapshot => ({ provider: "codex", displayName: "CODEX", status: "ok", message: null,
++  plan: null, weeklyWindow: null, shortWindow: null, resetCredits: null, rateLimitSnapshot: null,
++  updatedAt: "2026-10-10T05:00:00Z", resetStatus: sourceSnapshot() });
++describe("生产预测VM", () => {
++  it("候选完整来自统一评估时间和核心，不用旧额度时刻作目标日", () => {
++    const vm = buildDashboard(input(), [], now);
++    expect(vm.prediction).toEqual(buildPredictionRecord({ risk: vm.risk, evaluatedAt: vm.riskEvaluatedAt,
++      recordedAt: now, quotaStatus: "ok", resetSourceState: "ok" }));
++    expect(vm.prediction?.date).toBe("2026-10-11");
++    expect(vm.prediction?.predictedRisk).toBe(vm.risk?.score);
++  });
++  it("风险独立于额度状态，来源过期或旧契约stale额度不冒充新预测", () => {
++    expect(buildDashboard({ ...input(), status: "error" }, [], now).prediction).not.toBeNull();
++    expect(buildDashboard({ ...input(), status: "stale", resetStatus: null }, [], now).prediction).toBeNull();
++    expect(buildDashboard({ ...input(), resetStatus: sourceSnapshot({ status: "error" }) }, [], now).prediction).toBeNull();
++  });
++});
+diff --git a/src/ui/adapters.ts b/src/ui/adapters.ts
+index e81fa3a..0c3b710 100644
+--- a/src/ui/adapters.ts
++++ b/src/ui/adapters.ts
+@@ -8,6 +8,8 @@ import {
+   type DailyUsagePlan,
+   type ResetCardPlan,
+   type ResetRisk,
++  buildPredictionRecord,
++  type PredictionRecord,
+   evaluateResetStatus,
+   historyWithResetStatus,
+   type ResetStatusSnapshot,
+@@ -38,6 +40,7 @@ export interface DashboardViewModel {
+   cardPlan: ResetCardPlan | null;
+   resetStatus: (ResetStatusSnapshot & ResetStatusEvaluation) | null;
+   riskEvaluatedAt: string;
++  prediction: PredictionRecord | null;
+ }
+ 
+ /**
+@@ -126,5 +129,7 @@ export function buildDashboard(
+     cardPlan,
+     resetStatus: status != null && statusEvaluation != null ? { ...status, ...statusEvaluation } : null,
+     riskEvaluatedAt: modelAsOf.toISOString(),
++    prediction: buildPredictionRecord({ risk, evaluatedAt: modelAsOf.toISOString(), recordedAt: now,
++      quotaStatus: snapshot.status, resetSourceState: statusEvaluation?.state ?? null }),
+   };
+ }
+diff --git a/src/ui/usePredictionLog.ts b/src/ui/usePredictionLog.ts
+new file mode 100644
+index 0000000..04b38db
+--- /dev/null
++++ b/src/ui/usePredictionLog.ts
+@@ -0,0 +1,32 @@
++// RR15：React只触发生产记录IO，业务候选和幂等判断来自src/lib。
++import { useEffect, useState } from "react";
++import { invoke } from "@tauri-apps/api/core";
++import { persistPrediction, type PredictionLogPort } from "../data/predictionLog";
++import type { PredictionRecord } from "../lib";
++
++const port: PredictionLogPort = {
++  read: () => invoke("read_prediction_log"),
++  append: (expectedContent, line) => invoke("append_prediction_log", { expectedContent, line }),
++};
++export interface PredictionLogState {
++  status: "idle" | "writing" | "ok" | "error";
++  path: string | null;
++  message: string | null;
++}
++export function usePredictionLog(candidate: PredictionRecord | null, live: boolean, revision: string): PredictionLogState {
++  const [state, setState] = useState<PredictionLogState>({ status: "idle", path: null, message: null });
++  // fetchedAt是记录执行时间，不作为依赖；避免setState渲染生成新时间导致写入循环。
++  const signature = candidate == null ? null : JSON.stringify([candidate.date, candidate.predictedRisk, candidate.factorsDigest]);
++  useEffect(() => {
++    if (!live || !candidate) { setState({ status: "idle", path: null, message: null }); return; }
++    let disposed = false;
++    setState((previous) => ({ ...previous, status: "writing", message: null }));
++    persistPrediction(port, candidate).then((result) => {
++      if (!disposed) setState({ status: "ok", path: result.path, message: null });
++    }).catch((error: unknown) => {
++      if (!disposed) setState((previous) => ({ ...previous, status: "error", message: String(error) }));
++    });
++    return () => { disposed = true; };
++  }, [signature, live, revision]);
++  return state;
++}
+diff --git a/task_logs/RR15_artifacts/calibration-dual-source.md b/task_logs/RR15_artifacts/calibration-dual-source.md
+new file mode 100644
+index 0000000..5eb78d9
+--- /dev/null
++++ b/task_logs/RR15_artifacts/calibration-dual-source.md
+@@ -0,0 +1,36 @@
++# 校准报告（calibration-latest）
++
++> 生成：2026-10-11T05:18:16.145Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
++
++- 重置历史：data/resets-history.json —— 59 events（fetchedAt 2026-10-10T17:20:15.727Z）
++- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-10T17:20:15.727Z
++- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar_wt\RR15\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：1 行有效；合计 2 行有效
++- 计分日：0 个（同日多行取首行 + 未完结日剔除；其中实际重置日 0 个）
++
++## 总分
++
++| 指标 | 值 | 解读 |
++|---|---|---|
++| 计分样本 n | 0 | 每行 = 一个已完结的北京日 |
++| Brier 分数 | —（暂无可计分日） | 0=完美 / 0.25=恒50%参照 / 1=全错，越低越好 |
++| 命中率（阈 50%） | —（暂无可计分日） | 阈值化命中占比 |
++| 基准率 | —（暂无可计分日） | 实际重置日占比；「全猜不重置」命中率为 — |
++
++## 分周走势（周一起）
++
++| 周（周一） | 样本 | Brier | 命中率 |
++|---|---|---|---|
++| —（无样本） | | | |
++
++## 可靠性曲线（预测十分桶）
++
++| 预测区间% | 样本 | 平均预测% | 实际发生% |
++|---|---|---|---|
++| —（无样本） | | | |
++
++## 读法
++
++- Brier ≤ 0.25 才优于「恒猜 50%」；**样本 < 30 时各项指标仅供参考**。
++- 可靠性表「平均预测」与「实际发生」越贴近对角线，概率越可信；系统性高估/低估即校准偏差方向。
++- 分周 Brier 持续走高 = 模型状态漂移，优先复核 risk 因子与夹具新鲜度。
++
+diff --git a/task_logs/RR15_artifacts/calibration-runtime-only.md b/task_logs/RR15_artifacts/calibration-runtime-only.md
+new file mode 100644
+index 0000000..509321f
+--- /dev/null
++++ b/task_logs/RR15_artifacts/calibration-runtime-only.md
+@@ -0,0 +1,36 @@
++# 校准报告（calibration-latest）
++
++> 生成：2026-10-11T05:18:16.248Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
++
++- 重置历史：data/resets-history.json —— 59 events（fetchedAt 2026-10-10T17:20:15.727Z）
++- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-10T17:20:15.727Z
++- 预测日志来源：指定文件 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：1 行有效；合计 1 行有效
++- 计分日：0 个（同日多行取首行 + 未完结日剔除；其中实际重置日 0 个）
++
++## 总分
++
++| 指标 | 值 | 解读 |
++|---|---|---|
++| 计分样本 n | 0 | 每行 = 一个已完结的北京日 |
++| Brier 分数 | —（暂无可计分日） | 0=完美 / 0.25=恒50%参照 / 1=全错，越低越好 |
++| 命中率（阈 50%） | —（暂无可计分日） | 阈值化命中占比 |
++| 基准率 | —（暂无可计分日） | 实际重置日占比；「全猜不重置」命中率为 — |
++
++## 分周走势（周一起）
++
++| 周（周一） | 样本 | Brier | 命中率 |
++|---|---|---|---|
++| —（无样本） | | | |
++
++## 可靠性曲线（预测十分桶）
++
++| 预测区间% | 样本 | 平均预测% | 实际发生% |
++|---|---|---|---|
++| —（无样本） | | | |
++
++## 读法
++
++- Brier ≤ 0.25 才优于「恒猜 50%」；**样本 < 30 时各项指标仅供参考**。
++- 可靠性表「平均预测」与「实际发生」越贴近对角线，概率越可信；系统性高估/低估即校准偏差方向。
++- 分周 Brier 持续走高 = 模型状态漂移，优先复核 risk 因子与夹具新鲜度。
++
+diff --git a/task_logs/RR15_artifacts/cargo-check-green.txt b/task_logs/RR15_artifacts/cargo-check-green.txt
+new file mode 100644
+index 0000000..307e74a
+--- /dev/null
++++ b/task_logs/RR15_artifacts/cargo-check-green.txt
+@@ -0,0 +1,4 @@
++    Checking reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR15\src-tauri)
++    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.96s
++
++exit=0
+diff --git a/task_logs/RR15_artifacts/cargo-final-green.txt b/task_logs/RR15_artifacts/cargo-final-green.txt
+new file mode 100644
+index 0000000..d31cf31
+--- /dev/null
++++ b/task_logs/RR15_artifacts/cargo-final-green.txt
+@@ -0,0 +1,2 @@
++    Checking reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR15\src-tauri)
++    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.05s
+diff --git a/task_logs/RR15_artifacts/domain-final-green.txt b/task_logs/RR15_artifacts/domain-final-green.txt
+new file mode 100644
+index 0000000..c9a73db
+--- /dev/null
++++ b/task_logs/RR15_artifacts/domain-final-green.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR15
++
++
++ Test Files  11 passed (11)
++      Tests  118 passed (118)
++   Start at  13:19:29
++   Duration  1.04s (import 47%, transform 34%, tests 12%, worker 7%)
++
++    Isolate  11 workers spawned · ~111ms startup each (spawn + environment, per file)
++             at least ~501ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR15_artifacts/domain-initial.txt b/task_logs/RR15_artifacts/domain-initial.txt
+new file mode 100644
+index 0000000..78403ce
+--- /dev/null
++++ b/task_logs/RR15_artifacts/domain-initial.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR15
++
++
++ Test Files  11 passed (11)
++      Tests  118 passed (118)
++   Start at  13:13:05
++   Duration  1.01s (import 52%, transform 30%, tests 11%, worker 6%)
++
++    Isolate  11 workers spawned · ~105ms startup each (spawn + environment, per file)
++             at least ~472ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR15_artifacts/full-final-green.txt b/task_logs/RR15_artifacts/full-final-green.txt
+new file mode 100644
+index 0000000..85e96ff
+--- /dev/null
++++ b/task_logs/RR15_artifacts/full-final-green.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR15
++
++
++ Test Files  15 passed (15)
++      Tests  137 passed (137)
++   Start at  13:19:01
++   Duration  1.40s (import 47%, transform 34%, tests 11%, worker 7%)
++
++    Isolate  15 workers spawned · ~111ms startup each (spawn + environment, per file)
++             at least ~719ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR15_artifacts/full-green.txt b/task_logs/RR15_artifacts/full-green.txt
+new file mode 100644
+index 0000000..5e84920
+--- /dev/null
++++ b/task_logs/RR15_artifacts/full-green.txt
+@@ -0,0 +1,14 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR15
++
++
++ Test Files  15 passed (15)
++      Tests  137 passed (137)
++   Start at  13:14:06
++   Duration  1.38s (import 48%, transform 32%, tests 13%, worker 7%)
++
++    Isolate  15 workers spawned · ~110ms startup each (spawn + environment, per file)
++             at least ~717ms faster with isolate: false — reuses workers across files instead of one per file
++
++
++exit=0
+diff --git a/task_logs/RR15_artifacts/independent-risk-mutant-red.txt b/task_logs/RR15_artifacts/independent-risk-mutant-red.txt
+new file mode 100644
+index 0000000..c5ddf50
+--- /dev/null
++++ b/task_logs/RR15_artifacts/independent-risk-mutant-red.txt
+@@ -0,0 +1,44 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR15
++
++ ❯ src/lib/__tests__/predictions.runtime.test.ts (5 tests | 1 failed) 9ms
++   ❯ 运行时预测候选 (5)
++     × 额度失败不妨碍独立的新鲜风险；旧契约stale额度不能当新评估 3ms
++ ❯ src/ui/__tests__/ui.prediction-log.test.ts (2 tests | 1 failed) 7ms
++   ❯ 生产预测VM (2)
++     × 风险独立于额度状态，来源过期或旧契约stale额度不冒充新预测 3ms
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/lib/__tests__/predictions.runtime.test.ts > 运行时预测候选 > 额度失败不妨碍独立的新鲜风险；旧契约stale额度不能当新评估
++AssertionError: expected null not to be null
++ ❯ src/lib/__tests__/predictions.runtime.test.ts:22:69
++     20|   it("额度失败不妨碍独立的新鲜风险；旧契约stale额度不能当新评估", () => {
++     21|     for (const quotaStatus of ["stale", "error", "unavailable"]) {
++     22|       expect(buildPredictionRecord({ ...base(), quotaStatus })).not.to…
++       |                                                                     ^
++     23|       expect(buildPredictionRecord({ ...base(), quotaStatus, resetSour…
++     24|     }
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
++
++ FAIL  src/ui/__tests__/ui.prediction-log.test.ts > 生产预测VM > 风险独立于额度状态，来源过期或旧契约stale额度不冒充新预测
++AssertionError: expected null not to be null
++ ❯ src/ui/__tests__/ui.prediction-log.test.ts:19:85
++     17|   });
++     18|   it("风险独立于额度状态，来源过期或旧契约stale额度不冒充新预测", () => {
++     19|     expect(buildDashboard({ ...input(), status: "error" }, [], now).pr…
++       |                                                                                     ^
++     20|     expect(buildDashboard({ ...input(), status: "stale", resetStatus: …
++     21|     expect(buildDashboard({ ...input(), resetStatus: sourceSnapshot({ …
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
++
++
++ Test Files  2 failed (2)
++      Tests  2 failed | 5 passed (7)
++   Start at  13:19:27
++   Duration  310ms (transform 49%, import 43%, tests 5%, worker 3%)
++
++
++exit=1
+diff --git a/task_logs/RR15_artifacts/node-final-green.txt b/task_logs/RR15_artifacts/node-final-green.txt
+new file mode 100644
+index 0000000..f62d2ae
+--- /dev/null
++++ b/task_logs/RR15_artifacts/node-final-green.txt
+@@ -0,0 +1,46 @@
++TAP version 13
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 1 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.5431
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 2 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.2515
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 3 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 9.306
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 4 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 19.2067
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 5 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 3.0342
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 6 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 124.6379
++  type: 'test'
++  ...
++1..6
++# tests 6
++# suites 0
++# pass 6
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 250.9371
+diff --git a/task_logs/RR15_artifacts/node-green.txt b/task_logs/RR15_artifacts/node-green.txt
+new file mode 100644
+index 0000000..b1fe1b7
+--- /dev/null
++++ b/task_logs/RR15_artifacts/node-green.txt
+@@ -0,0 +1,46 @@
++TAP version 13
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 1 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.6118
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 2 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.256
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 3 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 11.1861
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 4 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 9.2906
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 5 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 2.0849
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 6 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 112.8377
++  type: 'test'
++  ...
++1..6
++# tests 6
++# suites 0
++# pass 6
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 240.0939
+diff --git a/task_logs/RR15_artifacts/node-mutant-red.txt b/task_logs/RR15_artifacts/node-mutant-red.txt
+new file mode 100644
+index 0000000..b0b2f72
+--- /dev/null
++++ b/task_logs/RR15_artifacts/node-mutant-red.txt
+@@ -0,0 +1,70 @@
++TAP version 13
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 1 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 2.0299
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++not ok 2 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.9235
++  type: 'test'
++  location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR15\\scripts\\tests\\prediction-log.node.mjs:32:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    + actual - expected
++    
++    + 'C:\\Users\\u\\Roaming\\app.wrong.desktop\\predictions.jsonl'
++    - 'C:\\Users\\u\\Roaming\\app.resetradar.desktop\\predictions.jsonl'
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: 'C:\\Users\\u\\Roaming\\app.resetradar.desktop\\predictions.jsonl'
++  actual: 'C:\\Users\\u\\Roaming\\app.wrong.desktop\\predictions.jsonl'
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR15/scripts/tests/prediction-log.node.mjs:33:10)
++    Test.runInAsyncScope (node:async_hooks:214:14)
++    Test.run (node:internal/test_runner/test:1047:25)
++    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
++    Test.postRun (node:internal/test_runner/test:1173:19)
++    Test.run (node:internal/test_runner/test:1101:12)
++    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 3 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 3.8857
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 4 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 9.5302
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 5 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 2.8434
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 6 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 109.5613
++  type: 'test'
++  ...
++1..6
++# tests 6
++# suites 0
++# pass 5
++# fail 1
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 218.1675
++
++exit=1
+diff --git a/task_logs/RR15_artifacts/node-restored-green.txt b/task_logs/RR15_artifacts/node-restored-green.txt
+new file mode 100644
+index 0000000..09d8ca1
+--- /dev/null
++++ b/task_logs/RR15_artifacts/node-restored-green.txt
+@@ -0,0 +1,48 @@
++TAP version 13
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 1 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.5939
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 2 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.2427
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 3 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 4.2716
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 4 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 9.4166
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 5 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 3.1915
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 6 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 105.9615
++  type: 'test'
++  ...
++1..6
++# tests 6
++# suites 0
++# pass 6
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 196.9519
++
++exit=0
+diff --git a/task_logs/RR15_artifacts/node-verified-green.txt b/task_logs/RR15_artifacts/node-verified-green.txt
+new file mode 100644
+index 0000000..a1b6efe
+--- /dev/null
++++ b/task_logs/RR15_artifacts/node-verified-green.txt
+@@ -0,0 +1,58 @@
++TAP version 13
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 1 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.3286
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 2 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.2395
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 3 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 4.0164
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 4 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 9.9164
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 5 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 1.9747
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 6 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 119.3439
++  type: 'test'
++  ...
++# Subtest: unknown or duplicate path options fail instead of writing canonical data
++ok 7 - unknown or duplicate path options fail instead of writing canonical data
++  ---
++  duration_ms: 0.2099
++  type: 'test'
++  ...
++# Subtest: missing file is labelled but read errors make calibration fail explicitly
++ok 8 - missing file is labelled but read errors make calibration fail explicitly
++  ---
++  duration_ms: 111.9563
++  type: 'test'
++  ...
++1..8
++# tests 8
++# suites 0
++# pass 8
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 372.4065
+diff --git a/task_logs/RR15_artifacts/probe-log-state.mjs b/task_logs/RR15_artifacts/probe-log-state.mjs
+new file mode 100644
+index 0000000..1332f03
+--- /dev/null
++++ b/task_logs/RR15_artifacts/probe-log-state.mjs
+@@ -0,0 +1,27 @@
++// 只读CDP探针，沿RR14落盘验收机制；不调用写盘命令，不改变页面。
++const port = process.argv[2];
++let page;
++for (let i=0;i<40;i++) {
++  try { const pages=await (await fetch(`http://127.0.0.1:${port}/json`)).json(); page=pages.find(p=>p.type==="page"&&p.webSocketDebuggerUrl); if(page) break; } catch {}
++  await new Promise(r=>setTimeout(r,250));
++}
++if (!page) throw new Error("No owned WebView CDP page");
++const ws=new WebSocket(page.webSocketDebuggerUrl);
++await new Promise((resolve,reject)=>{ws.addEventListener("open",resolve,{once:true});ws.addEventListener("error",reject,{once:true});});
++let id=0; const pending=new Map();
++ws.addEventListener("message",e=>{const v=JSON.parse(e.data);if(pending.has(v.id)){pending.get(v.id)(v);pending.delete(v.id);}});
++async function evaluate(expression) {
++ const callId=++id;
++ const result=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(callId);reject(new Error("CDP response timed out"));},3000);pending.set(callId,v=>{clearTimeout(timer);resolve(v);});ws.send(JSON.stringify({id:callId,method:"Runtime.evaluate",params:{expression,returnByValue:true}}));});
++ return result.result?.result?.value;
++}
++try {
++ let state;
++ for(let i=0;i<60;i++) {
++  state=await evaluate(`({url:location.href,tauri:!!window.__TAURI_INTERNALS__,logState:document.querySelector('main')?.dataset.predictionLogState,text:document.querySelector('main')?.innerText.slice(0,100)})`);
++  if(state?.logState==="ok" || state?.logState==="error")break;
++  await new Promise(r=>setTimeout(r,250));
++ }
++ console.log(JSON.stringify(state,null,2));
++ if(!state?.tauri || state.logState!=="ok")process.exitCode=1;
++} finally {ws.close();}
+diff --git a/task_logs/RR15_artifacts/production-dom-after-refresh.json b/task_logs/RR15_artifacts/production-dom-after-refresh.json
+new file mode 100644
+index 0000000..004d52e
+--- /dev/null
++++ b/task_logs/RR15_artifacts/production-dom-after-refresh.json
+@@ -0,0 +1,6 @@
++{
++  "url": "http://tauri.localhost/",
++  "tauri": true,
++  "logState": "ok",
++  "text": "CODEX\n91%\n周额度剩余\n重置风险 44.0%\n卡×3"
++}
+diff --git a/task_logs/RR15_artifacts/production-dom-final.json b/task_logs/RR15_artifacts/production-dom-final.json
+new file mode 100644
+index 0000000..047fcd5
+--- /dev/null
++++ b/task_logs/RR15_artifacts/production-dom-final.json
+@@ -0,0 +1,6 @@
++{
++  "url": "http://tauri.localhost/",
++  "tauri": true,
++  "logState": "ok",
++  "text": "CODEX\n92%\n周额度剩余\n重置风险 44.0%\n卡×3"
++}
+diff --git a/task_logs/RR15_artifacts/production-dom-first.json b/task_logs/RR15_artifacts/production-dom-first.json
+new file mode 100644
+index 0000000..047fcd5
+--- /dev/null
++++ b/task_logs/RR15_artifacts/production-dom-first.json
+@@ -0,0 +1,6 @@
++{
++  "url": "http://tauri.localhost/",
++  "tauri": true,
++  "logState": "ok",
++  "text": "CODEX\n92%\n周额度剩余\n重置风险 44.0%\n卡×3"
++}
+diff --git a/task_logs/RR15_artifacts/production-dom-restart.json b/task_logs/RR15_artifacts/production-dom-restart.json
+new file mode 100644
+index 0000000..047fcd5
+--- /dev/null
++++ b/task_logs/RR15_artifacts/production-dom-restart.json
+@@ -0,0 +1,6 @@
++{
++  "url": "http://tauri.localhost/",
++  "tauri": true,
++  "logState": "ok",
++  "text": "CODEX\n92%\n周额度剩余\n重置风险 44.0%\n卡×3"
++}
+diff --git a/task_logs/RR15_artifacts/production-dom-verified.json b/task_logs/RR15_artifacts/production-dom-verified.json
+new file mode 100644
+index 0000000..047fcd5
+--- /dev/null
++++ b/task_logs/RR15_artifacts/production-dom-verified.json
+@@ -0,0 +1,6 @@
++{
++  "url": "http://tauri.localhost/",
++  "tauri": true,
++  "logState": "ok",
++  "text": "CODEX\n92%\n周额度剩余\n重置风险 44.0%\n卡×3"
++}
+diff --git a/task_logs/RR15_artifacts/production-log-first-verified.json b/task_logs/RR15_artifacts/production-log-first-verified.json
+new file mode 100644
+index 0000000..6f3458a
+--- /dev/null
++++ b/task_logs/RR15_artifacts/production-log-first-verified.json
+@@ -0,0 +1,14 @@
++{
++  "runtimePath": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\predictions.jsonl",
++  "createdAt": "2026-10-11T05:17:20.7454402Z",
++  "record": {
++    "date": "2026-10-11",
++    "predictedRisk": 44,
++    "factorsDigest": "base=10,consecutive-reset=30,interval-hazard=-6.7,recent-regime=12,weekday-empirical=-1.2",
++    "fetchedAt": "2026-10-11T05:17:20.742Z"
++  },
++  "rows": 1,
++  "lockLeft": false,
++  "probeResult": "production-dom-first.json: tauri=true, logState=ok",
++  "validationCorrection": "ConvertFrom-Json -DateKind String preserves ISO timezone; default DateTime conversion invalidated the first timestamp comparison"
++}
+diff --git a/task_logs/RR15_artifacts/production-restart-idempotent.json b/task_logs/RR15_artifacts/production-restart-idempotent.json
+new file mode 100644
+index 0000000..3072ea5
+--- /dev/null
++++ b/task_logs/RR15_artifacts/production-restart-idempotent.json
+@@ -0,0 +1,10 @@
++{
++  "pid": 30192,
++  "startedAt": "2026-10-11T05:18:11.6518471+00:00",
++  "runtimePath": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\predictions.jsonl",
++  "bytesBefore": 188,
++  "bytesAfter": 188,
++  "unchanged": true,
++  "freshSourceAttempt": "2026-10-11T05:18:12.135838400Z",
++  "lockLeft": false
++}
+diff --git a/task_logs/RR15_artifacts/production-verified-idempotent.json b/task_logs/RR15_artifacts/production-verified-idempotent.json
+new file mode 100644
+index 0000000..0ef506d
+--- /dev/null
++++ b/task_logs/RR15_artifacts/production-verified-idempotent.json
+@@ -0,0 +1,17 @@
++{
++  "pid": 31512,
++  "startedAt": "2026-10-11T05:21:45.0919240+00:00",
++  "runtimePath": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\predictions.jsonl",
++  "bytesBefore": 188,
++  "bytesAfter": 188,
++  "unchanged": true,
++  "freshSourceAttempt": "2026-10-11T05:21:45.553433100Z",
++  "sourceStatus": "ok",
++  "record": {
++    "date": "2026-10-11",
++    "predictedRisk": 44,
++    "factorsDigest": "base=10,consecutive-reset=30,interval-hazard=-6.7,recent-regime=12,weekday-empirical=-1.2",
++    "fetchedAt": "2026-10-11T05:17:20.742Z"
++  },
++  "lockLeft": false
++}
+diff --git a/task_logs/RR15_artifacts/release-build.txt b/task_logs/RR15_artifacts/release-build.txt
+new file mode 100644
+index 0000000..587cdca
+--- /dev/null
++++ b/task_logs/RR15_artifacts/release-build.txt
+@@ -0,0 +1,8 @@
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR15\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++         C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (bin "reset-radar") generated 1 warning
++    Finished `release` profile [optimized] target(s) in 38.26s
+diff --git a/task_logs/RR15_artifacts/release-final-build.txt b/task_logs/RR15_artifacts/release-final-build.txt
+new file mode 100644
+index 0000000..ac44154
+--- /dev/null
++++ b/task_logs/RR15_artifacts/release-final-build.txt
+@@ -0,0 +1,8 @@
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR15\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++         C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (bin "reset-radar") generated 1 warning
++    Finished `release` profile [optimized] target(s) in 36.90s
+diff --git a/task_logs/RR15_artifacts/release-verified-build.txt b/task_logs/RR15_artifacts/release-verified-build.txt
+new file mode 100644
+index 0000000..4459403
+--- /dev/null
++++ b/task_logs/RR15_artifacts/release-verified-build.txt
+@@ -0,0 +1,8 @@
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR15\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++         C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (bin "reset-radar") generated 1 warning
++    Finished `release` profile [optimized] target(s) in 37.07s
+diff --git a/task_logs/RR15_artifacts/rust-final-green.txt b/task_logs/RR15_artifacts/rust-final-green.txt
+new file mode 100644
+index 0000000..8c186d5
+--- /dev/null
++++ b/task_logs/RR15_artifacts/rust-final-green.txt
+@@ -0,0 +1,43 @@
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR15\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (lib test) generated 1 warning
++    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.76s
++     Running unittests src\lib.rs (C:/Users/slsjz/Desktop/reset-radar/src-tauri/target\debug\deps\reset_radar_lib-0c14c46607274616.exe)
++
++running 30 tests
++test build_manifest::manifest_declares_per_monitor_dpi_awareness ... ok
++test codex::tests::accepts_snake_case_keys ... ok
++test codex::tests::does_not_mislabel_short_app_server_window_as_weekly ... ok
++test build_manifest::manifest_keeps_common_controls_v6_dependency ... ok
++test codex::tests::prefers_rate_limits_by_limit_id_bucket ... ok
++test codex::tests::parses_official_app_server_weekly_snapshot ... ok
++test codex::tests::clamps_remaining_into_0_100 ... ok
++test reset_status::tests::live_status_tls_probe ... ignored, manual live TLS probe; run explicitly with --ignored
++test codex::tests::timestamp_converts_unix_seconds_to_rfc3339 ... ok
++test predictions::tests::contract_rejects_multiline_or_invalid_data_without_files ... ok
++test reset_status::tests::parses_status_contract_and_preserves_upstream_fields ... ok
++test reset_status::tests::malformed_envelope_and_missing_or_non_object_data_meta_are_rejected ... ok
++test reset_status::tests::serialization_uses_camel_case_snapshot_and_announcement_keys ... ok
++test reset_status::tests::scheduled_reset_object_requires_its_contract_fields ... ok
++test snapshots::tests::legacy_snapshots_without_status_remain_readable ... ok
++test reset_status::tests::required_keys_and_json_shapes_are_validated ... ok
++test snapshots::tests::unparsable_fetched_at_defaults_to_24h ... ok
++test reset_status::tests::fetch_error_preserves_last_success_fields_and_updates_attempt_state ... ok
++test reset_status::tests::error_without_saved_data_returns_an_error_snapshot ... ok
++test reset_status::tests::successful_null_schedule_replaces_the_previous_plan ... ok
++test reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary ... ok
++test reset_status::tests::client_build_error_returns_error_snapshot_without_network ... ok
++test snapshots::tests::load_missing_file_returns_none ... ok
++test predictions::tests::read_failure_is_not_reported_as_empty_history ... ok
++test predictions::tests::busy_lock_does_not_remove_another_writers_lock ... ok
++test snapshots::tests::load_marks_ok_snapshots_stale ... ok
++test snapshots::tests::persist_then_load_roundtrips_with_camel_case_keys ... ok
++test snapshots::tests::source_metadata_roundtrips_independently_of_stale_quota ... ok
++test predictions::tests::cold_read_and_compare_append_roundtrip ... ok
++test predictions::tests::preserves_bad_lines_crlf_and_unterminated_tail_bytes ... ok
++
++test result: ok. 29 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.03s
++
+diff --git a/task_logs/RR15_artifacts/rust-mutant-red.txt b/task_logs/RR15_artifacts/rust-mutant-red.txt
+new file mode 100644
+index 0000000..e514213
+--- /dev/null
++++ b/task_logs/RR15_artifacts/rust-mutant-red.txt
+@@ -0,0 +1,35 @@
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR15\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (lib test) generated 1 warning
++    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.03s
++     Running unittests src\lib.rs (C:/Users/slsjz/Desktop/reset-radar/src-tauri/target\debug\deps\reset_radar_lib-0c14c46607274616.exe)
++
++running 5 tests
++test predictions::tests::contract_rejects_multiline_or_invalid_data_without_files ... ok
++test predictions::tests::read_failure_is_not_reported_as_empty_history ... ok
++test predictions::tests::busy_lock_does_not_remove_another_writers_lock ... ok
++test predictions::tests::preserves_bad_lines_crlf_and_unterminated_tail_bytes ... ok
++test predictions::tests::cold_read_and_compare_append_roundtrip ... FAILED
++
++failures:
++
++---- predictions::tests::cold_read_and_compare_append_roundtrip stdout ----
++
++thread 'predictions::tests::cold_read_and_compare_append_roundtrip' (29280) panicked at src\predictions.rs:75:9:
++assertion `left == right` failed
++  left: Appended
++ right: Conflict
++note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
++
++
++failures:
++    predictions::tests::cold_read_and_compare_append_roundtrip
++
++test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.02s
++
++error: test failed, to rerun pass `--lib`
++
++exit=101
+diff --git a/task_logs/RR15_artifacts/rust-restored-green.txt b/task_logs/RR15_artifacts/rust-restored-green.txt
+new file mode 100644
+index 0000000..7d1d4d6
+--- /dev/null
++++ b/task_logs/RR15_artifacts/rust-restored-green.txt
+@@ -0,0 +1,45 @@
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR15\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (lib test) generated 1 warning
++    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.99s
++     Running unittests src\lib.rs (C:/Users/slsjz/Desktop/reset-radar/src-tauri/target\debug\deps\reset_radar_lib-0c14c46607274616.exe)
++
++running 30 tests
++test build_manifest::manifest_declares_per_monitor_dpi_awareness ... ok
++test build_manifest::manifest_keeps_common_controls_v6_dependency ... ok
++test codex::tests::does_not_mislabel_short_app_server_window_as_weekly ... ok
++test codex::tests::accepts_snake_case_keys ... ok
++test codex::tests::timestamp_converts_unix_seconds_to_rfc3339 ... ok
++test codex::tests::prefers_rate_limits_by_limit_id_bucket ... ok
++test codex::tests::parses_official_app_server_weekly_snapshot ... ok
++test codex::tests::clamps_remaining_into_0_100 ... ok
++test predictions::tests::contract_rejects_multiline_or_invalid_data_without_files ... ok
++test reset_status::tests::live_status_tls_probe ... ignored, manual live TLS probe; run explicitly with --ignored
++test reset_status::tests::parses_status_contract_and_preserves_upstream_fields ... ok
++test reset_status::tests::malformed_envelope_and_missing_or_non_object_data_meta_are_rejected ... ok
++test reset_status::tests::serialization_uses_camel_case_snapshot_and_announcement_keys ... ok
++test reset_status::tests::required_keys_and_json_shapes_are_validated ... ok
++test reset_status::tests::scheduled_reset_object_requires_its_contract_fields ... ok
++test snapshots::tests::legacy_snapshots_without_status_remain_readable ... ok
++test snapshots::tests::unparsable_fetched_at_defaults_to_24h ... ok
++test predictions::tests::read_failure_is_not_reported_as_empty_history ... ok
++test snapshots::tests::load_missing_file_returns_none ... ok
++test reset_status::tests::successful_null_schedule_replaces_the_previous_plan ... ok
++test reset_status::tests::fetch_error_preserves_last_success_fields_and_updates_attempt_state ... ok
++test reset_status::tests::error_without_saved_data_returns_an_error_snapshot ... ok
++test reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary ... ok
++test reset_status::tests::client_build_error_returns_error_snapshot_without_network ... ok
++test predictions::tests::busy_lock_does_not_remove_another_writers_lock ... ok
++test snapshots::tests::source_metadata_roundtrips_independently_of_stale_quota ... ok
++test predictions::tests::cold_read_and_compare_append_roundtrip ... ok
++test predictions::tests::preserves_bad_lines_crlf_and_unterminated_tail_bytes ... ok
++test snapshots::tests::persist_then_load_roundtrips_with_camel_case_keys ... ok
++test snapshots::tests::load_marks_ok_snapshots_stale ... ok
++
++test result: ok. 29 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
++
++
++exit=0
+diff --git a/task_logs/RR15_artifacts/ts-mutant-red-verified.txt b/task_logs/RR15_artifacts/ts-mutant-red-verified.txt
+new file mode 100644
+index 0000000..e22d454
+--- /dev/null
++++ b/task_logs/RR15_artifacts/ts-mutant-red-verified.txt
+@@ -0,0 +1,33 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR15
++
++ ❯ src/lib/__tests__/predictions.runtime.test.ts (5 tests | 1 failed) 9ms
++   ❯ 运行时预测候选 (5)
++     × 记录风险评估北京日，执行时间不改变目标日 6ms
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/lib/__tests__/predictions.runtime.test.ts > 运行时预测候选 > 记录风险评估北京日，执行时间不改变目标日
++AssertionError: expected '2026-10-12' to be '2026-10-11' // Object.is equality
++
++Expected: "2026-10-11"
++Received: "2026-10-12"
++
++ ❯ src/lib/__tests__/predictions.runtime.test.ts:11:22
++      9|   it("记录风险评估北京日，执行时间不改变目标日", () => {
++     10|     const input = base(); const row = buildPredictionRecord(input)!;
++     11|     expect(row.date).toBe("2026-10-11"); // recordedAt北京已经次日。
++       |                      ^
++     12|     expect(row.fetchedAt).toBe(now.toISOString());
++     13|     expect(row.predictedRisk).toBe(input.risk.score);
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
++
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 4 passed (5)
++   Start at  13:13:55
++   Duration  294ms (transform 48%, import 44%, tests 5%, worker 2%)
++
++
++exit=1
+diff --git a/task_logs/RR15_artifacts/ts-mutant-red.txt b/task_logs/RR15_artifacts/ts-mutant-red.txt
+new file mode 100644
+index 0000000..fc28d55
+--- /dev/null
++++ b/task_logs/RR15_artifacts/ts-mutant-red.txt
+@@ -0,0 +1,33 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR15
++
++ ❯ src/lib/__tests__/predictions.runtime.test.ts (5 tests | 1 failed) 9ms
++   ❯ 运行时预测候选 (5)
++     × 记录风险评估北京日，执行时间不改变目标日 7ms
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/lib/__tests__/predictions.runtime.test.ts > 运行时预测候选 > 记录风险评估北京日，执行时间不改变目标日
++AssertionError: expected '2026-10-12' to be '2026-10-11' // Object.is equality
++
++Expected: "2026-10-11"
++Received: "2026-10-12"
++
++ ❯ src/lib/__tests__/predictions.runtime.test.ts:11:22
++      9|   it("记录风险评估北京日，执行时间不改变目标日", () => {
++     10|     const input = base(); const row = buildPredictionRecord(input)!;
++     11|     expect(row.date).toBe("2026-10-11"); // recordedAt北京已经次日。
++       |                      ^
++     12|     expect(row.fetchedAt).toBe(now.toISOString());
++     13|     expect(row.predictedRisk).toBe(input.risk.score);
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
++
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 4 passed (5)
++   Start at  13:13:37
++   Duration  260ms (transform 48%, import 43%, tests 6%, worker 2%)
++
++
++exit=1
+diff --git a/task_logs/RR15_artifacts/tsc-green.txt b/task_logs/RR15_artifacts/tsc-green.txt
+new file mode 100644
+index 0000000..3e0103c
+--- /dev/null
++++ b/task_logs/RR15_artifacts/tsc-green.txt
+@@ -0,0 +1,2 @@
++
++exit=0
+diff --git a/task_logs/RR15_artifacts/vite-build.txt b/task_logs/RR15_artifacts/vite-build.txt
+new file mode 100644
+index 0000000..7c0e933
+--- /dev/null
++++ b/task_logs/RR15_artifacts/vite-build.txt
+@@ -0,0 +1,15 @@
++
++> reset-radar@0.1.0 build
++> tsc && vite build
++
++vite v7.3.7 building client environment for production...
++transforming...
++✓ 55 modules transformed.
++rendering chunks...
++computing gzip size...
++dist/index.html                   0.59 kB │ gzip:  0.45 kB
++dist/assets/window-BfoBOpge.js   13.49 kB │ gzip:  3.29 kB
++dist/assets/index-IgpZVqhu.js   274.37 kB │ gzip: 88.55 kB
++✓ built in 864ms
++
++exit=0
+diff --git a/task_logs/RR15_artifacts/vite-final-build.txt b/task_logs/RR15_artifacts/vite-final-build.txt
+new file mode 100644
+index 0000000..eb8bbef
+--- /dev/null
++++ b/task_logs/RR15_artifacts/vite-final-build.txt
+@@ -0,0 +1,13 @@
++
++> reset-radar@0.1.0 build
++> tsc && vite build
++
++vite v7.3.7 building client environment for production...
++transforming...
++✓ 55 modules transformed.
++rendering chunks...
++computing gzip size...
++dist/index.html                   0.59 kB │ gzip:  0.44 kB
++dist/assets/window-D16Vs6lr.js   13.49 kB │ gzip:  3.29 kB
++dist/assets/index-BEdXBnAm.js   274.37 kB │ gzip: 88.55 kB
++✓ built in 957ms
+-- 
+2.52.0.windows.1
+

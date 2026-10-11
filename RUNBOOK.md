@@ -164,3 +164,4 @@ mkdir -p /tmp/takeover/RR07 && cp -r ../reset-radar_wt/RR07/<untracked> /tmp/tak
 
 - 2026-10-11 初始化会话建立五件套 + 首批 12 卡（RR01–RR12）+ 预填 TRUTH 构建锚点与黑名单。
 - 2026-10-11 补充 §9.1：视觉审查可派 Explore 只读子代理识图（主会话不直接读图；子代理只能读落盘图片，不能看屏幕）。
+- 2026-10-11 REVIEW 拍刷新入口更新（S1011-RR12r2）：`node scripts/review-calibration.mjs`（RR17 起 fetch-history 已自动落 docs/calibration-latest.md 与 data/calibration.json，并写应用目录快照）。stdout 勿重定向到 calibration-latest.md（同文件原子写会 EPERM）；§9.1 旧命令 `calibrate.mjs > docs/...` 仍有效。

@@ -1,9 +1,9 @@
 # 校准报告（calibration-latest）
 
-> 生成：2026-10-11T06:44:44.582Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
+> 生成：2026-10-11T07:34:13.520Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
 
-- 重置历史：data/resets-history.json —— 60 条原始事件 / 54 条额度重置（仅regular；排除 6 条）（fetchedAt 2026-10-11T06:30:53.872Z）
-- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-11T06:30:53.872Z
+- 重置历史：data/resets-history.json —— 60 条原始事件 / 54 条额度重置（仅regular；排除 6 条）（fetchedAt 2026-10-11T07:34:13.520Z）
+- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-11T07:34:13.520Z
 
 ## Watch同样本比较（前瞻24h窗口）
 
@@ -14,10 +14,10 @@
 
 - 仅同一次预先留存的baseline与watch预测配对，窗口(start,end]已被历史覆盖；不从当前watch或四舍五入因子倒填旧预测。样本不足时指标为空，不能据此宣称25%权重更好。
 
-- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar_wt\RR28\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：2 行有效；合计 3 行有效
+- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：3 行有效；合计 4 行有效
 - 计分窗口：0 个（每天首条合法预测的未来24h，已被历史覆盖；其中发生重置 0 个）
 
-- 排除：旧行无窗口 3；非法 0；事后记录 0；待窗口完成 0；超出历史覆盖 0；同日后补 0。旧预测不倒填；事件只匹配(start,end]，不是预测当日。
+- 排除：旧行无窗口 3；非法 0；事后记录 1；待窗口完成 0；超出历史覆盖 0；同日后补 0。旧预测不倒填；事件只匹配(start,end]，不是预测当日。
 
 ## 总分
 

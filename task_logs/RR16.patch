@@ -1,0 +1,2156 @@
+From f7890a53436ec95c5216ece09dd58e974351f5a3 Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 14:00:05 +0800
+Subject: [PATCH] feat: wire validated watch and paired prospective calibration
+
+---
+ TRUTH.md                                      |   6 +
+ docs/DECISIONS.md                             |   7 +
+ docs/calibration-latest.md                    |  14 +-
+ docs/design/04-progress.md                    |   5 +
+ docs/watch-calibration-20261011.md            |  50 +++
+ scripts/calibration-report.mjs                |  12 +
+ scripts/log-prediction.mjs                    |  15 +-
+ scripts/prediction-files.mjs                  |   3 +
+ scripts/watch-report.test.mjs                 |  46 +++
+ src/lib/__tests__/watch.comparison.test.ts    |  69 ++++
+ src/lib/__tests__/watch.validity.test.ts      |  48 +++
+ src/lib/index.ts                              |   2 +
+ src/lib/predictions.ts                        |   7 +
+ src/lib/resetStatus.ts                        |   3 +
+ src/lib/risk.ts                               |  11 +-
+ src/lib/watchCalibration.ts                   |  89 +++++
+ src/lib/watchSignal.ts                        |  69 ++++
+ src/ui/__tests__/ui.reset-status.test.ts      |  30 +-
+ src/ui/adapters.ts                            |   2 +-
+ task_logs/RR16-domain-initial.txt             |   9 +
+ task_logs/RR16_artifacts/build.txt            |  13 +
+ task_logs/RR16_artifacts/domain-final.txt     |  12 +
+ task_logs/RR16_artifacts/domain.txt           |  12 +
+ task_logs/RR16_artifacts/full-final.txt       |  12 +
+ task_logs/RR16_artifacts/full.txt             |  12 +
+ task_logs/RR16_artifacts/mutation-expiry.txt  |  31 ++
+ .../mutation-prospective-retest.txt           |  34 ++
+ .../RR16_artifacts/mutation-prospective.txt   |   9 +
+ .../RR16_artifacts/mutation-selection.txt     |  42 +++
+ task_logs/RR16_artifacts/mutation-weight.txt  |  34 ++
+ task_logs/RR16_artifacts/native-build.txt     |   8 +
+ task_logs/RR16_artifacts/node-final.txt       | 307 ++++++++++++++++++
+ task_logs/RR16_artifacts/node-initial.txt     | 301 +++++++++++++++++
+ task_logs/RR16_artifacts/node.txt             | 307 ++++++++++++++++++
+ task_logs/RR16_artifacts/production-cdp.json  |   6 +
+ task_logs/RR16_artifacts/production.json      |  57 ++++
+ task_logs/RR16_artifacts/status-live.json     |  31 ++
+ task_logs/RR16_artifacts/tsc-final.txt        |   0
+ task_logs/RR16_artifacts/tsc.txt              |   0
+ 39 files changed, 1711 insertions(+), 14 deletions(-)
+ create mode 100644 docs/watch-calibration-20261011.md
+ create mode 100644 scripts/watch-report.test.mjs
+ create mode 100644 src/lib/__tests__/watch.comparison.test.ts
+ create mode 100644 src/lib/__tests__/watch.validity.test.ts
+ create mode 100644 src/lib/watchCalibration.ts
+ create mode 100644 src/lib/watchSignal.ts
+ create mode 100644 task_logs/RR16-domain-initial.txt
+ create mode 100644 task_logs/RR16_artifacts/build.txt
+ create mode 100644 task_logs/RR16_artifacts/domain-final.txt
+ create mode 100644 task_logs/RR16_artifacts/domain.txt
+ create mode 100644 task_logs/RR16_artifacts/full-final.txt
+ create mode 100644 task_logs/RR16_artifacts/full.txt
+ create mode 100644 task_logs/RR16_artifacts/mutation-expiry.txt
+ create mode 100644 task_logs/RR16_artifacts/mutation-prospective-retest.txt
+ create mode 100644 task_logs/RR16_artifacts/mutation-prospective.txt
+ create mode 100644 task_logs/RR16_artifacts/mutation-selection.txt
+ create mode 100644 task_logs/RR16_artifacts/mutation-weight.txt
+ create mode 100644 task_logs/RR16_artifacts/native-build.txt
+ create mode 100644 task_logs/RR16_artifacts/node-final.txt
+ create mode 100644 task_logs/RR16_artifacts/node-initial.txt
+ create mode 100644 task_logs/RR16_artifacts/node.txt
+ create mode 100644 task_logs/RR16_artifacts/production-cdp.json
+ create mode 100644 task_logs/RR16_artifacts/production.json
+ create mode 100644 task_logs/RR16_artifacts/status-live.json
+ create mode 100644 task_logs/RR16_artifacts/tsc-final.txt
+ create mode 100644 task_logs/RR16_artifacts/tsc.txt
+
+diff --git a/TRUTH.md b/TRUTH.md
+index f9e1b40..c18071d 100644
+--- a/TRUTH.md
++++ b/TRUTH.md
+@@ -172,3 +172,9 @@
+ ### 2026-10-11 RR19 脚本门禁实证
+ - CI/release都新增npm run test:node，入口递归发现5个测试文件（包含scripts/tests/prediction-log.node.mjs），本机Nodev22.23.1真实34/34通过；既有CI Node24配置未改，官方类型擦除文档登记§1。清单node-inventory.json，原文node-restored.txt。
+ - 两YAML actionlint1.7.12退出0，check-ci/release结构守卫通过；删除步骤/软失败/遗漏嵌套/吞退出码4变异均红且原字节恢复复绿，mutation-proof.txt。前端/核心147/147与tsc退出0。版本保持0.1.0、13个README相对链接有效；没有远端runner运行或发布动作。
++
++
++### RR16 watch来源复核（2026-10-11）
++- MIT reset_forecast.rs:8,76-83,229-265定义5min容差、watch字段、25%融合和active校验；本卡src/lib/watchSignal.ts复用源约束，risk.ts仅导出既有weight并保存counterfactual，不增加新权重。
++- /api/v1/status现场原文见task_logs/RR16_artifacts/status-live.json，fetchedAt记录实际抓取，active_watch:null；合成80%测试不能作为生产watch证据。当前watch同样本比较n=0，两列指标null。
++- 前瞻窗口来自本项目risk.ts未来24h定义；旧四字段日志没有窗口/无watch基线，禁止倒填。通用旧calendar join待RR17修复，不据本卡报告宣称历史权重提升。
+diff --git a/docs/DECISIONS.md b/docs/DECISIONS.md
+index 2cf1591..f9a0e83 100644
+--- a/docs/DECISIONS.md
++++ b/docs/DECISIONS.md
+@@ -242,3 +242,10 @@
+ - RR19要求补Node测试；现有日志测试位于scripts/tests/*.node.mjs，单顶层glob会漏掉。用无依赖Node入口递归发现scripts内*.test.mjs与*.node.mjs并把绝对文件列表交node --test；空清单、启动错误、进程终止和失败测试均非零，不出现无测试假绿。
+ - CI和tag发布构建都在Vitest之后跑npm run test:node；两条结构守卫要求该步不可跳过、不可continue-on-error，防止发布路径绕过脚本测试。仅修改配置，不发tag/不push/不触发Release；版本仍0.1.0。
+ - D013的Vitest scripts/**排除不改；CI既有Node24不改，支持纯核心.ts原生加载，Node官方文档已登记TRUTH来源。远端GitHub runner未运行，验收边界为本地同入口真实测试+两份YAML/actionlint/结构守卫与红验，不冒称远端绿。
++
++
++## D028 RR16 watch有效期门控与事前同样本比较（2026-10-11）
++- 复用risk.ts已有25%权重，源校验沿MIT reset_forecast.rs:8,76-83,246-265；成功来源且level/时间/概率有效才传入，不给缺失概率补数，不新增可调模型参数。
++- 风险生成时保存独立无watch baseline、watch百分比、权重和24h评估窗口；旧行保持原字节。比较只消费事前留存记录，按北京日先选首条有效窗口，再判断watch，避免挑后补的有利样本；两列调用同一scorePredictions，regular事件在(start,end]中算命中。
++- fetchedAt晚于windowStart或窗口未被历史as_of覆盖都不计分；不从当前watch或已取整digest反推旧baseline。当前真实watch为null、paired n=0，指标null，不能宣称25%更优。
++- 本卡严格配对口径不改变旧通用按日回测，RR17须将通用回测迁移到正确24h目标窗口，并统一CLI评估/记录时刻。CLI当前沿历史fetchedAt评估，后写入的候选不具备严格事前配对资格。
+diff --git a/docs/calibration-latest.md b/docs/calibration-latest.md
+index ccc0dd6..796f46b 100644
+--- a/docs/calibration-latest.md
++++ b/docs/calibration-latest.md
+@@ -1,10 +1,20 @@
+ # 校准报告（calibration-latest）
+ 
+-> 生成：2026-10-11T05:36:57.773Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
++> 生成：2026-10-11T06:00:00.088Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
+ 
+ - 重置历史：data/resets-history.json —— 60 条原始事件 / 54 条额度重置（仅regular；排除 6 条）（fetchedAt 2026-10-11T05:33:27.738Z）
+ - as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-11T05:33:27.738Z
+-- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar_wt\RR18\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：2 行有效；合计 3 行有效
++
++## Watch同样本比较（前瞻24h窗口）
++
++| 策略 | watch权重 | 同样本 n | Brier | 命中率 |
++|---|---|---|---|---|
++| 不含watch | 0% | 0 | —（暂无可计分日） | —（暂无可计分日） |
++| 公开watch | 25% | 0 | —（暂无可计分日） | —（暂无可计分日） |
++
++- 仅同一次预先留存的baseline与watch预测配对，窗口(start,end]已被历史覆盖；不从当前watch或四舍五入因子倒填旧预测。样本不足时指标为空，不能据此宣称25%权重更好。
++
++- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar_wt\RR16\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：2 行有效；合计 3 行有效
+ - 计分日：0 个（同日多行取首行 + 未完结日剔除；其中实际重置日 0 个）
+ 
+ ## 总分
+diff --git a/docs/design/04-progress.md b/docs/design/04-progress.md
+index 798d47d..c6a361b 100644
+--- a/docs/design/04-progress.md
++++ b/docs/design/04-progress.md
+@@ -52,3 +52,8 @@ app已从统一VM获取纯核心候选，真实成功评估自动记录到Tauri
+ ## RR19脚本CI
+ 
+ CI与发布构建共用npm run test:node，递归包含顶层与预测日志嵌套文件；空套件和失败不能假绿。结构/YAML/版本/tsc/147前端核心/34Node与4类变异红恢复均通过；配置未推远端，不声称GitHub runner已跑。详docs/ci-node-20261011.md；下一RR16 watch联通。
++
++
++## RR16 watch接线
++
++有效watch通过纯核心校验后输入已有25%风险融合，adapter和CLI共用核心，规划沿风险同参；预测附带评估窗口与同次无watch基线。校准报告新增0%/25%同样本列，当前真实active_watch:null、paired n=0，空指标保留null。旧记录不补写，通用24h回测迁移仍交RR17。最终门禁与生产验证见RR16_done及docs/watch-calibration-20261011.md；下一RR17→RR28→RR27。
+diff --git a/docs/watch-calibration-20261011.md b/docs/watch-calibration-20261011.md
+new file mode 100644
+index 0000000..a9e227f
+--- /dev/null
++++ b/docs/watch-calibration-20261011.md
+@@ -0,0 +1,50 @@
++# Watch 信号接线与前瞻校准说明（2026-10-11）
++
++## 当前结论
++
++RR16 把经过有效性校验的上游 `active_watch` 接入既有风险评估，并为后续校准保留同一条预测中的无 watch baseline 与含 watch 结果。Watch 继续使用原有 25% 融合权重；没有新增模型参数或权重调节入口。
++
++截至本报告引用的生产状态快照，`active_watch: null`，因此没有生产 watch 信号可用于证明接线已在真实 active watch 下运行，也没有可计分的 watch 配对样本。最新校准报告的 watch 同样本数为 `n=0`，Brier 与命中率均为空值（显示为“暂无可计分日”）。当前不能据此宣称 25% 权重改善了预测。
++
++## 信号与风险接线
++
++`src/lib/watchSignal.ts` 对上游信号做结构、level、百分比和带时区 ISO 时间校验；只接受 `elevated`、`strong` 两种 level，拒绝过期、非法和超出未来容差的信号。无信号、不可用或无效状态不会被推断成概率。
++
++有效百分比传入 `src/lib/risk.ts` 的 `assessResetRisk`。既有 `WATCH_WEIGHT = 0.25` 将 watch 概率与融合前风险做加权融合，并在 `watchComparison` 中留存权重、watch 百分比和融合前 baseline。该常量对应既有模型行为，不是 RR16 新增的校准参数。
++
++实现借鉴的 MIT 参考源码为 `C:\Users\slsjz\.zcode\workspace\default\quota-analysis\codex-cockpit\src-tauri\src\reset_forecast.rs`：第 8 行定义 5 分钟未来容差；第 76–83 行描述 watch 输入字段；第 229–238 行以 25% 融合 watch 概率；第 246–265 行校验 active watch 的 level、百分比、观测时刻及过期时刻。项目证据源登记见 `TRUTH.md` §1“参考实现（MIT）”。
++
++## 前瞻配对口径
++
++`src/lib/watchCalibration.ts` 仅比较同一预测记录中事先保存的 `baselineRisk` 和最终 `predictedRisk`，两列使用完全相同的实际结果样本：
++
++- 预测窗口固定为风险模型定义的未来 24 小时 `(windowStart, windowEnd]`；记录必须同时保留窗口起止时刻及 baseline/watch 对照元数据。
++- 预测的 `fetchedAt` 必须不晚于 `windowStart`，且 `windowEnd` 不晚于校准数据的 `as_of`；窗口完整结束并被历史数据覆盖后才计入。
++- 每个北京日期先选首条满足窗口、时间与风险格式条件的候选记录，再检查该行是否含有效 watch 对照。若首条合格记录没有 watch，后续补行不能替代它。
++- 实际结果只统计 `reset_type=regular` 的重置；banked 事件不算额度强制重置。
++- 历史 watch 缺失时不得用当前 watch、四舍五入后的因子或事后信息倒填。没有有效配对样本时 `n=0`，Brier、命中率等指标保持 `null`（报告显示为“暂无可计分日”）。
++
++这些限制避免把窗口完成前的信息、同日后续补行或当前状态混入先前预测。旧日志没有保存窗口和 baseline 时不具备前瞻配对资格；保持原样，不回填或改写。
++
++## 现有证据与边界
++
++- `task_logs/RR16_artifacts/status-live.json` 的状态响应记录 `active_watch: null`。这是当前快照，不代表上游从未发布过 watch。
++- `docs/calibration-latest.md` 记录本轮 watch 配对 `n=0`，两种策略的 Brier 与命中率均为空；普通按日校准同样没有已完成样本可计分。
++- RR16 的 watch 校验与配对单测使用合成输入，用于验证边界和规则，不能作为真实 active watch 运行证据或真实校准样本。
++- 通用旧版日历回测的修正属于后续 RR17 范围。本说明只界定 watch 信号接线与前瞻配对，不声称整个校准流程均已验证正确。
++
++## 证据出处
++
++- 信号验证：`src/lib/watchSignal.ts`；参考实现 `reset_forecast.rs:8,76–83,246–265`。
++- 25% 权重与 baseline 留存：`src/lib/risk.ts` 中 `WATCH_WEIGHT`、`watchComparison` 与 `tracker-watch` 融合逻辑；参考实现 `reset_forecast.rs:229–238`。
++- 预测窗口和日志字段：`src/lib/predictions.ts` 中 `PredictionRecord`、`buildPredictionRecord`；窗口长度定义于 `src/lib/risk.ts` 的 `RESET_RISK_HORIZON_MS`。
++- 前瞻配对和同样本评分：`src/lib/watchCalibration.ts`；展示与 `null` 格式化：`scripts/calibration-report.mjs`。
++- 当前上游状态快照：`task_logs/RR16_artifacts/status-live.json`；本轮报告：`docs/calibration-latest.md`。
++- 允许引用的证据源目录：`TRUTH.md` §1。
++
++
++## 完成本卡验证
++
++- tsc退出0；核心及adapter域146/146、全量170/170、Node37/37通过，Vite与GNU custom-protocol release构建通过（既有manifest合并warning仍存在，退出0）。输出见task_logs/RR16_artifacts。
++- 权重25%改0、精确到期<=改<、放开事前记录条件、允许后补watch抢占首条，各使对应测试失败并原字节恢复。事前条件首轮变异曾存活，原因是组合样本中前一条非法元数据遮住后续记录；补孤立事后记录断言后重验红，最终全量与Node复绿。未掩盖首轮盲点。
++- 实跑owned PID26612，读取真实新鲜/status与额度，watch null、UI风险32.5%、日志钩子ok。生产日志361字节完全不变（SHA256 4A5553BEC97067F643FDC4A8C97888EB4023BEA908C3519E3630FBF705268673），无残留lock；只停止本轮owned进程。没有注入生产watch、没有补历史预测。证据production.json与production-cdp.json。
+diff --git a/scripts/calibration-report.mjs b/scripts/calibration-report.mjs
+index 3a113b5..4386751 100644
+--- a/scripts/calibration-report.mjs
++++ b/scripts/calibration-report.mjs
+@@ -2,6 +2,7 @@
+ import { resolve } from "node:path";
+ import { joinPredictionsWithResets, scorePredictions } from "../src/lib/calibration.ts";
+ import { assessHistorySource, selectQuotaResetHistory, HISTORY_STALE_DAYS } from "../src/lib/history.ts";
++import { compareWatchPredictions } from "../src/lib/watchCalibration.ts";
+ 
+ export function generateCalibrationReport({ history, predictions, generatedAt }) {
+   const lines = [];
+@@ -45,6 +46,17 @@ export function generateCalibrationReport({ history, predictions, generatedAt })
+     `- 重置历史：data/resets-history.json —— ${source.totalEvents} 条原始事件 / ${announcedAt.length} 条额度重置（仅regular；排除 ${source.excludedEvents} 条）（fetchedAt ${history.fetchedAt ?? "缺失"}）`,
+   );
+   emit(`- as_of（数据新鲜度时刻）= 夹具 fetchedAt：${asOf.toISOString()}`);
++  const comparison = compareWatchPredictions(predictions.rows, announcedAt, asOf);
++  emit();
++  emit("## Watch同样本比较（前瞻24h窗口）");
++  emit();
++  emit("| 策略 | watch权重 | 同样本 n | Brier | 命中率 |");
++  emit("|---|---|---|---|---|");
++  emit(`| 不含watch | 0% | ${comparison.pairedSamples} | ${fmt(comparison.withoutWatch.brier, (v) => v.toFixed(3))} | ${fmt(comparison.withoutWatch.hitRate, pct)} |`);
++  emit(`| 公开watch | ${comparison.weight * 100}% | ${comparison.pairedSamples} | ${fmt(comparison.withWatch.brier, (v) => v.toFixed(3))} | ${fmt(comparison.withWatch.hitRate, pct)} |`);
++  emit();
++  emit("- 仅同一次预先留存的baseline与watch预测配对，窗口(start,end]已被历史覆盖；不从当前watch或四舍五入因子倒填旧预测。样本不足时指标为空，不能据此宣称25%权重更好。");
++  emit();
+ 
+   if (noPredictionFiles) {
+     emit(`- 预测日志来源：${predictionPathSummary}`);
+diff --git a/scripts/log-prediction.mjs b/scripts/log-prediction.mjs
+index d904d48..86a249f 100644
+--- a/scripts/log-prediction.mjs
++++ b/scripts/log-prediction.mjs
+@@ -13,7 +13,8 @@ import { readFileSync } from "node:fs";
+ import { resolve } from "node:path";
+ import { fileURLToPath } from "node:url";
+ 
+-import { appendPredictionLog, digestFactors, predictionDateKey } from "../src/lib/predictions.ts";
++import { appendPredictionLog, buildPredictionRecord } from "../src/lib/predictions.ts";
++import { assessWatchSignal } from "../src/lib/watchSignal.ts";
+ import { assessResetRisk } from "../src/lib/risk.ts";
+ import { assessHistorySource, selectQuotaResetHistory } from "../src/lib/history.ts";
+ import { appendPredictionFile, canonicalPredictionPath, parsePredictionPathArg } from "./prediction-files.mjs";
+@@ -32,13 +33,11 @@ if (source.state === "stale") console.error("[log-prediction] 历史已过期：
+ const announcedAt = selectQuotaResetHistory(history.events);
+ const asOf = new Date(source.asOf);
+ 
+-const risk = assessResetRisk(announcedAt, asOf);
+-const candidate = {
+-  date: predictionDateKey(asOf),
+-  predictedRisk: risk.score,
+-  factorsDigest: digestFactors(risk.factors),
+-  fetchedAt: new Date().toISOString(),
+-};
++const watch = assessWatchSignal(history.status?.active_watch, new Date(), source.state === "fresh");
++const risk = assessResetRisk(announcedAt, asOf, watch.percent ?? undefined);
++const candidate = buildPredictionRecord({ risk, evaluatedAt: asOf.toISOString(), recordedAt: new Date(),
++  quotaStatus: "ok", resetSourceState: null });
++if (!candidate) throw new Error("预测候选无效");
+ 
+ const outcome = appendPredictionFile(logPath, (existing) => appendPredictionLog(existing, candidate));
+ 
+diff --git a/scripts/prediction-files.mjs b/scripts/prediction-files.mjs
+index 79b45c8..38ae9e7 100644
+--- a/scripts/prediction-files.mjs
++++ b/scripts/prediction-files.mjs
+@@ -63,6 +63,9 @@ export function readPredictionFiles(sources) {
+         const obj = JSON.parse(text);
+         if (typeof obj?.date === "string" && Number.isFinite(obj?.predictedRisk)) {
+           rows.push({ date: obj.date, predictedRisk: obj.predictedRisk, fetchedAt: obj.fetchedAt,
++            ...(obj.windowStart !== undefined ? { windowStart: obj.windowStart } : {}),
++            ...(obj.windowEnd !== undefined ? { windowEnd: obj.windowEnd } : {}),
++            ...(obj.watchComparison !== undefined ? { watchComparison: obj.watchComparison } : {}),
+             source: source.label, sourceIndex, rowIndex: count });
+           count += 1;
+         } else skipped += 1;
+diff --git a/scripts/watch-report.test.mjs b/scripts/watch-report.test.mjs
+new file mode 100644
+index 0000000..9b821fb
+--- /dev/null
++++ b/scripts/watch-report.test.mjs
+@@ -0,0 +1,46 @@
++// RR16：报告必须基于前瞻配对元数据；这里仅构造测试输入，不写真实历史。
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { generateCalibrationReport } from "./calibration-report.mjs";
++import { mkdtempSync, writeFileSync, unlinkSync, rmdirSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join, resolve, sep } from "node:path";
++import { readPredictionFiles } from "./prediction-files.mjs";
++
++const base = { date: "2026-10-08", predictedRisk: 27.5, fetchedAt: "2026-10-08T05:00:00Z",
++  windowStart: "2026-10-08T05:00:00Z", windowEnd: "2026-10-09T05:00:00Z",
++  watchComparison: { weight: 0.25, watchPercent: 80, baselineRisk: 10 } };
++const output = (rows) => generateCalibrationReport({
++  history: { fetchedAt: "2026-10-11T05:00:00Z", events: [{ resetType: "regular", announcedAt: "2026-10-08T06:00:00Z" }] },
++  predictions: { rows, files: [{ path: "test-only.jsonl", label: "测试", missing: false, rows: rows.length }], skipped: 0 },
++  generatedAt: "2026-10-11T06:00:00Z",
++});
++
++test("同一预先留存窗口分列0%与25%权重，真实调用核心计分", () => {
++  const report = output([base]);
++  assert.match(report, /\| 不含watch \| 0% \| 1 \| 0\.810 \| 0\.0% \|/);
++  assert.match(report, /\| 公开watch \| 25% \| 1 \| 0\.526 \| 0\.0% \|/);
++});
++test("旧行和事后记录无法伪造paired样本，0不呈现为完美Brier", () => {
++  const report = output([{ date: "2026-10-08", predictedRisk: 27.5 },
++    { ...base, fetchedAt: "2026-10-08T05:00:01Z" }]);
++  assert.match(report, /\| 公开watch \| 25% \| 0 \| —/);
++  assert.doesNotMatch(report, /\| 公开watch \| 25% \| 0 \| 0\.000/);
++});
++test("文件读取保留24h窗口与watch基准元数据，报告不会在IO接线时丢失配对", () => {
++  const directory = mkdtempSync(join(tmpdir(), "reset-radar-watch-"));
++  const path = join(directory, "prediction.jsonl");
++  try {
++    writeFileSync(path, JSON.stringify(base) + "\n");
++    const data = readPredictionFiles([{ path, label: "测试" }]);
++    assert.deepEqual(data.rows[0].watchComparison, base.watchComparison);
++    assert.equal(data.rows[0].windowStart, base.windowStart);
++    assert.equal(data.rows[0].windowEnd, base.windowEnd);
++    assert.match(output(data.rows), /\| 公开watch \| 25% \| 1 \| 0\.526/);
++  } finally {
++    assert.ok(resolve(directory).startsWith(resolve(tmpdir()) + sep));
++    assert.ok(directory.split(sep).at(-1).startsWith("reset-radar-watch-"));
++    unlinkSync(path);
++    rmdirSync(directory);
++  }
++});
+diff --git a/src/lib/__tests__/watch.comparison.test.ts b/src/lib/__tests__/watch.comparison.test.ts
+new file mode 100644
+index 0000000..1447f44
+--- /dev/null
++++ b/src/lib/__tests__/watch.comparison.test.ts
+@@ -0,0 +1,69 @@
++// RR16 合成数据：只验证纯函数，不读写 data/ 生产预测日志。
++import { describe, expect, it } from "vitest";
++import { compareWatchPredictions, joinProspectivePredictions } from "../watchCalibration.ts";
++import { WATCH_WEIGHT } from "../risk.ts";
++import type { PredictionRecord } from "../predictions.ts";
++
++const row = (over: Partial<PredictionRecord> = {}): PredictionRecord => ({
++  date: "2026-10-08",
++  predictedRisk: 45,
++  factorsDigest: "base=45",
++  fetchedAt: "2026-10-08T00:00:00.000Z",
++  windowStart: "2026-10-08T00:00:00.000Z",
++  windowEnd: "2026-10-09T00:00:00.000Z",
++  watchComparison: { weight: WATCH_WEIGHT, watchPercent: 85, baselineRisk: 20 },
++  ...over,
++});
++
++describe("compareWatchPredictions 前瞻同样本校准", () => {
++  it("分别评分留存基线与含 watch 概率，事件在窗口端点命中", () => {
++    const result = compareWatchPredictions([row()], ["2026-10-09T00:00:00Z"], new Date("2026-10-10T00:00:00Z"));
++    expect(result.weight).toBe(0.25);
++    expect(result.pairedSamples).toBe(1);
++    // baseline 20% 对 y=1：Brier .64；含 watch 的行预测 45%：Brier .3025。
++    expect(result.withoutWatch.brier).toBeCloseTo(0.64, 10);
++    expect(result.withWatch.brier).toBeCloseTo(0.3025, 10);
++    expect(result.withoutWatch.hitRate).toBe(0);
++    expect(result.withWatch.hitRate).toBe(0);
++  });
++
++  it("窗口起点前的重置不算命中，起点本身也不算", () => {
++    const paired = joinProspectivePredictions([row()], [
++      "2026-10-07T23:59:59.999Z", "2026-10-08T00:00:00Z",
++    ], new Date("2026-10-09T00:00:00Z"));
++    expect(paired[0]?.realized).toBe(false);
++  });
++
++  it("排除 future / 未完成窗口；窗口完成时刻等于 asOf 可纳入", () => {
++    const valid = row();
++    const future = row({ date: "2026-10-09", windowStart: "2026-10-09T00:00:00Z", windowEnd: "2026-10-10T00:00:00Z", fetchedAt: "2026-10-09T00:00:00Z" });
++    expect(joinProspectivePredictions([valid, future], [], new Date("2026-10-09T00:00:00Z"))).toHaveLength(1);
++    expect(joinProspectivePredictions([valid], [], new Date("2026-10-08T23:59:59.999Z"))).toHaveLength(0);
++  });
++
++  it("同日先选有效窗口首行；首行无 watch 时不以之后补行替代", () => {
++    const first = row({ watchComparison: undefined });
++    const later = row({ fetchedAt: "2026-10-08T01:00:00Z", windowStart: "2026-10-08T01:00:00Z", windowEnd: "2026-10-09T01:00:00Z", predictedRisk: 80 });
++    const completed = new Date("2026-10-09T01:00:00Z");
++    expect(joinProspectivePredictions([later], [], completed)).toHaveLength(1);
++    expect(joinProspectivePredictions([first, later], [], completed)).toEqual([]);
++  });
++
++  it("跳过非法元数据、非严格事前时刻及四字段旧行；空样本分数为 null", () => {
++    const invalid = row({ watchComparison: { weight: 0.2, watchPercent: 50, baselineRisk: 50 } });
++    const afterStart = row({ fetchedAt: "2026-10-08T00:00:00.001Z" });
++    const malformed = row({ watchComparison: { weight: WATCH_WEIGHT, watchPercent: Number.NaN, baselineRisk: 50 } });
++    const old: PredictionRecord = { date: "2026-10-08", predictedRisk: 50, factorsDigest: "", fetchedAt: "2026-10-08T00:00:00Z" };
++    const result = compareWatchPredictions([invalid, afterStart, malformed, old], [], new Date("2026-10-10T00:00:00Z"));
++    expect(result.pairedSamples).toBe(0);
++    expect(result.withWatch.n).toBe(0);
++    expect(result.withWatch.brier).toBeNull();
++    expect(result.withoutWatch.brier).toBeNull();
++  });
++
++  it("孤立的事后记录也不能进入配对样本", () => {
++    const completed = new Date("2026-10-10T00:00:00Z");
++    expect(compareWatchPredictions([row()], [], completed).pairedSamples).toBe(1);
++    expect(compareWatchPredictions([row({ fetchedAt: "2026-10-08T00:00:00.001Z" })], [], completed).pairedSamples).toBe(0);
++  });
++});
+diff --git a/src/lib/__tests__/watch.validity.test.ts b/src/lib/__tests__/watch.validity.test.ts
+new file mode 100644
+index 0000000..88802d1
+--- /dev/null
++++ b/src/lib/__tests__/watch.validity.test.ts
+@@ -0,0 +1,48 @@
++import { describe, expect, it } from "vitest";
++import { assessWatchSignal } from "../watchSignal";
++
++const NOW = new Date("2026-10-11T05:00:00.000Z");
++const signal = (patch: Record<string, unknown> = {}) => ({
++  level: "strong", reset_chance_percent: 80,
++  observed_at: "2026-10-11T04:00:00Z", expires_at: "2026-10-11T06:00:00Z",
++  ...patch,
++});
++
++describe("active_watch 有效性", () => {
++  it.each([0, 80, 100])("接受有限范围概率 %i", (percent) => {
++    expect(assessWatchSignal(signal({ reset_chance_percent: percent }), NOW)).toMatchObject({ state: "active", percent });
++  });
++
++  it("接受缺失概率但不生成概率数值", () => {
++    const raw: Record<string, unknown> = signal();
++    delete raw.reset_chance_percent;
++    expect(assessWatchSignal(raw, NOW)).toMatchObject({ state: "active", percent: null });
++  });
++
++  it("到期精确边界为 expired", () => {
++    expect(assessWatchSignal(signal({ expires_at: NOW.toISOString() }), NOW).state).toBe("expired");
++  });
++
++  it("允许观测时间恰在未来五分钟，超过一毫秒标为 future", () => {
++    expect(assessWatchSignal(signal({ observed_at: "2026-10-11T05:05:00.000Z" }), NOW).state).toBe("active");
++    expect(assessWatchSignal(signal({ observed_at: "2026-10-11T05:05:00.001Z" }), NOW).state).toBe("future");
++  });
++
++  it("不可用来源不读取信号，null 原始信号仍表示 absent", () => {
++    expect(assessWatchSignal(signal(), NOW, false).state).toBe("source-unavailable");
++    expect(assessWatchSignal(null, NOW).state).toBe("absent");
++  });
++
++  it.each([
++    [{ observed_at: undefined }],
++    [{ expires_at: "not-a-date" }],
++    [{ reset_chance_percent: "80" }],
++    [{ reset_chance_percent: -1 }],
++    [{ reset_chance_percent: 101 }],
++    [{ level: "moderate" }],
++    [{ observed_at: "2026-02-30T04:00:00Z" }],
++    [{ expires_at: "2026-10-11T04:00:00Z" }],
++  ] as [Record<string, unknown>][]) ("拒绝缺失或格式错误的字段 %j", (patch) => {
++    expect(assessWatchSignal(signal(patch), NOW).state).toBe("invalid");
++  });
++});
+diff --git a/src/lib/index.ts b/src/lib/index.ts
+index e774021..d06367a 100644
+--- a/src/lib/index.ts
++++ b/src/lib/index.ts
+@@ -8,4 +8,6 @@ export * from "./calibration";
+ export * from "./predictions";
+ export * from "./scheduledReset";
+ export * from "./resetStatus";
++export * from "./watchSignal";
++export * from "./watchCalibration";
+ export * from "./history";
+diff --git a/src/lib/predictions.ts b/src/lib/predictions.ts
+index 215a9fe..cb7e0fc 100644
+--- a/src/lib/predictions.ts
++++ b/src/lib/predictions.ts
+@@ -9,6 +9,7 @@
+ 
+ import { beijingCalendarDateKey } from "./resetCard.ts";
+ import type { RiskFactor, ResetRisk } from "./risk.ts";
++import { RESET_RISK_HORIZON_MS } from "./risk.ts";
+ 
+ /** 同日补行阈值（0-100 分制）。依据：risk.score 输出固定 1 位小数（risk.ts round1），
+  *  0.5=显示精度下界——漂移超 0.5 才是可感知变化，≤0.5 视为噪声不补行。AI 裁决 D019。 */
+@@ -20,6 +21,9 @@ export interface PredictionRecord {
+   predictedRisk: number; // 0-100，assessResetRisk().score 直传
+   factorsDigest: string; // 因子摘要（digestFactors 生成），人可读对账留痕
+   fetchedAt: string; // ISO 串，评估执行时刻（溯源）
++  windowStart?: string; // RR16前瞻评估窗口，旧四字段日志保持原字节
++  windowEnd?: string;
++  watchComparison?: ResetRisk["watchComparison"];
+ }
+ 
+ /** 幂等追加结果：lines=追加后完整日志（输入不被修改）；reason 供脚本输出与人读。 */
+@@ -114,5 +118,8 @@ export function buildPredictionRecord(input: {
+     predictedRisk: input.risk.score,
+     factorsDigest: digestFactors(input.risk.factors),
+     fetchedAt: input.recordedAt.toISOString(),
++    windowStart: new Date(evaluatedMs).toISOString(),
++    windowEnd: new Date(evaluatedMs + RESET_RISK_HORIZON_MS).toISOString(),
++    ...(input.risk.watchComparison ? { watchComparison: input.risk.watchComparison } : {}),
+   };
+ }
+diff --git a/src/lib/resetStatus.ts b/src/lib/resetStatus.ts
+index adcb4e1..2156314 100644
+--- a/src/lib/resetStatus.ts
++++ b/src/lib/resetStatus.ts
+@@ -1,5 +1,6 @@
+ // RR23：公告来源的可用性判断在核心，adapter只透传，React不再做一份清仓规则。
+ import { assessScheduledReset, type ScheduledReset, type ScheduledResetAssessment } from "./scheduledReset.ts";
++import { assessWatchSignal, type WatchSignalAssessment } from "./watchSignal.ts";
+ 
+ /** Rust reset_status::ResetStatusSnapshot camelCase契约，旧缓存允许没有整个字段。 */
+ export interface ResetStatusSnapshot {
+@@ -18,6 +19,7 @@ export interface ResetStatusEvaluation {
+   state: "ok" | "stale" | "error";
+   announcement: ScheduledResetAssessment | null;
+   actionableReset: ScheduledReset | null;
++  watch: WatchSignalAssessment;
+ }
+ 
+ /** 失败与stale保留公告信息供展示，停止把它当有效规划输入。精确有效期边界即过期。 */
+@@ -31,6 +33,7 @@ export function evaluateResetStatus(snapshot: ResetStatusSnapshot, now: Date): R
+   const announcement = assessScheduledReset(snapshot.scheduledReset, now);
+   return {
+     state, announcement,
++    watch: assessWatchSignal(snapshot.activeWatch, now, state === "ok"),
+     actionableReset: state === "ok" && announcement?.state === "planned" && announcement.appliesToQuota
+       ? announcement.announcement : null,
+   };
+diff --git a/src/lib/risk.ts b/src/lib/risk.ts
+index f2b49e8..c557afb 100644
+--- a/src/lib/risk.ts
++++ b/src/lib/risk.ts
+@@ -18,10 +18,12 @@ export interface RiskFactor {
+ export interface ResetRisk {
+   score: number; // 0-100，输出取 1 位小数
+   factors: RiskFactor[]; // 逐因子累计，factors 各 delta 之和 ≈ score
++  watchComparison?: { weight: number; watchPercent: number; baselineRisk: number };
+   scheduledReset?: ScheduledResetAssessment; // 与概率分列的公告信息；缺省不改变旧输出形状
+ }
+ 
+-const DAY_MS = 86_400_000;
++export const RESET_RISK_HORIZON_MS = 86_400_000; // 风险模型定义的未来24小时，唯一窗口长度
++const DAY_MS = RESET_RISK_HORIZON_MS;
+ const BEIJING_OFFSET_MS = 8 * 3_600_000; // D004 唯一日边界
+ const FUTURE_TOLERANCE_MS = 5 * 60_000; // rs:8 未来容差 5min（与 fetch-history.mjs 同源）
+ 
+@@ -42,7 +44,7 @@ const WEEKDAY_SMOOTH_NUM = 2; // rs:218 星期占比 Laplace 平滑（2/14=1/7
+ const WEEKDAY_SMOOTH_DEN = 14;
+ const WEEKDAY_WEIGHT = 20; // rs:219
+ const WEEKDAY_CLAMP = 6; // rs:219
+-const WATCH_WEIGHT = 0.25; // rs:230 上游公开 watch 信号融入权重
++export const WATCH_WEIGHT = 0.25; // rs:230；RR16复用既有权重，不新增可调参数
+ const SCORE_MIN = 2; // rs:239 最终输出夹紧下限
+ const SCORE_MAX = 95; // rs:239 最终输出夹紧上限
+ 
+@@ -150,7 +152,11 @@ export function assessResetRisk(
+   }
+ 
+   // 上游公开 watch 信号（rs:229-238）：以 25% 权重向 watch 概率拉近
++  let watchComparison: ResetRisk["watchComparison"];
+   if (typeof watchPercent === "number" && Number.isFinite(watchPercent)) {
++    if (watchPercent >= 0 && watchPercent <= 100) {
++      watchComparison = { weight: WATCH_WEIGHT, watchPercent, baselineRisk: round1(clamp(probability, SCORE_MIN, SCORE_MAX)) };
++    }
+     const delta = (watchPercent - probability) * WATCH_WEIGHT;
+     probability += delta;
+     factors.push({
+@@ -177,5 +183,6 @@ export function assessResetRisk(
+   return {
+     score: round1(clamp(probability, SCORE_MIN, SCORE_MAX)), factors,
+     ...(announcement ? { scheduledReset: announcement } : {}),
++    ...(watchComparison ? { watchComparison } : {}),
+   };
+ }
+diff --git a/src/lib/watchCalibration.ts b/src/lib/watchCalibration.ts
+new file mode 100644
+index 0000000..3b3f319
+--- /dev/null
++++ b/src/lib/watchCalibration.ts
+@@ -0,0 +1,89 @@
++// RR16：对同一批已完成的前瞻窗口比较 watch 与不含 watch 的风险校准。
++// 窗口 24h 来自 risk.ts 风险模型定义；北京日期边界复用 resetCard.ts（D004）。
++// Brier/命中率只调用 calibration.ts，避免第二份评分公式。
++
++import { beijingCalendarDateKey } from "./resetCard.ts";
++import { scorePredictions, type CalibrationScore, type PredictionOutcome } from "./calibration.ts";
++import { RESET_RISK_HORIZON_MS, WATCH_WEIGHT } from "./risk.ts";
++import type { PredictionRecord } from "./predictions.ts";
++
++const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
++
++export interface WatchPairedPrediction {
++  dateKey: string;
++  realized: boolean;
++  baselineRisk: number;
++  watchPercent: number;
++  predictedRisk: number;
++}
++
++/**
++ * 选择可用于前瞻比较的同日首条预测。先确定合格窗口的同日首行，再验证该行
++ * 是否保存了有效 watch 元数据，防止用当天后续有 watch 的补行替代首行。
++ */
++export function joinProspectivePredictions(
++  rows: readonly PredictionRecord[],
++  announcedAt: readonly string[],
++  asOf: Date,
++): WatchPairedPrediction[] {
++  const asOfMs = asOf.getTime();
++  if (!Number.isFinite(asOfMs)) return [];
++
++  const resetTimes = announcedAt
++    .map((value) => Date.parse(value))
++    .filter((time) => Number.isFinite(time));
++  const firstByDay = new Map<string, PredictionRecord>();
++
++  for (const row of rows) {
++    if (!row || typeof row.date !== "string" || !DATE_KEY_RE.test(row.date)
++      || !Number.isFinite(row.predictedRisk) || row.predictedRisk < 0 || row.predictedRisk > 100
++      || typeof row.windowStart !== "string" || typeof row.windowEnd !== "string"
++      || typeof row.fetchedAt !== "string") continue;
++    const start = Date.parse(row.windowStart);
++    const end = Date.parse(row.windowEnd);
++    const fetched = Date.parse(row.fetchedAt);
++    if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(fetched)
++      || end - start !== RESET_RISK_HORIZON_MS || fetched > start || end > asOfMs
++      || beijingCalendarDateKey(start) !== row.date) continue;
++    if (!firstByDay.has(row.date)) firstByDay.set(row.date, row);
++  }
++
++  const paired: WatchPairedPrediction[] = [];
++  for (const [dateKey, row] of firstByDay) {
++    const watch = row.watchComparison;
++    if (!watch || watch.weight !== WATCH_WEIGHT
++      || !Number.isFinite(watch.watchPercent) || watch.watchPercent < 0 || watch.watchPercent > 100
++      || !Number.isFinite(watch.baselineRisk) || watch.baselineRisk < 0 || watch.baselineRisk > 100) continue;
++    const start = Date.parse(row.windowStart!);
++    const end = Date.parse(row.windowEnd!);
++    paired.push({
++      dateKey,
++      baselineRisk: watch.baselineRisk,
++      watchPercent: watch.watchPercent,
++      predictedRisk: row.predictedRisk,
++      realized: resetTimes.some((time) => time > start && time <= end),
++    });
++  }
++  return paired.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
++}
++
++/** 两列共享相同样本；预测值分别取留存的 baselineRisk 与含 watch 的 predictedRisk。 */
++export function compareWatchPredictions(
++  rows: readonly PredictionRecord[],
++  announcedAt: readonly string[],
++  asOf: Date,
++): { weight: number; pairedSamples: number; withoutWatch: CalibrationScore; withWatch: CalibrationScore } {
++  const paired = joinProspectivePredictions(rows, announcedAt, asOf);
++  const withoutWatch: PredictionOutcome[] = paired.map(({ dateKey, baselineRisk, realized }) => ({
++    dateKey, predictedPercent: baselineRisk, realized,
++  }));
++  const withWatch: PredictionOutcome[] = paired.map(({ dateKey, predictedRisk, realized }) => ({
++    dateKey, predictedPercent: predictedRisk, realized,
++  }));
++  return {
++    weight: WATCH_WEIGHT,
++    pairedSamples: paired.length,
++    withoutWatch: scorePredictions(withoutWatch),
++    withWatch: scorePredictions(withWatch),
++  };
++}
+diff --git a/src/lib/watchSignal.ts b/src/lib/watchSignal.ts
+new file mode 100644
+index 0000000..221a473
+--- /dev/null
++++ b/src/lib/watchSignal.ts
+@@ -0,0 +1,69 @@
++/** 公告源 active_watch 的可信度门控；不在这里推断或补全上游概率。 */
++export type WatchSignalState = "absent" | "active" | "expired" | "future" | "invalid" | "source-unavailable";
++
++export interface WatchSignalAssessment {
++  state: WatchSignalState;
++  percent: number | null;
++  level: "elevated" | "strong" | null;
++  observedAt: string | null;
++  expiresAt: string | null;
++}
++
++// 来源：codex-cockpit/src-tauri/src/reset_forecast.rs:8,246-265；时钟容差，不是模型调参。
++const FUTURE_TOLERANCE_MS = 5 * 60_000;
++const EMPTY = (state: WatchSignalState): WatchSignalAssessment => ({
++  state, percent: null, level: null, observedAt: null, expiresAt: null,
++});
++
++/** 仅接收带时区的完整 ISO 日期时间，且拒绝 Date.parse 会宽松归一化的非法日期。 */
++function parseIsoWithZone(value: unknown): { timestamp: number; normalized: string } | null {
++  if (typeof value !== "string") return null;
++  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(value);
++  if (!match) return null;
++  const [, yearText, monthText, dayText, hourText, minuteText, secondText, zone] = match;
++  const year = Number(yearText), month = Number(monthText), day = Number(dayText);
++  const hour = Number(hourText), minute = Number(minuteText), second = Number(secondText);
++  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
++  if (month < 1 || month > 12 || day < 1 || day > daysInMonth || hour > 23 || minute > 59 || second > 59) return null;
++  if (zone !== "Z") {
++    const zoneHour = Number(zone.slice(1, 3)), zoneMinute = Number(zone.slice(4, 6));
++    if (zoneHour > 23 || zoneMinute > 59) return null;
++  }
++  const timestamp = Date.parse(value);
++  if (!Number.isFinite(timestamp)) return null;
++  return { timestamp, normalized: new Date(timestamp).toISOString() };
++}
++
++/**
++ * 校验上游 active_watch。5 分钟未来容差沿用 Rust reset_forecast 的历史清洗边界，
++ * 仅用于时钟偏差验证，不构成新的风险模型参数。
++ * 真值出处：codex-cockpit/src-tauri/src/reset_forecast.rs:8, 246-265。
++ */
++export function assessWatchSignal(raw: unknown, now: Date, sourceAvailable = true): WatchSignalAssessment {
++  if (!sourceAvailable) return EMPTY("source-unavailable");
++  if (raw === null) return EMPTY("absent");
++  if (typeof raw !== "object" || Array.isArray(raw)) return EMPTY("invalid");
++  const watch = raw as Record<string, unknown>;
++  const level = watch.level;
++  if (level !== "elevated" && level !== "strong") return EMPTY("invalid");
++
++  const hasPercent = Object.prototype.hasOwnProperty.call(watch, "reset_chance_percent");
++  const rawPercent = watch.reset_chance_percent;
++  if (hasPercent && rawPercent !== null && (typeof rawPercent !== "number" || !Number.isFinite(rawPercent) || rawPercent < 0 || rawPercent > 100)) {
++    return EMPTY("invalid");
++  }
++  const observed = parseIsoWithZone(watch.observed_at);
++  const expires = parseIsoWithZone(watch.expires_at);
++  const nowMs = now.getTime();
++  if (!observed || !expires || !Number.isFinite(nowMs)) return EMPTY("invalid");
++  if (observed.timestamp > nowMs + FUTURE_TOLERANCE_MS) return EMPTY("future");
++  if (expires.timestamp <= observed.timestamp) return EMPTY("invalid");
++  if (expires.timestamp <= nowMs) return EMPTY("expired");
++  return {
++    state: "active",
++    percent: typeof rawPercent === "number" ? rawPercent : null,
++    level,
++    observedAt: observed.normalized,
++    expiresAt: expires.normalized,
++  };
++}
+diff --git a/src/ui/__tests__/ui.reset-status.test.ts b/src/ui/__tests__/ui.reset-status.test.ts
+index 0e95e40..ea26ffd 100644
+--- a/src/ui/__tests__/ui.reset-status.test.ts
++++ b/src/ui/__tests__/ui.reset-status.test.ts
+@@ -16,6 +16,34 @@ const snapshot = (): ProviderSnapshot => ({
+ });
+ 
+ describe("公告生产adapter接线", () => {
++  it("有效watch80按既有25%融合；预测保留同刻baseline与24h窗口", () => {
++    const input = snapshot();
++    input.resetStatus = sourceSnapshot({ scheduledReset: null, latestReset: null,
++      activeWatch: { level: "strong", reset_chance_percent: 80,
++        observed_at: "2026-10-11T04:58:00Z", expires_at: "2026-10-11T06:00:00Z" } });
++    const vm = buildDashboard(input, [], NOW);
++    expect(vm.risk?.score).toBe(27.5); // 普通日10+(80-10)*0.25
++    expect(vm.risk?.factors.find((factor) => factor.id === "tracker-watch")?.delta).toBe(17.5);
++    expect(vm.resetStatus?.watch).toMatchObject({ state: "active", percent: 80 });
++    expect(vm.prediction).toMatchObject({ predictedRisk: 27.5,
++      windowStart: NOW.toISOString(), windowEnd: "2026-10-12T05:00:00.000Z",
++      watchComparison: { weight: 0.25, watchPercent: 80, baselineRisk: 10 } });
++    expect(vm.dailyPlan).toEqual(planDailyUsage({ remaining: 29, daysToReset: 6, risk: 27.5, now: NOW }));
++  });
++
++  it("过期watch和失败来源不进入概率、规划或配对预测", () => {
++    const input = snapshot();
++    const watch = { level: "strong", reset_chance_percent: 80,
++      observed_at: "2026-10-11T04:58:00Z", expires_at: NOW.toISOString() };
++    input.resetStatus = sourceSnapshot({ scheduledReset: null, latestReset: null, activeWatch: watch });
++    const expired = buildDashboard(input, [], NOW);
++    expect(expired.resetStatus?.watch.state).toBe("expired");
++    expect(expired.risk?.factors.some((factor) => factor.id === "tracker-watch")).toBe(false);
++    expect(expired.prediction?.watchComparison).toBeUndefined();
++    input.resetStatus.status = "error";
++    expect(buildDashboard(input, [], NOW).resetStatus?.watch.percent).toBeNull();
++    expect(buildDashboard(input, [], NOW).prediction).toBeNull();
++  });
+   it("新公告不冻结在旧额度观测时间，建议与核心同参逐字段一致", () => {
+     const input = snapshot();
+     const vm = buildDashboard(input, HISTORY, NOW);
+@@ -47,7 +75,7 @@ describe("公告生产adapter接线", () => {
+     const vm = buildDashboard(snapshot(), HISTORY, NOW);
+     expect(vm.resetStatus?.fetchedAt).toBe("2026-10-11T04:59:00Z");
+     expect(vm.observedAt).not.toBe(vm.resetStatus?.fetchedAt);
+-    expect(vm.risk?.factors.some((factor) => factor.id === "tracker-watch")).toBe(false); // RR16消费，RR23原样透传
++    expect(vm.risk?.factors.some((factor) => factor.id === "tracker-watch")).toBe(false); // 缺少level/有效期的概率字段不可采用
+     expect(vm.resetStatus?.activeWatch).toEqual({ reset_chance_percent: 80 });
+   });
+ 
+diff --git a/src/ui/adapters.ts b/src/ui/adapters.ts
+index e012ca5..1270d23 100644
+--- a/src/ui/adapters.ts
++++ b/src/ui/adapters.ts
+@@ -70,7 +70,7 @@ export function buildDashboard(
+   // 无公告来源字段时保持旧golden；来源成功时用本次评估时刻与最新确认事件。
+   const modelAsOf = statusEvaluation?.state === "ok" ? now : asOf;
+   const effectiveHistory = status == null ? history : historyWithResetStatus(history, status, now);
+-  const risk = assessResetRisk(effectiveHistory, modelAsOf, undefined,
++  const risk = assessResetRisk(effectiveHistory, modelAsOf, statusEvaluation?.watch.percent ?? undefined,
+     statusEvaluation?.state === "ok" ? status?.scheduledReset : null);
+   const planningAsOf = status == null ? asOf : now;
+   const scheduledReset = statusEvaluation?.actionableReset ?? null;
+diff --git a/task_logs/RR16-domain-initial.txt b/task_logs/RR16-domain-initial.txt
+new file mode 100644
+index 0000000..a42f9f2
+--- /dev/null
++++ b/task_logs/RR16-domain-initial.txt
+@@ -0,0 +1,9 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
++
++
++ Test Files  6 passed (6)
++      Tests  36 passed (36)
++   Start at  13:52:08
++   Duration  671ms (import 52%, transform 37%, tests 6%, worker 4%)
++
+diff --git a/task_logs/RR16_artifacts/build.txt b/task_logs/RR16_artifacts/build.txt
+new file mode 100644
+index 0000000..6d64a41
+--- /dev/null
++++ b/task_logs/RR16_artifacts/build.txt
+@@ -0,0 +1,13 @@
++
++> reset-radar@0.1.0 build
++> tsc && vite build
++
++vite v7.3.7 building client environment for production...
++transforming...
++✓ 58 modules transformed.
++rendering chunks...
++computing gzip size...
++dist/index.html                   0.59 kB │ gzip:  0.44 kB
++dist/assets/window-eJFWxOZx.js   13.49 kB │ gzip:  3.29 kB
++dist/assets/index-r1j8s5Cg.js   278.78 kB │ gzip: 90.16 kB
++✓ built in 770ms
+diff --git a/task_logs/RR16_artifacts/domain-final.txt b/task_logs/RR16_artifacts/domain-final.txt
+new file mode 100644
+index 0000000..0d7ade3
+--- /dev/null
++++ b/task_logs/RR16_artifacts/domain-final.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
++
++
++ Test Files  13 passed (13)
++      Tests  146 passed (146)
++   Start at  13:58:38
++   Duration  1.22s (import 49%, transform 33%, tests 11%, worker 7%)
++
++    Isolate  13 workers spawned · ~111ms startup each (spawn + environment, per file)
++             at least ~610ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR16_artifacts/domain.txt b/task_logs/RR16_artifacts/domain.txt
+new file mode 100644
+index 0000000..641cfc2
+--- /dev/null
++++ b/task_logs/RR16_artifacts/domain.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
++
++
++ Test Files  13 passed (13)
++      Tests  145 passed (145)
++   Start at  13:57:21
++   Duration  1.17s (import 49%, transform 33%, tests 11%, worker 6%)
++
++    Isolate  13 workers spawned · ~105ms startup each (spawn + environment, per file)
++             at least ~578ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR16_artifacts/full-final.txt b/task_logs/RR16_artifacts/full-final.txt
+new file mode 100644
+index 0000000..c2d35e2
+--- /dev/null
++++ b/task_logs/RR16_artifacts/full-final.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
++
++
++ Test Files  18 passed (18)
++      Tests  170 passed (170)
++   Start at  13:58:41
++   Duration  1.57s (import 51%, transform 31%, tests 11%, worker 7%)
++
++    Isolate  18 workers spawned · ~104ms startup each (spawn + environment, per file)
++             at least ~834ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR16_artifacts/full.txt b/task_logs/RR16_artifacts/full.txt
+new file mode 100644
+index 0000000..c91c340
+--- /dev/null
++++ b/task_logs/RR16_artifacts/full.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
++
++
++ Test Files  18 passed (18)
++      Tests  169 passed (169)
++   Start at  13:57:43
++   Duration  1.56s (import 50%, transform 32%, tests 11%, worker 7%)
++
++    Isolate  18 workers spawned · ~103ms startup each (spawn + environment, per file)
++             at least ~822ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR16_artifacts/mutation-expiry.txt b/task_logs/RR16_artifacts/mutation-expiry.txt
+new file mode 100644
+index 0000000..412b00c
+--- /dev/null
++++ b/task_logs/RR16_artifacts/mutation-expiry.txt
+@@ -0,0 +1,31 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
++
++ ❯ src/lib/__tests__/watch.validity.test.ts (15 tests | 1 failed) 10ms
++   ❯ active_watch 有效性 (15)
++     × 到期精确边界为 expired 4ms
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 14 passed (15)
++   Start at  13:58:00
++   Duration  194ms (transform 49%, import 35%, tests 12%, worker 4%)
++
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/lib/__tests__/watch.validity.test.ts > active_watch 有效性 > 到期精确边界为 expired
++AssertionError: expected 'active' to be 'expired' // Object.is equality
++
++Expected: "expired"
++Received: "active"
++
++ ❯ src/lib/__tests__/watch.validity.test.ts:23:85
++     21|
++     22|   it("到期精确边界为 expired", () => {
++     23|     expect(assessWatchSignal(signal({ expires_at: NOW.toISOString() })…
++       |                                                                                     ^
++     24|   });
++     25|
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
++
+diff --git a/task_logs/RR16_artifacts/mutation-prospective-retest.txt b/task_logs/RR16_artifacts/mutation-prospective-retest.txt
+new file mode 100644
+index 0000000..c8d20a0
+--- /dev/null
++++ b/task_logs/RR16_artifacts/mutation-prospective-retest.txt
+@@ -0,0 +1,34 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
++
++ ❯ src/lib/__tests__/watch.comparison.test.ts (6 tests | 1 failed) 9ms
++   ❯ compareWatchPredictions 前瞻同样本校准 (6)
++     × 孤立的事后记录也不能进入配对样本 4ms
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 5 passed (6)
++   Start at  13:58:20
++   Duration  274ms (transform 46%, import 46%, tests 6%, worker 2%)
++
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/lib/__tests__/watch.comparison.test.ts > compareWatchPredictions 前瞻同样本校准 > 孤立的事后记录也不能进入配对样本
++AssertionError: expected 1 to be +0 // Object.is equality
++
++- Expected
+++ Received
++
++- 0
+++ 1
++
++ ❯ src/lib/__tests__/watch.comparison.test.ts:67:116
++     65|     const completed = new Date("2026-10-10T00:00:00Z");
++     66|     expect(compareWatchPredictions([row()], [], completed).pairedSampl…
++     67|     expect(compareWatchPredictions([row({ fetchedAt: "2026-10-08T00:00…
++       |                                                                                                                    ^
++     68|   });
++     69| });
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
++
+diff --git a/task_logs/RR16_artifacts/mutation-prospective.txt b/task_logs/RR16_artifacts/mutation-prospective.txt
+new file mode 100644
+index 0000000..9dd4bf5
+--- /dev/null
++++ b/task_logs/RR16_artifacts/mutation-prospective.txt
+@@ -0,0 +1,9 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
++
++
++ Test Files  1 passed (1)
++      Tests  5 passed (5)
++   Start at  13:58:02
++   Duration  285ms (transform 56%, import 39%, tests 3%, worker 2%)
++
+diff --git a/task_logs/RR16_artifacts/mutation-selection.txt b/task_logs/RR16_artifacts/mutation-selection.txt
+new file mode 100644
+index 0000000..b7f4824
+--- /dev/null
++++ b/task_logs/RR16_artifacts/mutation-selection.txt
+@@ -0,0 +1,42 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
++
++ ❯ src/lib/__tests__/watch.comparison.test.ts (6 tests | 1 failed) 10ms
++   ❯ compareWatchPredictions 前瞻同样本校准 (6)
++     × 同日先选有效窗口首行；首行无 watch 时不以之后补行替代 5ms
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 5 passed (6)
++   Start at  13:58:22
++   Duration  292ms (transform 48%, import 45%, tests 6%, worker 2%)
++
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/lib/__tests__/watch.comparison.test.ts > compareWatchPredictions 前瞻同样本校准 > 同日先选有效窗口首行；首行无 watch 时不以之后补行替代
++AssertionError: expected [ { dateKey: '2026-10-08', …(4) } ] to deeply equal []
++
++- Expected
+++ Received
++
++- []
+++ [
+++   {
+++     "baselineRisk": 20,
+++     "dateKey": "2026-10-08",
+++     "predictedRisk": 80,
+++     "realized": false,
+++     "watchPercent": 85,
+++   },
+++ ]
++
++ ❯ src/lib/__tests__/watch.comparison.test.ts:49:71
++     47|     const completed = new Date("2026-10-09T01:00:00Z");
++     48|     expect(joinProspectivePredictions([later], [], completed)).toHaveL…
++     49|     expect(joinProspectivePredictions([first, later], [], completed)).…
++       |                                                                       ^
++     50|   });
++     51|
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
++
+diff --git a/task_logs/RR16_artifacts/mutation-weight.txt b/task_logs/RR16_artifacts/mutation-weight.txt
+new file mode 100644
+index 0000000..4f9c9b8
+--- /dev/null
++++ b/task_logs/RR16_artifacts/mutation-weight.txt
+@@ -0,0 +1,34 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR16
++
++ ❯ src/ui/__tests__/ui.reset-status.test.ts (6 tests | 1 failed) 12ms
++   ❯ 公告生产adapter接线 (6)
++     × 有效watch80按既有25%融合；预测保留同刻baseline与24h窗口 8ms
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 5 passed (6)
++   Start at  13:57:58
++   Duration  382ms (import 47%, transform 47%, tests 4%, worker 1%)
++
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/ui/__tests__/ui.reset-status.test.ts > 公告生产adapter接线 > 有效watch80按既有25%融合；预测保留同刻baseline与24h窗口
++AssertionError: expected 10 to be 27.5 // Object.is equality
++
++- Expected
+++ Received
++
++- 27.5
+++ 10
++
++ ❯ src/ui/__tests__/ui.reset-status.test.ts:25:28
++     23|         observed_at: "2026-10-11T04:58:00Z", expires_at: "2026-10-11T0…
++     24|     const vm = buildDashboard(input, [], NOW);
++     25|     expect(vm.risk?.score).toBe(27.5); // 普通日10+(80-10)*0.25
++       |                            ^
++     26|     expect(vm.risk?.factors.find((factor) => factor.id === "tracker-wa…
++     27|     expect(vm.resetStatus?.watch).toMatchObject({ state: "active", per…
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
++
+diff --git a/task_logs/RR16_artifacts/native-build.txt b/task_logs/RR16_artifacts/native-build.txt
+new file mode 100644
+index 0000000..b79b676
+--- /dev/null
++++ b/task_logs/RR16_artifacts/native-build.txt
+@@ -0,0 +1,8 @@
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR16\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++         C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (bin "reset-radar") generated 1 warning
++    Finished `release` profile [optimized] target(s) in 36.44s
+diff --git a/task_logs/RR16_artifacts/node-final.txt b/task_logs/RR16_artifacts/node-final.txt
+new file mode 100644
+index 0000000..141200f
+--- /dev/null
++++ b/task_logs/RR16_artifacts/node-final.txt
+@@ -0,0 +1,307 @@
++
++> reset-radar@0.1.0 test:node
++> node scripts/run-node-tests.mjs
++
++TAP version 13
++# Subtest: 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++ok 1 - 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++  ---
++  duration_ms: 3.8895
++  type: 'test'
++  ...
++# Subtest: 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++ok 2 - 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++  ---
++  duration_ms: 0.6759
++  type: 'test'
++  ...
++# Subtest: 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++ok 3 - 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++  ---
++  duration_ms: 0.3204
++  type: 'test'
++  ...
++# Subtest: parseIsoMs
++    # Subtest: 合法 ISO（毫秒/Z）→ epoch 毫秒
++    ok 1 - 合法 ISO（毫秒/Z）→ epoch 毫秒
++      ---
++      duration_ms: 0.9457
++      type: 'test'
++      ...
++    # Subtest: 非法输入 → null
++    ok 2 - 非法输入 → null
++      ---
++      duration_ms: 0.2791
++      type: 'test'
++      ...
++    1..2
++ok 4 - parseIsoMs
++  ---
++  duration_ms: 2.3411
++  type: 'suite'
++  ...
++# Subtest: normalizeEvent
++    # Subtest: snake_case → camelCase，缺 source 容错
++    ok 1 - snake_case → camelCase，缺 source 容错
++      ---
++      duration_ms: 0.2488
++      type: 'test'
++      ...
++    1..1
++ok 5 - normalizeEvent
++  ---
++  duration_ms: 0.3718
++  type: 'suite'
++  ...
++# Subtest: sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++    # Subtest: 不可解析日期被丢弃
++    ok 1 - 不可解析日期被丢弃
++      ---
++      duration_ms: 1.1222
++      type: 'test'
++      ...
++    # Subtest: 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++    ok 2 - 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++      ---
++      duration_ms: 0.762
++      type: 'test'
++      ...
++    # Subtest: 倒序输出（最新在前）
++    ok 3 - 倒序输出（最新在前）
++      ---
++      duration_ms: 0.2729
++      type: 'test'
++      ...
++    # Subtest: 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++    ok 4 - 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++      ---
++      duration_ms: 0.3405
++      type: 'test'
++      ...
++    # Subtest: 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++    ok 5 - 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++      ---
++      duration_ms: 0.4395
++      type: 'test'
++      ...
++    1..5
++ok 6 - sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++  ---
++  duration_ms: 3.3222
++  type: 'suite'
++  ...
++# Subtest: buildDocument（上游封装校验）
++    # Subtest: 跨类型交错不打断同类型5分钟去重
++    ok 1 - 跨类型交错不打断同类型5分钟去重
++      ---
++      duration_ms: 0.4099
++      type: 'test'
++      ...
++    # Subtest: 缺字段或坏形状直接 reject
++    ok 2 - 缺字段或坏形状直接 reject
++      ---
++      duration_ms: 1.9528
++      type: 'test'
++      ...
++    # Subtest: 兼容真实 API 的 object/null 可选字段并保留 status 原形
++    ok 3 - 兼容真实 API 的 object/null 可选字段并保留 status 原形
++      ---
++      duration_ms: 0.3081
++      type: 'test'
++      ...
++    1..3
++ok 7 - buildDocument（上游封装校验）
++  ---
++  duration_ms: 2.8776
++  type: 'suite'
++  ...
++# Subtest: weekdayBeijing（D004 北京零点边界）
++    # Subtest: 北京 16:00:00Z 恰跨零点 → 次日星期
++    ok 1 - 北京 16:00:00Z 恰跨零点 → 次日星期
++      ---
++      duration_ms: 0.235
++      type: 'test'
++      ...
++    # Subtest: 15:59:59Z 仍属北京当日
++    ok 2 - 15:59:59Z 仍属北京当日
++      ---
++      duration_ms: 0.1318
++      type: 'test'
++      ...
++    # Subtest: 实测锚点 2026-10-08T03:44:55Z → 北京周四
++    ok 3 - 实测锚点 2026-10-08T03:44:55Z → 北京周四
++      ---
++      duration_ms: 0.1149
++      type: 'test'
++      ...
++    1..3
++ok 8 - weekdayBeijing（D004 北京零点边界）
++  ---
++  duration_ms: 0.6779
++  type: 'suite'
++  ...
++# Subtest: summarize
++    # Subtest: count/earliest/latest/星期直方图
++    ok 1 - count/earliest/latest/星期直方图
++      ---
++      duration_ms: 0.2532
++      type: 'test'
++      ...
++    # Subtest: 空输入 → count 0 且两端为 null
++    ok 2 - 空输入 → count 0 且两端为 null
++      ---
++      duration_ms: 0.1149
++      type: 'test'
++      ...
++    1..2
++ok 9 - summarize
++  ---
++  duration_ms: 0.4733
++  type: 'suite'
++  ...
++# Subtest: 先刷新历史，再运行校准；输出流按用途分流
++ok 10 - 先刷新历史，再运行校准；输出流按用途分流
++  ---
++  duration_ms: 1.2013
++  type: 'test'
++  ...
++# Subtest: fetch 失败时非零退出并且不运行 calibrate
++ok 11 - fetch 失败时非零退出并且不运行 calibrate
++  ---
++  duration_ms: 0.2136
++  type: 'test'
++  ...
++# Subtest: calibrate 失败时非零退出且不输出部分 Markdown
++ok 12 - calibrate 失败时非零退出且不输出部分 Markdown
++  ---
++  duration_ms: 0.2182
++  type: 'test'
++  ...
++# 未发现 scripts 下的 Node 测试文件。
++# Node 测试进程被信号终止：SIGTERM
++# 启动 Node 测试失败：spawn failed
++# TAP version 13
++# \# Subtest: 故意失败
++# not ok 1 - 故意失败
++#   ---
++#   duration_ms: 0.5479
++#   type: 'test'
++#   location: 'C:\\\\Users\\\\slsjz\\\\AppData\\\\Local\\\\Temp\\\\reset-radar-node-runner-test-i9Wmsx\\\\scripts\\\\broken.test.mjs:1:31'
++#   failureType: 'testCodeFailure'
++#   error: 'expected failure'
++#   code: 'ERR_TEST_FAILURE'
++#   stack: |-
++#     TestContext.<anonymous> (file:///C:/Users/slsjz/AppData/Local/Temp/reset-radar-node-runner-test-i9Wmsx/scripts/broken.test.mjs:1:58)
++#     Test.runInAsyncScope (node:async_hooks:214:14)
++#     Test.run (node:internal/test_runner/test:1047:25)
++#     Test.start (node:internal/test_runner/test:944:17)
++#     startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++#   ...
++# 1..1
++# \# tests 1
++# \# suites 0
++# \# pass 0
++# \# fail 1
++# \# cancelled 0
++# \# skipped 0
++# \# todo 0
++# \# duration_ms 82.0087
++# Subtest: 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++ok 13 - 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++  ---
++  duration_ms: 10.8039
++  type: 'test'
++  ...
++# Subtest: 空清单拒绝启动 Node 子进程
++ok 14 - 空清单拒绝启动 Node 子进程
++  ---
++  duration_ms: 2.9684
++  type: 'test'
++  ...
++# Subtest: 透传子进程退出码及启动失败、信号失败
++ok 15 - 透传子进程退出码及启动失败、信号失败
++  ---
++  duration_ms: 3.5093
++  type: 'test'
++  ...
++# Subtest: 真实 Node 测试进程失败时入口返回非零
++ok 16 - 真实 Node 测试进程失败时入口返回非零
++  ---
++  duration_ms: 150.2092
++  type: 'test'
++  ...
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 17 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.6521
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 18 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.4882
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 19 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 13.2779
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 20 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 9.862
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 21 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 3.4078
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 22 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 116.2485
++  type: 'test'
++  ...
++# Subtest: unknown or duplicate path options fail instead of writing canonical data
++ok 23 - unknown or duplicate path options fail instead of writing canonical data
++  ---
++  duration_ms: 0.296
++  type: 'test'
++  ...
++# Subtest: missing file is labelled but read errors make calibration fail explicitly
++ok 24 - missing file is labelled but read errors make calibration fail explicitly
++  ---
++  duration_ms: 100.3154
++  type: 'test'
++  ...
++# Subtest: 同一预先留存窗口分列0%与25%权重，真实调用核心计分
++ok 25 - 同一预先留存窗口分列0%与25%权重，真实调用核心计分
++  ---
++  duration_ms: 2.7948
++  type: 'test'
++  ...
++# Subtest: 旧行和事后记录无法伪造paired样本，0不呈现为完美Brier
++ok 26 - 旧行和事后记录无法伪造paired样本，0不呈现为完美Brier
++  ---
++  duration_ms: 0.4577
++  type: 'test'
++  ...
++# Subtest: 文件读取保留24h窗口与watch基准元数据，报告不会在IO接线时丢失配对
++ok 27 - 文件读取保留24h窗口与watch基准元数据，报告不会在IO接线时丢失配对
++  ---
++  duration_ms: 4.1121
++  type: 'test'
++  ...
++1..27
++# tests 37
++# suites 6
++# pass 37
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 380.9423
+diff --git a/task_logs/RR16_artifacts/node-initial.txt b/task_logs/RR16_artifacts/node-initial.txt
+new file mode 100644
+index 0000000..737a301
+--- /dev/null
++++ b/task_logs/RR16_artifacts/node-initial.txt
+@@ -0,0 +1,301 @@
++
++> reset-radar@0.1.0 test:node
++> node scripts/run-node-tests.mjs
++
++TAP version 13
++# Subtest: 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++ok 1 - 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++  ---
++  duration_ms: 2.8386
++  type: 'test'
++  ...
++# Subtest: 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++ok 2 - 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++  ---
++  duration_ms: 0.5801
++  type: 'test'
++  ...
++# Subtest: 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++ok 3 - 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++  ---
++  duration_ms: 0.2846
++  type: 'test'
++  ...
++# Subtest: parseIsoMs
++    # Subtest: 合法 ISO（毫秒/Z）→ epoch 毫秒
++    ok 1 - 合法 ISO（毫秒/Z）→ epoch 毫秒
++      ---
++      duration_ms: 0.6315
++      type: 'test'
++      ...
++    # Subtest: 非法输入 → null
++    ok 2 - 非法输入 → null
++      ---
++      duration_ms: 0.1701
++      type: 'test'
++      ...
++    1..2
++ok 4 - parseIsoMs
++  ---
++  duration_ms: 1.6161
++  type: 'suite'
++  ...
++# Subtest: normalizeEvent
++    # Subtest: snake_case → camelCase，缺 source 容错
++    ok 1 - snake_case → camelCase，缺 source 容错
++      ---
++      duration_ms: 0.1643
++      type: 'test'
++      ...
++    1..1
++ok 5 - normalizeEvent
++  ---
++  duration_ms: 0.2668
++  type: 'suite'
++  ...
++# Subtest: sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++    # Subtest: 不可解析日期被丢弃
++    ok 1 - 不可解析日期被丢弃
++      ---
++      duration_ms: 0.8877
++      type: 'test'
++      ...
++    # Subtest: 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++    ok 2 - 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++      ---
++      duration_ms: 0.6423
++      type: 'test'
++      ...
++    # Subtest: 倒序输出（最新在前）
++    ok 3 - 倒序输出（最新在前）
++      ---
++      duration_ms: 0.2278
++      type: 'test'
++      ...
++    # Subtest: 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++    ok 4 - 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++      ---
++      duration_ms: 0.3299
++      type: 'test'
++      ...
++    # Subtest: 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++    ok 5 - 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++      ---
++      duration_ms: 0.232
++      type: 'test'
++      ...
++    1..5
++ok 6 - sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++  ---
++  duration_ms: 2.6352
++  type: 'suite'
++  ...
++# Subtest: buildDocument（上游封装校验）
++    # Subtest: 跨类型交错不打断同类型5分钟去重
++    ok 1 - 跨类型交错不打断同类型5分钟去重
++      ---
++      duration_ms: 0.244
++      type: 'test'
++      ...
++    # Subtest: 缺字段或坏形状直接 reject
++    ok 2 - 缺字段或坏形状直接 reject
++      ---
++      duration_ms: 1.328
++      type: 'test'
++      ...
++    # Subtest: 兼容真实 API 的 object/null 可选字段并保留 status 原形
++    ok 3 - 兼容真实 API 的 object/null 可选字段并保留 status 原形
++      ---
++      duration_ms: 0.2114
++      type: 'test'
++      ...
++    1..3
++ok 7 - buildDocument（上游封装校验）
++  ---
++  duration_ms: 1.9155
++  type: 'suite'
++  ...
++# Subtest: weekdayBeijing（D004 北京零点边界）
++    # Subtest: 北京 16:00:00Z 恰跨零点 → 次日星期
++    ok 1 - 北京 16:00:00Z 恰跨零点 → 次日星期
++      ---
++      duration_ms: 0.11
++      type: 'test'
++      ...
++    # Subtest: 15:59:59Z 仍属北京当日
++    ok 2 - 15:59:59Z 仍属北京当日
++      ---
++      duration_ms: 0.0554
++      type: 'test'
++      ...
++    # Subtest: 实测锚点 2026-10-08T03:44:55Z → 北京周四
++    ok 3 - 实测锚点 2026-10-08T03:44:55Z → 北京周四
++      ---
++      duration_ms: 0.0492
++      type: 'test'
++      ...
++    1..3
++ok 8 - weekdayBeijing（D004 北京零点边界）
++  ---
++  duration_ms: 0.3284
++  type: 'suite'
++  ...
++# Subtest: summarize
++    # Subtest: count/earliest/latest/星期直方图
++    ok 1 - count/earliest/latest/星期直方图
++      ---
++      duration_ms: 0.1524
++      type: 'test'
++      ...
++    # Subtest: 空输入 → count 0 且两端为 null
++    ok 2 - 空输入 → count 0 且两端为 null
++      ---
++      duration_ms: 0.0665
++      type: 'test'
++      ...
++    1..2
++ok 9 - summarize
++  ---
++  duration_ms: 0.271
++  type: 'suite'
++  ...
++# Subtest: 先刷新历史，再运行校准；输出流按用途分流
++ok 10 - 先刷新历史，再运行校准；输出流按用途分流
++  ---
++  duration_ms: 1.0229
++  type: 'test'
++  ...
++# Subtest: fetch 失败时非零退出并且不运行 calibrate
++ok 11 - fetch 失败时非零退出并且不运行 calibrate
++  ---
++  duration_ms: 0.1732
++  type: 'test'
++  ...
++# Subtest: calibrate 失败时非零退出且不输出部分 Markdown
++ok 12 - calibrate 失败时非零退出且不输出部分 Markdown
++  ---
++  duration_ms: 0.1904
++  type: 'test'
++  ...
++# 未发现 scripts 下的 Node 测试文件。
++# Node 测试进程被信号终止：SIGTERM
++# 启动 Node 测试失败：spawn failed
++# TAP version 13
++# \# Subtest: 故意失败
++# not ok 1 - 故意失败
++#   ---
++#   duration_ms: 0.5091
++#   type: 'test'
++#   location: 'C:\\\\Users\\\\slsjz\\\\AppData\\\\Local\\\\Temp\\\\reset-radar-node-runner-test-wRqF4a\\\\scripts\\\\broken.test.mjs:1:31'
++#   failureType: 'testCodeFailure'
++#   error: 'expected failure'
++#   code: 'ERR_TEST_FAILURE'
++#   stack: |-
++#     TestContext.<anonymous> (file:///C:/Users/slsjz/AppData/Local/Temp/reset-radar-node-runner-test-wRqF4a/scripts/broken.test.mjs:1:58)
++#     Test.runInAsyncScope (node:async_hooks:214:14)
++#     Test.run (node:internal/test_runner/test:1047:25)
++#     Test.start (node:internal/test_runner/test:944:17)
++#     startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++#   ...
++# 1..1
++# \# tests 1
++# \# suites 0
++# \# pass 0
++# \# fail 1
++# \# cancelled 0
++# \# skipped 0
++# \# todo 0
++# \# duration_ms 73.1475
++# Subtest: 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++ok 13 - 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++  ---
++  duration_ms: 9.9546
++  type: 'test'
++  ...
++# Subtest: 空清单拒绝启动 Node 子进程
++ok 14 - 空清单拒绝启动 Node 子进程
++  ---
++  duration_ms: 2.6002
++  type: 'test'
++  ...
++# Subtest: 透传子进程退出码及启动失败、信号失败
++ok 15 - 透传子进程退出码及启动失败、信号失败
++  ---
++  duration_ms: 2.5865
++  type: 'test'
++  ...
++# Subtest: 真实 Node 测试进程失败时入口返回非零
++ok 16 - 真实 Node 测试进程失败时入口返回非零
++  ---
++  duration_ms: 130.8982
++  type: 'test'
++  ...
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 17 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.239
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 18 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.3964
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 19 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 5.4242
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 20 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 15.6384
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 21 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 8.2816
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 22 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 101.1662
++  type: 'test'
++  ...
++# Subtest: unknown or duplicate path options fail instead of writing canonical data
++ok 23 - unknown or duplicate path options fail instead of writing canonical data
++  ---
++  duration_ms: 0.2325
++  type: 'test'
++  ...
++# Subtest: missing file is labelled but read errors make calibration fail explicitly
++ok 24 - missing file is labelled but read errors make calibration fail explicitly
++  ---
++  duration_ms: 89.8801
++  type: 'test'
++  ...
++# Subtest: 同一预先留存窗口分列0%与25%权重，真实调用核心计分
++ok 25 - 同一预先留存窗口分列0%与25%权重，真实调用核心计分
++  ---
++  duration_ms: 2.7019
++  type: 'test'
++  ...
++# Subtest: 旧行和事后记录无法伪造paired样本，0不呈现为完美Brier
++ok 26 - 旧行和事后记录无法伪造paired样本，0不呈现为完美Brier
++  ---
++  duration_ms: 0.3364
++  type: 'test'
++  ...
++1..26
++# tests 36
++# suites 6
++# pass 36
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 339.0342
+diff --git a/task_logs/RR16_artifacts/node.txt b/task_logs/RR16_artifacts/node.txt
+new file mode 100644
+index 0000000..582db75
+--- /dev/null
++++ b/task_logs/RR16_artifacts/node.txt
+@@ -0,0 +1,307 @@
++
++> reset-radar@0.1.0 test:node
++> node scripts/run-node-tests.mjs
++
++TAP version 13
++# Subtest: 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++ok 1 - 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++  ---
++  duration_ms: 3.5192
++  type: 'test'
++  ...
++# Subtest: 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++ok 2 - 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++  ---
++  duration_ms: 0.9655
++  type: 'test'
++  ...
++# Subtest: 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++ok 3 - 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++  ---
++  duration_ms: 0.6766
++  type: 'test'
++  ...
++# Subtest: parseIsoMs
++    # Subtest: 合法 ISO（毫秒/Z）→ epoch 毫秒
++    ok 1 - 合法 ISO（毫秒/Z）→ epoch 毫秒
++      ---
++      duration_ms: 0.6246
++      type: 'test'
++      ...
++    # Subtest: 非法输入 → null
++    ok 2 - 非法输入 → null
++      ---
++      duration_ms: 0.229
++      type: 'test'
++      ...
++    1..2
++ok 4 - parseIsoMs
++  ---
++  duration_ms: 1.656
++  type: 'suite'
++  ...
++# Subtest: normalizeEvent
++    # Subtest: snake_case → camelCase，缺 source 容错
++    ok 1 - snake_case → camelCase，缺 source 容错
++      ---
++      duration_ms: 0.1649
++      type: 'test'
++      ...
++    1..1
++ok 5 - normalizeEvent
++  ---
++  duration_ms: 0.2496
++  type: 'suite'
++  ...
++# Subtest: sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++    # Subtest: 不可解析日期被丢弃
++    ok 1 - 不可解析日期被丢弃
++      ---
++      duration_ms: 0.9051
++      type: 'test'
++      ...
++    # Subtest: 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++    ok 2 - 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++      ---
++      duration_ms: 0.6424
++      type: 'test'
++      ...
++    # Subtest: 倒序输出（最新在前）
++    ok 3 - 倒序输出（最新在前）
++      ---
++      duration_ms: 0.2415
++      type: 'test'
++      ...
++    # Subtest: 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++    ok 4 - 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++      ---
++      duration_ms: 0.3824
++      type: 'test'
++      ...
++    # Subtest: 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++    ok 5 - 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++      ---
++      duration_ms: 0.2615
++      type: 'test'
++      ...
++    1..5
++ok 6 - sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++  ---
++  duration_ms: 2.7577
++  type: 'suite'
++  ...
++# Subtest: buildDocument（上游封装校验）
++    # Subtest: 跨类型交错不打断同类型5分钟去重
++    ok 1 - 跨类型交错不打断同类型5分钟去重
++      ---
++      duration_ms: 0.2627
++      type: 'test'
++      ...
++    # Subtest: 缺字段或坏形状直接 reject
++    ok 2 - 缺字段或坏形状直接 reject
++      ---
++      duration_ms: 1.4663
++      type: 'test'
++      ...
++    # Subtest: 兼容真实 API 的 object/null 可选字段并保留 status 原形
++    ok 3 - 兼容真实 API 的 object/null 可选字段并保留 status 原形
++      ---
++      duration_ms: 0.2668
++      type: 'test'
++      ...
++    1..3
++ok 7 - buildDocument（上游封装校验）
++  ---
++  duration_ms: 2.151
++  type: 'suite'
++  ...
++# Subtest: weekdayBeijing（D004 北京零点边界）
++    # Subtest: 北京 16:00:00Z 恰跨零点 → 次日星期
++    ok 1 - 北京 16:00:00Z 恰跨零点 → 次日星期
++      ---
++      duration_ms: 0.1349
++      type: 'test'
++      ...
++    # Subtest: 15:59:59Z 仍属北京当日
++    ok 2 - 15:59:59Z 仍属北京当日
++      ---
++      duration_ms: 0.0675
++      type: 'test'
++      ...
++    # Subtest: 实测锚点 2026-10-08T03:44:55Z → 北京周四
++    ok 3 - 实测锚点 2026-10-08T03:44:55Z → 北京周四
++      ---
++      duration_ms: 0.0597
++      type: 'test'
++      ...
++    1..3
++ok 8 - weekdayBeijing（D004 北京零点边界）
++  ---
++  duration_ms: 0.3988
++  type: 'suite'
++  ...
++# Subtest: summarize
++    # Subtest: count/earliest/latest/星期直方图
++    ok 1 - count/earliest/latest/星期直方图
++      ---
++      duration_ms: 0.16
++      type: 'test'
++      ...
++    # Subtest: 空输入 → count 0 且两端为 null
++    ok 2 - 空输入 → count 0 且两端为 null
++      ---
++      duration_ms: 0.068
++      type: 'test'
++      ...
++    1..2
++ok 9 - summarize
++  ---
++  duration_ms: 0.2856
++  type: 'suite'
++  ...
++# Subtest: 先刷新历史，再运行校准；输出流按用途分流
++ok 10 - 先刷新历史，再运行校准；输出流按用途分流
++  ---
++  duration_ms: 1.6829
++  type: 'test'
++  ...
++# Subtest: fetch 失败时非零退出并且不运行 calibrate
++ok 11 - fetch 失败时非零退出并且不运行 calibrate
++  ---
++  duration_ms: 0.2857
++  type: 'test'
++  ...
++# Subtest: calibrate 失败时非零退出且不输出部分 Markdown
++ok 12 - calibrate 失败时非零退出且不输出部分 Markdown
++  ---
++  duration_ms: 0.2563
++  type: 'test'
++  ...
++# 未发现 scripts 下的 Node 测试文件。
++# Node 测试进程被信号终止：SIGTERM
++# 启动 Node 测试失败：spawn failed
++# TAP version 13
++# \# Subtest: 故意失败
++# not ok 1 - 故意失败
++#   ---
++#   duration_ms: 0.5416
++#   type: 'test'
++#   location: 'C:\\\\Users\\\\slsjz\\\\AppData\\\\Local\\\\Temp\\\\reset-radar-node-runner-test-nTH8RP\\\\scripts\\\\broken.test.mjs:1:31'
++#   failureType: 'testCodeFailure'
++#   error: 'expected failure'
++#   code: 'ERR_TEST_FAILURE'
++#   stack: |-
++#     TestContext.<anonymous> (file:///C:/Users/slsjz/AppData/Local/Temp/reset-radar-node-runner-test-nTH8RP/scripts/broken.test.mjs:1:58)
++#     Test.runInAsyncScope (node:async_hooks:214:14)
++#     Test.run (node:internal/test_runner/test:1047:25)
++#     Test.start (node:internal/test_runner/test:944:17)
++#     startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++#   ...
++# 1..1
++# \# tests 1
++# \# suites 0
++# \# pass 0
++# \# fail 1
++# \# cancelled 0
++# \# skipped 0
++# \# todo 0
++# \# duration_ms 74.246
++# Subtest: 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++ok 13 - 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++  ---
++  duration_ms: 9.1597
++  type: 'test'
++  ...
++# Subtest: 空清单拒绝启动 Node 子进程
++ok 14 - 空清单拒绝启动 Node 子进程
++  ---
++  duration_ms: 2.2988
++  type: 'test'
++  ...
++# Subtest: 透传子进程退出码及启动失败、信号失败
++ok 15 - 透传子进程退出码及启动失败、信号失败
++  ---
++  duration_ms: 3.4641
++  type: 'test'
++  ...
++# Subtest: 真实 Node 测试进程失败时入口返回非零
++ok 16 - 真实 Node 测试进程失败时入口返回非零
++  ---
++  duration_ms: 135.9027
++  type: 'test'
++  ...
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 17 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.196
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 18 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.3572
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 19 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 4.8404
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 20 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 10.0579
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 21 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 3.1948
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 22 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 112.0603
++  type: 'test'
++  ...
++# Subtest: unknown or duplicate path options fail instead of writing canonical data
++ok 23 - unknown or duplicate path options fail instead of writing canonical data
++  ---
++  duration_ms: 0.2277
++  type: 'test'
++  ...
++# Subtest: missing file is labelled but read errors make calibration fail explicitly
++ok 24 - missing file is labelled but read errors make calibration fail explicitly
++  ---
++  duration_ms: 93.1126
++  type: 'test'
++  ...
++# Subtest: 同一预先留存窗口分列0%与25%权重，真实调用核心计分
++ok 25 - 同一预先留存窗口分列0%与25%权重，真实调用核心计分
++  ---
++  duration_ms: 2.8388
++  type: 'test'
++  ...
++# Subtest: 旧行和事后记录无法伪造paired样本，0不呈现为完美Brier
++ok 26 - 旧行和事后记录无法伪造paired样本，0不呈现为完美Brier
++  ---
++  duration_ms: 0.3601
++  type: 'test'
++  ...
++# Subtest: 文件读取保留24h窗口与watch基准元数据，报告不会在IO接线时丢失配对
++ok 27 - 文件读取保留24h窗口与watch基准元数据，报告不会在IO接线时丢失配对
++  ---
++  duration_ms: 9.5981
++  type: 'test'
++  ...
++1..27
++# tests 37
++# suites 6
++# pass 37
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 347.7999
+diff --git a/task_logs/RR16_artifacts/production-cdp.json b/task_logs/RR16_artifacts/production-cdp.json
+new file mode 100644
+index 0000000..c14e60b
+--- /dev/null
++++ b/task_logs/RR16_artifacts/production-cdp.json
+@@ -0,0 +1,6 @@
++{
++  "url": "http://tauri.localhost/",
++  "tauri": true,
++  "logState": "ok",
++  "text": "CODEX\n86%\n周额度剩余\n重置风险 32.5%\n卡×3"
++}
+diff --git a/task_logs/RR16_artifacts/production.json b/task_logs/RR16_artifacts/production.json
+new file mode 100644
+index 0000000..7941c67
+--- /dev/null
++++ b/task_logs/RR16_artifacts/production.json
+@@ -0,0 +1,57 @@
++{
++  "ownedPid": 26612,
++  "startedAt": "2026-10-11T05:59:31.5821976+00:00",
++  "beforeBytes": 361,
++  "afterBytes": 361,
++  "beforeHash": "4A5553BEC97067F643FDC4A8C97888EB4023BEA908C3519E3630FBF705268673",
++  "afterHash": "4A5553BEC97067F643FDC4A8C97888EB4023BEA908C3519E3630FBF705268673",
++  "bytesPreserved": true,
++  "lockExists": false,
++  "snapshot": {
++    "provider": "codex",
++    "displayName": "CODEX",
++    "plan": "PLUS",
++    "shortWindow": {
++      "remainingPercent": 8.0,
++      "resetsAt": "2026-10-11T08:57:14+00:00",
++      "windowSeconds": 18000
++    },
++    "weeklyWindow": {
++      "remainingPercent": 86.0,
++      "resetsAt": "2026-10-18T03:57:14+00:00",
++      "windowSeconds": 604800
++    },
++    "resetCredits": 3,
++    "rateLimitSnapshot": {
++      "source": "app-server",
++      "usedPercent": 14.0,
++      "windowDurationMins": 10080,
++      "resetsAt": "2026-10-18T03:57:14+00:00",
++      "observedAt": "2026-10-11T05:59:34.508923+00:00"
++    },
++    "updatedAt": "2026-10-11T05:59:34.508923+00:00",
++    "status": "ok",
++    "message": null,
++    "resetStatus": {
++      "scheduledReset": null,
++      "activeWatch": null,
++      "latestReset": {
++        "announced_at": "2026-10-11T04:01:09.000Z",
++        "id": "2109132167112782291",
++        "reset_type": "regular",
++        "source": {
++          "author": "thsottiaux",
++          "type": "x_post",
++          "url": "https://x.com/thsottiaux/status/2109132167112782291"
++        },
++        "text": "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj"
++      },
++      "fetchedAt": "2026-10-11T05:59:33.172935300Z",
++      "freshUntil": "2026-10-11T06:14:33.172935300Z",
++      "generatedAt": "2026-10-11T05:59:26.585Z",
++      "lastAttemptAt": "2026-10-11T05:59:32.469227300Z",
++      "status": "ok",
++      "message": null
++    }
++  }
++}
+diff --git a/task_logs/RR16_artifacts/status-live.json b/task_logs/RR16_artifacts/status-live.json
+new file mode 100644
+index 0000000..8f86a02
+--- /dev/null
++++ b/task_logs/RR16_artifacts/status-live.json
+@@ -0,0 +1,31 @@
++{
++  "fetchedAt": "2026-10-11T05:52:43.235Z",
++  "url": "https://codex-resets.com/api/v1/status",
++  "response": {
++    "data": {
++      "latest_reset": {
++        "id": "2109132167112782291",
++        "reset_type": "regular",
++        "announced_at": "2026-10-11T04:01:09.000Z",
++        "text": "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj",
++        "source": {
++          "type": "x_post",
++          "author": "thsottiaux",
++          "url": "https://x.com/thsottiaux/status/2109132167112782291"
++        }
++      },
++      "scheduled_reset": null,
++      "active_watch": null,
++      "stats": {
++        "total": 60,
++        "last_reset_at": "2026-10-11T04:01:09.000Z",
++        "days_since_last": 0.1,
++        "avg_interval_days": 6.6
++      }
++    },
++    "meta": {
++      "api_version": "v1",
++      "generated_at": "2026-10-11T05:52:28.106Z"
++    }
++  }
++}
+diff --git a/task_logs/RR16_artifacts/tsc-final.txt b/task_logs/RR16_artifacts/tsc-final.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/task_logs/RR16_artifacts/tsc.txt b/task_logs/RR16_artifacts/tsc.txt
+new file mode 100644
+index 0000000..e69de29
+-- 
+2.52.0.windows.1
+

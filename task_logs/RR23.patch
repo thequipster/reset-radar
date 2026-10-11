@@ -1,0 +1,2601 @@
+From 98d9bbc8643ac46e8f4d8ed3c6089a26fc5a3c0c Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 13:05:37 +0800
+Subject: [PATCH] feat(status): collect runtime reset announcements with
+ independent freshness
+
+---
+ TRUTH.md                                      |   6 +
+ docs/DECISIONS.md                             |   8 +
+ docs/design/04-progress.md                    |   4 +
+ docs/runtime-status-20261011.md               |  40 ++
+ src-tauri/Cargo.lock                          | 432 ++++++++++++++++-
+ src-tauri/Cargo.toml                          |   2 +
+ src-tauri/src/codex.rs                        |   1 +
+ src-tauri/src/lib.rs                          |  23 +-
+ src-tauri/src/models.rs                       |   4 +
+ src-tauri/src/reset_status.rs                 | 458 ++++++++++++++++++
+ src-tauri/src/snapshots.rs                    |  27 ++
+ src/lib/__tests__/fixtures/resetStatus.ts     |  13 +
+ src/lib/__tests__/resetStatus.core.test.ts    |  69 +++
+ src/lib/index.ts                              |   1 +
+ src/lib/resetStatus.ts                        |  47 ++
+ src/ui/__tests__/ui.reset-status.test.ts      |  60 +++
+ src/ui/adapters.ts                            |  31 +-
+ src/ui/types.ts                               |   2 +
+ .../RR23_artifacts/cargo-check-final.txt      |   2 +
+ .../RR23_artifacts/cargo-check-initial.txt    |  69 +++
+ task_logs/RR23_artifacts/cargo-check.txt      |   2 +
+ task_logs/RR23_artifacts/cargo-tests.txt      | 234 +++++++++
+ task_logs/RR23_artifacts/domain-final.txt     |  12 +
+ task_logs/RR23_artifacts/full-final.txt       |  12 +
+ task_logs/RR23_artifacts/full-green.txt       |  12 +
+ .../production-cache-smoke.json               |  29 ++
+ task_logs/RR23_artifacts/release-build.txt    |  62 +++
+ task_logs/RR23_artifacts/rust-mutant-red.txt  |  45 ++
+ .../RR23_artifacts/rust-restored-green.txt    |  38 ++
+ task_logs/RR23_artifacts/tls-live.txt         |  43 ++
+ task_logs/RR23_artifacts/ts-mutant-red.txt    | 108 +++++
+ task_logs/RR23_artifacts/tsc-green.txt        |   2 +
+ task_logs/RR23_artifacts/vite-build.txt       |  13 +
+ .../RR23_artifacts/vitest-domain-initial.txt  |  12 +
+ 34 files changed, 1898 insertions(+), 25 deletions(-)
+ create mode 100644 docs/runtime-status-20261011.md
+ create mode 100644 src-tauri/src/reset_status.rs
+ create mode 100644 src/lib/__tests__/fixtures/resetStatus.ts
+ create mode 100644 src/lib/__tests__/resetStatus.core.test.ts
+ create mode 100644 src/lib/resetStatus.ts
+ create mode 100644 src/ui/__tests__/ui.reset-status.test.ts
+ create mode 100644 task_logs/RR23_artifacts/cargo-check-final.txt
+ create mode 100644 task_logs/RR23_artifacts/cargo-check-initial.txt
+ create mode 100644 task_logs/RR23_artifacts/cargo-check.txt
+ create mode 100644 task_logs/RR23_artifacts/cargo-tests.txt
+ create mode 100644 task_logs/RR23_artifacts/domain-final.txt
+ create mode 100644 task_logs/RR23_artifacts/full-final.txt
+ create mode 100644 task_logs/RR23_artifacts/full-green.txt
+ create mode 100644 task_logs/RR23_artifacts/production-cache-smoke.json
+ create mode 100644 task_logs/RR23_artifacts/release-build.txt
+ create mode 100644 task_logs/RR23_artifacts/rust-mutant-red.txt
+ create mode 100644 task_logs/RR23_artifacts/rust-restored-green.txt
+ create mode 100644 task_logs/RR23_artifacts/tls-live.txt
+ create mode 100644 task_logs/RR23_artifacts/ts-mutant-red.txt
+ create mode 100644 task_logs/RR23_artifacts/tsc-green.txt
+ create mode 100644 task_logs/RR23_artifacts/vite-build.txt
+ create mode 100644 task_logs/RR23_artifacts/vitest-domain-initial.txt
+
+diff --git a/TRUTH.md b/TRUTH.md
+index b8cbbe7..4f1a446 100644
+--- a/TRUTH.md
++++ b/TRUTH.md
+@@ -148,3 +148,9 @@
+ - 用户原文：“继续第四阶段”；六张参考PNG已到RR26/ref。本轮复制入RR22/ref，原名/字节保留，逐文件SHA256相等。
+ - B07回源：task_logs/RR22_artifacts/status-live.json，2026-10-11T04:33:44.170Z；latest_reset.id=2109132167112782291，announced_at=04:01:09Z，reset_type=regular；scheduled_reset与active_watch均null。旧公告不能作为当前计划继续清仓。
+ - https://codex-resets.com/ 首页解释banked为需主动兑换的保存卡，不自动回满额度；regular未来公告可作为规划情景，未确认落地不能写已重置。决策D022；以API响应原文为当前事实，搜索索引上的旧计划不覆盖它。
++
++### 2026-10-11 RR23 运行时公告实证（B07追加）
++- reqwest 0.12.28/rustls通过默认TLS校验实拉/status，Accept:application/json，总超时4s；`task_logs/RR23_artifacts/tls-live.txt`为Rust原始响应与解析结果。成功fetchedAt=2026-10-11T05:03:40.171424200Z，freshUntil=05:18:40.171424200Z；generated_at=05:03:01.289Z。
++- latest_reset.id=2109132167112782291、reset_type=regular、announced_at=2026-10-11T04:01:09.000Z；scheduled_reset和active_watch均null。新增15分钟缓存、失败保留旧字段但不用于行动的契约，详见docs/runtime-status-20261011.md及D024。
++- 单测24通过/1手动网络测试默认忽略；显式网络测试1通过。轮询900秒误改60秒令缓存边界及freshUntil测试失败，原字节恢复24通过。
++- GNU release带custom-protocol实跑：`task_logs/RR23_artifacts/production-cache-smoke.json`，owned PID32568启动于05:05:10Z且已关闭；额度status=ok、observedAt=05:05:13.773898400Z；公告status=ok、fetchedAt=05:05:12.553657700Z，成功落于app.resetradar.desktop/last-snapshots.json，两时钟分开。
+diff --git a/docs/DECISIONS.md b/docs/DECISIONS.md
+index a871f8c..96c53d0 100644
+--- a/docs/DECISIONS.md
++++ b/docs/DECISIONS.md
+@@ -217,3 +217,11 @@
+ - 用户授权继续阶段4，六张图放在RR26 worktree的ref目录；Luna只读逐图识别，选择纵向展开图为主、横向6:1条为紧凑态，其他补预览/主题/状态/组件，详见docs/design/04-progress.md。
+ - 图稿只提供布局/视觉依据；数字、日期、风险等级与因子归属不从图抄入产品。保留用户原名并原字节复制到RR22/ref，SHA256对账一致，随卡版本化，以免拆RR26时丢用户素材。
+ - MERGE后暂保留RR21/RR26 worktree（junction及用户未跟踪素材），不执行递归强拆。后续安全清理另作协调动作，发布仍留用户。
++
++## D024 RR23 公告来源与额度分时钟，失败不等于无公告（2026-10-11，S1011-RR23）
++- 依据：ARCHITECTURE分层与出站超时；TRUTH B07 /status；BACKLOG RR23约15min轮询；02-spec来源新鲜度/已过计划待核实；D022禁止伪造必然概率。
++- Rust reqwest/rustls进行TLS验证，沿参考Cargo.toml:25配置，4s总超时沿reset_forecast.rs:334；与6s额度采集并行。Client构造失败也返回来源error而非令整个app panic。
++- 成功缓存15min；失败保留数据/成功时刻并标error，按同周期重试。freshUntil从成功抓取时刻+轮询期派生，纯TS核心只比较来源边界，零重复TTL常数。成功null清旧计划，缺字段/坏结构报失败；旧磁盘快照不建立新的单调时钟锚点，首刷立即实拉。
++- 新鲜来源用当前评估时刻验证公告与latest_reset，不能用旧额度observedAt忽略新发布的计划或继续执行过期计划。VM新增riskEvaluatedAt、resetStatus及独立fetched/generated/lastAttempt时间；额度observedAt与status不被覆盖。
++- 最新确认regular事件按时间戳去重并入风险历史；banked只是发卡，不能算自动回满。离线历史已有banked条目，RR18刷新/消费者核对时一并处理；不手改夹具数值。
++- sources成功过期与sources失败都保留旧公告展示信息，actionableReset=null；没有整个来源字段时后向兼容旧golden。计划/概率分别显示，React不实现业务策略；watch本卡原样透传，RR16接既有单一权重与比较。
+diff --git a/docs/design/04-progress.md b/docs/design/04-progress.md
+index 6bde13b..10ba4ea 100644
+--- a/docs/design/04-progress.md
++++ b/docs/design/04-progress.md
+@@ -36,3 +36,7 @@ UI卡还须处理实际键盘焦点（RR21的focus:false实测带NOACTIVATE）
+ ## RR22验证
+ 
+ tsc退出0；核心域93/93、全量108/108（原93+新增公告15）；两个变异分别把未来计划换成过期计划（红6条）与关闭精确收益边界（红1条），均原字节恢复并复绿。输出在task_logs/RR22_artifacts/；没有Rust改动，不新增Rust门。本轮无外观重设计，未生成新的应用实跑截图。
++
++## RR23运行时接线
++
++Rust已把/status来源并行接到额度快照，15分钟缓存/失败保留/首刷联网/旧缓存兼容；VM独立透传来源时刻、错误与过期状态，有效公告才输入核心规划。新确认regular事件去重入历史，watch暂透传交RR16，UI外观仍待RR27。真实HTTPS原文与门禁见task_logs/RR23_artifacts，交付与落盘实证最终记录于RR23_done.md。
+diff --git a/docs/runtime-status-20261011.md b/docs/runtime-status-20261011.md
+new file mode 100644
+index 0000000..ce0234e
+--- /dev/null
++++ b/docs/runtime-status-20261011.md
+@@ -0,0 +1,40 @@
++# 运行时重置公告契约（RR23）
++
++数据路径：`codex-resets.com/api/v1/status` → Rust `reset_status` → `ProviderSnapshot.resetStatus` → `buildDashboard` → `DashboardViewModel.resetStatus`。公告采集与额度采集并行，失败互不抹掉另一来源。
++
++## 采集与持久化
++
++- reqwest 0.12.28，rustls TLS与系统代理；版本配置借鉴MIT codex-cockpit `src-tauri/Cargo.toml:25`。TLS不做忽略证书/主机名验证的降级。
++- 请求总超时4秒，参考`src-tauri/src/reset_forecast.rs:334`；15分钟缓存期来自BACKLOG RR23，额度仍保持既有5分钟后台刷新。
++- 数据层输出`fetchedAt`（最近成功时刻）、`lastAttemptAt`、`generatedAt`（上游原文）及`freshUntil`（成功时刻+轮询周期）。核心比较来源提供的有效期，不重复定义轮询常数。
++- 成功`scheduled_reset:null`会清除旧计划；缺字段/坏JSON/坏形状是采集失败，不能假装“没有公告”。
++- 失败保留上次成功的数据/时间并标`status:error`和消息；第一次失败时间与成功时刻不会混用。失败按相同轮询期重试，手动“刷新额度”不承诺强制重拉公告。
++- 复用`last-snapshots.json`落盘。旧快照缺resetStatus可读；热启动先显示来源真实时刻，服务首刷立即联网，不把磁盘缓存年龄换成新鲜的单调时钟。
++
++## 快照字段
++
++| 字段 | 语义 |
++|---|---|
++| scheduledReset | nullable；id/status/resetType/announcedAt/scheduledFor/text/source；上游snake_case适配到camelCase，公告来源原文保留 |
++| activeWatch / latestReset | nullable原始JSON对象，不猜测缺字段/概率；最新事件用于风险输入时按时间戳去重，只接受regular自动回满类型 |
++| fetchedAt / generatedAt / freshUntil | nullable，来源成功时间/上游生成时刻/采集有效期 |
++| lastAttemptAt / status / message | 本次尝试时刻、ok/error、错误说明 |
++
++## VM与核心边界
++
++- 核心`evaluateResetStatus`返回ok/stale/error，失败与过期仍可展示旧公告，`actionableReset`为null。精确freshUntil边界即过期；未来成功时刻/非法时效不可用于行动。
++- 当前有效来源的公告与已确认事件在当前评估时刻计算，`riskEvaluatedAt`单独传出，额度`observedAt`保持原义；公告不被冻结在旧额度观测时间。
++- 日建议和卡收益仅接核心给出的actionableReset，全部业务公式仍在src/lib；适配层只装配输入和做单位换算。
++- valid计划采用RR22情景策略；计划时刻已过显示awaiting-confirmation，不能声称已回满；失败/过期停止继续清仓。
++- `activeWatch`本卡只原样透传，RR16负责接既有tracker-watch因子并做校准对比。UI层不新增第二套概率算法。
++- 缺整个来源字段时保持旧风险/规划golden；生产来源一旦存在，按当前时间判断自然窗口是否已过期。
++
++## 后续消费
++
++RR27据VM显示公告来源/时间/状态；来源抓取失败与额度状态可同时存在。RR15预测记录须使用明确的风险评估时间；RR18刷新离线历史，并按regular/banked区别核对历史消费者，防止发卡记录被误当自动重置。
++
++## 验证记录
++
++编译、Rust单元测试、真实TLS请求与生产落盘实证见主仓`task_logs/RR23_done.md`及RR23_artifacts。本文不把尚未执行的验证记作通过。
++
++reqwest超时与构造失败语义回源：[ClientBuilder官方文档](https://docs.rs/reqwest/0.12.28/reqwest/struct.ClientBuilder.html)。公开API事实源见TRUTH B07；实际响应以本轮采集产物为准，不使用搜索索引的旧计划。
+diff --git a/src-tauri/Cargo.lock b/src-tauri/Cargo.lock
+index 4e4664f..833890a 100644
+--- a/src-tauri/Cargo.lock
++++ b/src-tauri/Cargo.lock
+@@ -316,6 +316,23 @@ version = "1.0.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
+ 
++[[package]]
++name = "cfg_aliases"
++version = "0.2.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
++
++[[package]]
++name = "chacha20"
++version = "0.10.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "65c35e4b699c7e15ccbe7ee35c005e4fc0a278d22238a2857e6ce2dadeda1b06"
++dependencies = [
++ "cfg-if",
++ "cpufeatures 0.3.1",
++ "rand_core",
++]
++
+ [[package]]
+ name = "chrono"
+ version = "0.4.45"
+@@ -350,6 +367,16 @@ dependencies = [
+  "version_check",
+ ]
+ 
++[[package]]
++name = "core-foundation"
++version = "0.9.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f"
++dependencies = [
++ "core-foundation-sys",
++ "libc",
++]
++
+ [[package]]
+ name = "core-foundation"
+ version = "0.10.1"
+@@ -373,7 +400,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "064badf302c3194842cf2c5d61f56cc88e54a759313879cdf03abdd27d0c3b97"
+ dependencies = [
+  "bitflags 2.13.2",
+- "core-foundation",
++ "core-foundation 0.10.1",
+  "core-graphics-types",
+  "foreign-types",
+  "libc",
+@@ -386,7 +413,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "3d44a101f213f6c4cdc1853d4b78aef6db6bdfa3468798cc1d9912f4735013eb"
+ dependencies = [
+  "bitflags 2.13.2",
+- "core-foundation",
++ "core-foundation 0.10.1",
+  "libc",
+ ]
+ 
+@@ -399,6 +426,15 @@ dependencies = [
+  "libc",
+ ]
+ 
++[[package]]
++name = "cpufeatures"
++version = "0.3.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566"
++dependencies = [
++ "libc",
++]
++
+ [[package]]
+ name = "crc32fast"
+ version = "1.5.2"
+@@ -1022,6 +1058,19 @@ dependencies = [
+  "version_check",
+ ]
+ 
++[[package]]
++name = "getrandom"
++version = "0.2.17"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
++dependencies = [
++ "cfg-if",
++ "js-sys",
++ "libc",
++ "wasi",
++ "wasm-bindgen",
++]
++
+ [[package]]
+ name = "getrandom"
+ version = "0.3.4"
+@@ -1041,8 +1090,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
+ dependencies = [
+  "cfg-if",
++ "js-sys",
+  "libc",
+  "r-efi 6.0.0",
++ "rand_core",
++ "wasm-bindgen",
+ ]
+ 
+ [[package]]
+@@ -1291,6 +1343,22 @@ dependencies = [
+  "want",
+ ]
+ 
++[[package]]
++name = "hyper-rustls"
++version = "0.27.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "dfa8e654703247911e29c23fbeaa261834bd9bb74efba2f9acddc37bfb127f53"
++dependencies = [
++ "http",
++ "hyper",
++ "hyper-util",
++ "rustls",
++ "tokio",
++ "tokio-rustls",
++ "tower-service",
++ "webpki-roots",
++]
++
+ [[package]]
+ name = "hyper-util"
+ version = "0.1.21"
+@@ -1310,9 +1378,11 @@ dependencies = [
+  "percent-encoding",
+  "pin-project-lite",
+  "socket2",
++ "system-configuration",
+  "tokio",
+  "tower-service",
+  "tracing",
++ "windows-registry",
+ ]
+ 
+ [[package]]
+@@ -1746,6 +1816,12 @@ version = "0.4.34"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+ 
++[[package]]
++name = "lru-slab"
++version = "0.1.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
++
+ [[package]]
+ name = "markup5ever"
+ version = "0.39.0"
+@@ -2376,6 +2452,62 @@ dependencies = [
+  "memchr",
+ ]
+ 
++[[package]]
++name = "quinn"
++version = "0.11.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4051e23e9185c255a7e33ef59cdbca87a22d359052eecd22fc6b901fb37d9d11"
++dependencies = [
++ "bytes",
++ "cfg_aliases",
++ "pin-project-lite",
++ "quinn-proto",
++ "quinn-udp",
++ "rustc-hash",
++ "rustls",
++ "socket2",
++ "thiserror 2.0.21",
++ "tokio",
++ "tracing",
++ "web-time",
++]
++
++[[package]]
++name = "quinn-proto"
++version = "0.11.19"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0e750cca55fe4f0439a15d0bb529da9651e79993e8e72c61a899a36d462befbe"
++dependencies = [
++ "bytes",
++ "getrandom 0.4.3",
++ "lru-slab",
++ "rand",
++ "rand_pcg",
++ "ring",
++ "rustc-hash",
++ "rustls",
++ "rustls-pki-types",
++ "slab",
++ "thiserror 2.0.21",
++ "tinyvec",
++ "tracing",
++ "web-time",
++]
++
++[[package]]
++name = "quinn-udp"
++version = "0.5.16"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "af66907df18639dcf4db56ca65490cabc4b27a97dbadd96f2926cca73298f016"
++dependencies = [
++ "cfg_aliases",
++ "libc",
++ "once_cell",
++ "socket2",
++ "tracing",
++ "windows-sys 0.61.2",
++]
++
+ [[package]]
+ name = "quote"
+ version = "1.0.47"
+@@ -2397,6 +2529,32 @@ version = "6.0.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+ 
++[[package]]
++name = "rand"
++version = "0.10.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "65c9fb96cbc91e3478eaae79a69fcd3f1ae4ad052e471fe6732fff548984b4af"
++dependencies = [
++ "chacha20",
++ "getrandom 0.4.3",
++ "rand_core",
++]
++
++[[package]]
++name = "rand_core"
++version = "0.10.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
++
++[[package]]
++name = "rand_pcg"
++version = "0.10.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "caa0f4137e1c0a72f4c651489402276c8e8e1cf081f3b0ba156d2cbeef09e86a"
++dependencies = [
++ "rand_core",
++]
++
+ [[package]]
+ name = "raw-window-handle"
+ version = "0.6.2"
+@@ -2471,6 +2629,44 @@ version = "0.8.11"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+ 
++[[package]]
++name = "reqwest"
++version = "0.12.28"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
++dependencies = [
++ "base64 0.22.1",
++ "bytes",
++ "futures-core",
++ "http",
++ "http-body",
++ "http-body-util",
++ "hyper",
++ "hyper-rustls",
++ "hyper-util",
++ "js-sys",
++ "log",
++ "percent-encoding",
++ "pin-project-lite",
++ "quinn",
++ "rustls",
++ "rustls-pki-types",
++ "serde",
++ "serde_json",
++ "serde_urlencoded",
++ "sync_wrapper",
++ "tokio",
++ "tokio-rustls",
++ "tower",
++ "tower-http",
++ "tower-service",
++ "url",
++ "wasm-bindgen",
++ "wasm-bindgen-futures",
++ "web-sys",
++ "webpki-roots",
++]
++
+ [[package]]
+ name = "reqwest"
+ version = "0.13.5"
+@@ -2512,6 +2708,7 @@ dependencies = [
+  "chrono",
+  "dirs 6.0.0",
+  "embed-resource",
++ "reqwest 0.12.28",
+  "serde",
+  "serde_json",
+  "tauri",
+@@ -2519,6 +2716,20 @@ dependencies = [
+  "tokio",
+ ]
+ 
++[[package]]
++name = "ring"
++version = "0.17.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7"
++dependencies = [
++ "cc",
++ "cfg-if",
++ "getrandom 0.2.17",
++ "libc",
++ "untrusted",
++ "windows-sys 0.52.0",
++]
++
+ [[package]]
+ name = "rustc-hash"
+ version = "2.1.3"
+@@ -2534,12 +2745,53 @@ dependencies = [
+  "semver",
+ ]
+ 
++[[package]]
++name = "rustls"
++version = "0.23.45"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
++dependencies = [
++ "once_cell",
++ "ring",
++ "rustls-pki-types",
++ "rustls-webpki",
++ "subtle",
++ "zeroize",
++]
++
++[[package]]
++name = "rustls-pki-types"
++version = "1.15.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96"
++dependencies = [
++ "web-time",
++ "zeroize",
++]
++
++[[package]]
++name = "rustls-webpki"
++version = "0.103.15"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
++dependencies = [
++ "ring",
++ "rustls-pki-types",
++ "untrusted",
++]
++
+ [[package]]
+ name = "rustversion"
+ version = "1.0.23"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+ 
++[[package]]
++name = "ryu"
++version = "1.0.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
++
+ [[package]]
+ name = "same-file"
+ version = "1.0.6"
+@@ -2730,6 +2982,18 @@ dependencies = [
+  "serde_core",
+ ]
+ 
++[[package]]
++name = "serde_urlencoded"
++version = "0.7.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d3491c14715ca2294c4d6a88f15e84739788c1d030eed8c110436aafdaa2f3fd"
++dependencies = [
++ "form_urlencoded",
++ "itoa",
++ "ryu",
++ "serde",
++]
++
+ [[package]]
+ name = "serde_with"
+ version = "3.24.0"
+@@ -2801,7 +3065,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
+ dependencies = [
+  "cfg-if",
+- "cpufeatures",
++ "cpufeatures 0.2.17",
+  "digest",
+ ]
+ 
+@@ -2939,6 +3203,12 @@ version = "0.11.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+ 
++[[package]]
++name = "subtle"
++version = "2.6.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
++
+ [[package]]
+ name = "swift-rs"
+ version = "1.0.9"
+@@ -3002,6 +3272,27 @@ dependencies = [
+  "syn 3.0.7",
+ ]
+ 
++[[package]]
++name = "system-configuration"
++version = "0.7.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a13f3d0daba03132c0aa9767f98351b3488edc2c100cda2d2ec2b04f3d8d3c8b"
++dependencies = [
++ "bitflags 2.13.2",
++ "core-foundation 0.9.4",
++ "system-configuration-sys",
++]
++
++[[package]]
++name = "system-configuration-sys"
++version = "0.6.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
++dependencies = [
++ "core-foundation-sys",
++ "libc",
++]
++
+ [[package]]
+ name = "system-deps"
+ version = "6.2.2"
+@@ -3023,7 +3314,7 @@ checksum = "f37f381f4e048e6cdf038b5705f8cf14ad108279d46eb968140a7b291aba9400"
+ dependencies = [
+  "bitflags 2.13.2",
+  "block2",
+- "core-foundation",
++ "core-foundation 0.10.1",
+  "core-graphics",
+  "crossbeam-channel",
+  "dbus",
+@@ -3102,7 +3393,7 @@ dependencies = [
+  "percent-encoding",
+  "plist",
+  "raw-window-handle",
+- "reqwest",
++ "reqwest 0.13.5",
+  "serde",
+  "serde_json",
+  "serde_repr",
+@@ -3407,6 +3698,16 @@ dependencies = [
+  "syn 3.0.7",
+ ]
+ 
++[[package]]
++name = "tokio-rustls"
++version = "0.26.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db"
++dependencies = [
++ "rustls",
++ "tokio",
++]
++
+ [[package]]
+ name = "tokio-util"
+ version = "0.7.20"
+@@ -3632,6 +3933,12 @@ version = "1.13.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8"
+ 
++[[package]]
++name = "untrusted"
++version = "0.9.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
++
+ [[package]]
+ name = "url"
+ version = "2.5.8"
+@@ -3886,6 +4193,15 @@ dependencies = [
+  "system-deps",
+ ]
+ 
++[[package]]
++name = "webpki-roots"
++version = "1.0.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7dcd9d09a39985f5344844e66b0c530a33843579125f23e21e9f0f220850f22a"
++dependencies = [
++ "rustls-pki-types",
++]
++
+ [[package]]
+ name = "webview2-com"
+ version = "0.39.1"
+@@ -4050,6 +4366,17 @@ dependencies = [
+  "windows-link",
+ ]
+ 
++[[package]]
++name = "windows-registry"
++version = "0.6.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "02752bf7fbdcce7f2a27a742f798510f3e5ad88dbe84871e5168e2120c3d5720"
++dependencies = [
++ "windows-link",
++ "windows-result",
++ "windows-strings",
++]
++
+ [[package]]
+ name = "windows-result"
+ version = "0.4.1"
+@@ -4074,7 +4401,16 @@ version = "0.45.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "75283be5efb2831d37ea142365f009c02ec203cd29a3ebecbc093d52315b66d0"
+ dependencies = [
+- "windows-targets",
++ "windows-targets 0.42.2",
++]
++
++[[package]]
++name = "windows-sys"
++version = "0.52.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
++dependencies = [
++ "windows-targets 0.52.6",
+ ]
+ 
+ [[package]]
+@@ -4092,13 +4428,29 @@ version = "0.42.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "8e5180c00cd44c9b1c88adb3693291f1cd93605ded80c250a75d472756b4d071"
+ dependencies = [
+- "windows_aarch64_gnullvm",
+- "windows_aarch64_msvc",
+- "windows_i686_gnu",
+- "windows_i686_msvc",
+- "windows_x86_64_gnu",
+- "windows_x86_64_gnullvm",
+- "windows_x86_64_msvc",
++ "windows_aarch64_gnullvm 0.42.2",
++ "windows_aarch64_msvc 0.42.2",
++ "windows_i686_gnu 0.42.2",
++ "windows_i686_msvc 0.42.2",
++ "windows_x86_64_gnu 0.42.2",
++ "windows_x86_64_gnullvm 0.42.2",
++ "windows_x86_64_msvc 0.42.2",
++]
++
++[[package]]
++name = "windows-targets"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973"
++dependencies = [
++ "windows_aarch64_gnullvm 0.52.6",
++ "windows_aarch64_msvc 0.52.6",
++ "windows_i686_gnu 0.52.6",
++ "windows_i686_gnullvm",
++ "windows_i686_msvc 0.52.6",
++ "windows_x86_64_gnu 0.52.6",
++ "windows_x86_64_gnullvm 0.52.6",
++ "windows_x86_64_msvc 0.52.6",
+ ]
+ 
+ [[package]]
+@@ -4125,42 +4477,90 @@ version = "0.42.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "597a5118570b68bc08d8d59125332c54f1ba9d9adeedeef5b99b02ba2b0698f8"
+ 
++[[package]]
++name = "windows_aarch64_gnullvm"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
++
+ [[package]]
+ name = "windows_aarch64_msvc"
+ version = "0.42.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "e08e8864a60f06ef0d0ff4ba04124db8b0fb3be5776a5cd47641e942e58c4d43"
+ 
++[[package]]
++name = "windows_aarch64_msvc"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
++
+ [[package]]
+ name = "windows_i686_gnu"
+ version = "0.42.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "c61d927d8da41da96a81f029489353e68739737d3beca43145c8afec9a31a84f"
+ 
++[[package]]
++name = "windows_i686_gnu"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
++
++[[package]]
++name = "windows_i686_gnullvm"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
++
+ [[package]]
+ name = "windows_i686_msvc"
+ version = "0.42.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "44d840b6ec649f480a41c8d80f9c65108b92d89345dd94027bfe06ac444d1060"
+ 
++[[package]]
++name = "windows_i686_msvc"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
++
+ [[package]]
+ name = "windows_x86_64_gnu"
+ version = "0.42.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "8de912b8b8feb55c064867cf047dda097f92d51efad5b491dfb98f6bbb70cb36"
+ 
++[[package]]
++name = "windows_x86_64_gnu"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
++
+ [[package]]
+ name = "windows_x86_64_gnullvm"
+ version = "0.42.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "26d41b46a36d453748aedef1486d5c7a85db22e56aff34643984ea85514e94a3"
+ 
++[[package]]
++name = "windows_x86_64_gnullvm"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
++
+ [[package]]
+ name = "windows_x86_64_msvc"
+ version = "0.42.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9aec5da331524158c6d1a4ac0ab1541149c0b9505fde06423b02f5ef0106b9f0"
+ 
++[[package]]
++name = "windows_x86_64_msvc"
++version = "0.52.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
++
+ [[package]]
+ name = "winnow"
+ version = "0.5.40"
+@@ -4310,6 +4710,12 @@ dependencies = [
+  "synstructure",
+ ]
+ 
++[[package]]
++name = "zeroize"
++version = "1.9.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
++
+ [[package]]
+ name = "zerotrie"
+ version = "0.2.5"
+diff --git a/src-tauri/Cargo.toml b/src-tauri/Cargo.toml
+index 997a29b..081a41c 100644
+--- a/src-tauri/Cargo.toml
++++ b/src-tauri/Cargo.toml
+@@ -24,3 +24,5 @@ serde_json = "1"
+ chrono = { version = "0.4", features = ["serde"] }
+ tokio = { version = "1", features = ["io-util", "macros", "process", "sync", "time"] }
+ dirs = "6"
++# RR23：与参考codex-cockpit Cargo.toml:25一致，保持TLS校验，禁止insecure降级。
++reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "system-proxy"] }
+diff --git a/src-tauri/src/codex.rs b/src-tauri/src/codex.rs
+index 7756409..1be37c6 100644
+--- a/src-tauri/src/codex.rs
++++ b/src-tauri/src/codex.rs
+@@ -256,6 +256,7 @@ fn parse_app_server_snapshot(result: &Value, observed_at: String) -> Result<Prov
+         observed_at: observed_at.clone(),
+     };
+     Ok(ProviderSnapshot {
++        reset_status: None,
+         provider: "codex".into(),
+         display_name: "CODEX".into(),
+         plan,
+diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+index 959c64c..56a76fe 100644
+--- a/src-tauri/src/lib.rs
++++ b/src-tauri/src/lib.rs
+@@ -6,6 +6,7 @@
+ mod codex;
+ mod models;
+ mod snapshots;
++mod reset_status;
+ 
+ use std::sync::Mutex;
+ use std::time::{Duration, Instant};
+@@ -28,6 +29,8 @@ const BACKGROUND_SNAPSHOTS_UPDATED_EVENT: &str = "background-snapshots-updated";
+ 
+ #[derive(Default)]
+ struct AppState {
++    /// 公告缓存与额度缓存分开：quota可5min刷新，status只15min一拉。
++    reset_status: tokio::sync::Mutex<Option<reset_status::ResetStatusService>>,
+     /// 单飞锁。出处：参考 lib.rs:243 fetch_lock。
+     fetch_lock: tokio::sync::Mutex<()>,
+     /// 内存缓存（写入时刻 + 最新快照）。出处：参考 lib.rs:244 snapshot_cache。
+@@ -37,8 +40,14 @@ struct AppState {
+ }
+ 
+ /// 采集全部 provider（v1 仅 codex）。出处：参考 lib.rs:306 collect_snapshots_once 的精简。
+-async fn collect_snapshots() -> Vec<ProviderSnapshot> {
+-    vec![codex::fetch_snapshot().await]
++async fn collect_snapshots(state: &AppState) -> Vec<ProviderSnapshot> {
++    let (mut quota, status) = tokio::join!(codex::fetch_snapshot(), async {
++        let mut service = state.reset_status.lock().await;
++        service.get_or_insert_with(|| reset_status::ResetStatusService::new(None))
++            .snapshot().await
++    });
++    quota.reset_status = Some(status);
++    vec![quota]
+ }
+ 
+ /// 后台刷新：实取 → 更新内存缓存 → 持久化 → 推事件。
+@@ -46,7 +55,7 @@ async fn collect_snapshots() -> Vec<ProviderSnapshot> {
+ async fn refresh_snapshots_in_background(app: &AppHandle) {
+     let state = app.state::<AppState>();
+     let _guard = state.fetch_lock.lock().await;
+-    let values = collect_snapshots().await;
++    let values = collect_snapshots(&state).await;
+     if let Ok(mut cache) = state.snapshot_cache.lock() {
+         *cache = Some((Instant::now(), values.clone()));
+     }
+@@ -72,7 +81,7 @@ pub fn run() {
+             if let Some(dir) = &config_dir {
+                 let _ = std::fs::create_dir_all(dir);
+             }
+-            let state = AppState {
++            let mut state = AppState {
+                 cache_dir: Mutex::new(config_dir.clone()),
+                 ..Default::default()
+             };
+@@ -82,6 +91,8 @@ pub fn run() {
+                 if let Some(saved) =
+                     snapshots::load_persisted_snapshot_cache(dir, chrono::Utc::now())
+                 {
++                    let saved_status = saved.snapshots.iter().find_map(|snapshot| snapshot.reset_status.clone());
++                    *state.reset_status.get_mut() = Some(reset_status::ResetStatusService::new(saved_status));
+                     let anchor = Instant::now()
+                         .checked_sub(saved.age)
+                         .unwrap_or_else(Instant::now);
+@@ -139,7 +150,7 @@ async fn get_snapshots(
+             }
+         }
+     }
+-    let values = collect_snapshots().await;
++    let values = collect_snapshots(&state).await;
+     if let Ok(mut cache) = state.snapshot_cache.lock() {
+         *cache = Some((Instant::now(), values.clone()));
+     }
+@@ -162,7 +173,7 @@ async fn refresh_snapshots(
+     state: State<'_, AppState>,
+ ) -> Result<Vec<ProviderSnapshot>, String> {
+     let _guard = state.fetch_lock.lock().await;
+-    let values = collect_snapshots().await;
++    let values = collect_snapshots(&state).await;
+     if let Ok(mut cache) = state.snapshot_cache.lock() {
+         *cache = Some((Instant::now(), values.clone()));
+     }
+diff --git a/src-tauri/src/models.rs b/src-tauri/src/models.rs
+index 0c65cab..bc43b69 100644
+--- a/src-tauri/src/models.rs
++++ b/src-tauri/src/models.rs
+@@ -38,6 +38,9 @@ pub struct ProviderSnapshot {
+     pub updated_at: String,
+     pub status: String,
+     pub message: Option<String>,
++    /// RR23独立来源元信息；旧快照缺此字段仍可热启动。
++    #[serde(default)]
++    pub reset_status: Option<crate::reset_status::ResetStatusSnapshot>,
+ }
+ 
+ impl ProviderSnapshot {
+@@ -54,6 +57,7 @@ impl ProviderSnapshot {
+             updated_at: chrono::Utc::now().to_rfc3339(),
+             status: status.into(),
+             message: Some(message.into()),
++            reset_status: None,
+         }
+     }
+ }
+diff --git a/src-tauri/src/reset_status.rs b/src-tauri/src/reset_status.rs
+new file mode 100644
+index 0000000..fec8d2e
+--- /dev/null
++++ b/src-tauri/src/reset_status.rs
+@@ -0,0 +1,458 @@
++//! codex-resets.com /api/v1/status 运行时快照。
++//! 计划公告保留为上游事实，不把计划状态解释成已发生事件或概率。
++
++use std::time::Duration;
++
++use chrono::{DateTime, SecondsFormat, Utc};
++use reqwest::Client;
++use serde::{Deserialize, Serialize};
++use serde_json::Value;
++use tokio::time::Instant;
++
++/// 公开端点：TRUTH §2 B07。
++const STATUS_URL: &str = "https://codex-resets.com/api/v1/status";
++/// 上游4秒总超时，出处：参考reset_forecast.rs:334。
++const REQUEST_TIMEOUT: Duration = Duration::from_secs(4);
++/// 运行时轮询周期，出处：BACKLOG RR23。
++pub const STATUS_POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
++
++#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
++#[serde(rename_all = "camelCase")]
++pub struct ScheduledResetSource {
++    #[serde(rename = "type")]
++    pub source_type: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub author: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub url: Option<String>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
++#[serde(rename_all = "camelCase")]
++pub struct ScheduledReset {
++    pub id: String,
++    pub status: String,
++    #[serde(alias = "reset_type")]
++    pub reset_type: String,
++    #[serde(alias = "announced_at")]
++    pub announced_at: String,
++    #[serde(alias = "scheduled_for")]
++    pub scheduled_for: String,
++    pub text: String,
++    pub source: ScheduledResetSource,
++}
++
++/// 公告/API快照，与Codex额度快照生命周期独立。
++#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
++#[serde(rename_all = "camelCase")]
++pub struct ResetStatusSnapshot {
++    pub scheduled_reset: Option<ScheduledReset>,
++    pub active_watch: Option<Value>,
++    pub latest_reset: Option<Value>,
++    pub fetched_at: Option<String>,
++    pub fresh_until: Option<String>,
++    pub generated_at: Option<String>,
++    pub last_attempt_at: String,
++    pub status: String,
++    pub message: Option<String>,
++}
++
++pub struct ResetStatusService {
++    client: Result<Client, String>,
++    snapshot: Option<ResetStatusSnapshot>,
++    /// 单调尝试锚点；磁盘快照启动时不建立新锚点，首刷必须实拉。
++    last_attempt_instant: Option<Instant>,
++}
++
++impl ResetStatusService {
++    /// 可用磁盘缓存作为旧数据，但不信任持久化的单调年龄；首次必联网。
++    pub fn new(saved: Option<ResetStatusSnapshot>) -> Self {
++        let client = Client::builder()
++            .timeout(REQUEST_TIMEOUT)
++            .build()
++            .map_err(|error| format!("status client construction failed: {error}"));
++        Self {
++            client,
++            snapshot: saved,
++            last_attempt_instant: None,
++        }
++    }
++
++    /// 周期内返回来源缓存，到边界后刷新。
++    pub async fn snapshot(&mut self) -> ResetStatusSnapshot {
++        let now = Instant::now();
++        if !self.refresh_due(now) {
++            if let Some(snapshot) = &self.snapshot {
++                return snapshot.clone();
++            }
++        }
++
++        let attempted_at = Utc::now().to_rfc3339_opts(SecondsFormat::AutoSi, true);
++        let result = self.fetch().await;
++        self.apply_fetch_result(result, &attempted_at, Instant::now());
++        self.snapshot.clone().unwrap_or_else(|| ResetStatusSnapshot {
++            scheduled_reset: None,
++            active_watch: None,
++            latest_reset: None,
++            fetched_at: None,
++            fresh_until: None,
++            generated_at: None,
++            last_attempt_at: attempted_at,
++            status: "error".into(),
++            message: Some("status fetch produced no snapshot".into()),
++        })
++    }
++
++    fn refresh_due(&self, now: Instant) -> bool {
++        self.last_attempt_instant
++            .map(|last| now.duration_since(last) >= STATUS_POLL_INTERVAL)
++            .unwrap_or(true)
++    }
++
++    async fn fetch(&self) -> Result<ResetStatusSnapshot, String> {
++        let client = self.client.as_ref().map_err(|error| error.to_owned())?;
++        let response = client
++            .get(STATUS_URL)
++            .header(reqwest::header::ACCEPT, "application/json")
++            .send()
++            .await
++            .map_err(|error| format!("status request failed: {error}"))?
++            .error_for_status()
++            .map_err(|error| format!("status endpoint returned an error: {error}"))?;
++        let raw = response
++            .text()
++            .await
++            .map_err(|error| format!("status response read failed: {error}"))?;
++        let fetched_at = Utc::now().to_rfc3339_opts(SecondsFormat::AutoSi, true);
++        parse_status(&raw, &fetched_at)
++    }
++
++    fn apply_fetch_result(
++        &mut self,
++        result: Result<ResetStatusSnapshot, String>,
++        attempted_at: &str,
++        attempted_instant: Instant,
++    ) {
++        self.last_attempt_instant = Some(attempted_instant);
++        match result {
++            Ok(mut snapshot) => {
++                snapshot.status = "ok".into();
++                snapshot.message = None;
++                snapshot.last_attempt_at = attempted_at.to_owned();
++                self.snapshot = Some(snapshot);
++            }
++            Err(message) => {
++                let snapshot = self.snapshot.get_or_insert_with(|| ResetStatusSnapshot {
++                    scheduled_reset: None,
++                    active_watch: None,
++                    latest_reset: None,
++                    fetched_at: None,
++                    fresh_until: None,
++                    generated_at: None,
++                    last_attempt_at: attempted_at.to_owned(),
++                    status: "error".into(),
++                    message: Some(message.clone()),
++                });
++                snapshot.last_attempt_at = attempted_at.to_owned();
++                snapshot.status = "error".into();
++                snapshot.message = Some(message);
++            }
++        }
++    }
++}
++
++impl Default for ResetStatusService {
++    fn default() -> Self {
++        Self::new(None)
++    }
++}
++
++/// 解析与校验上游信封，不执行IO。
++pub fn parse_status(raw: &str, fetched_at: &str) -> Result<ResetStatusSnapshot, String> {
++    let fetched_at_parsed = DateTime::parse_from_rfc3339(fetched_at)
++        .map_err(|error| format!("invalid fetched_at RFC3339 timestamp: {error}"))?;
++    let fetched_at_utc = fetched_at_parsed.with_timezone(&Utc);
++    let fresh_until = (fetched_at_utc + chrono::Duration::from_std(STATUS_POLL_INTERVAL)
++        .map_err(|error| format!("invalid polling interval: {error}"))?)
++    .to_rfc3339_opts(SecondsFormat::AutoSi, true);
++
++    let root: Value = serde_json::from_str(raw)
++        .map_err(|error| format!("invalid status JSON: {error}"))?;
++    let data = root
++        .get("data")
++        .and_then(Value::as_object)
++        .ok_or_else(|| "status response missing object data".to_owned())?;
++
++    let scheduled_reset = match required(data, "scheduled_reset")? {
++        Value::Null => None,
++        value @ Value::Object(_) => Some(
++            serde_json::from_value(value.clone())
++                .map_err(|error| format!("invalid scheduled_reset object: {error}"))?,
++        ),
++        _ => return Err("scheduled_reset must be an object or null".into()),
++    };
++    let active_watch = object_or_null(required(data, "active_watch")?, "active_watch")?;
++    let latest_reset = object_or_null(required(data, "latest_reset")?, "latest_reset")?;
++
++    let meta = root
++        .get("meta")
++        .and_then(Value::as_object)
++        .ok_or_else(|| "status response missing object meta".to_owned())?;
++    let generated_at = match meta.get("generated_at") {
++        None | Some(Value::Null) => None,
++        Some(Value::String(value)) => Some(value.clone()),
++        Some(_) => return Err("meta.generated_at must be a string or null".into()),
++    };
++
++    Ok(ResetStatusSnapshot {
++        scheduled_reset,
++        active_watch,
++        latest_reset,
++        fetched_at: Some(fetched_at.to_owned()),
++        fresh_until: Some(fresh_until),
++        generated_at,
++        last_attempt_at: fetched_at.to_owned(),
++        status: "ok".into(),
++        message: None,
++    })
++}
++
++fn required<'a>(
++    data: &'a serde_json::Map<String, Value>,
++    key: &str,
++) -> Result<&'a Value, String> {
++    data.get(key)
++        .ok_or_else(|| format!("status response missing data.{key}"))
++}
++
++fn object_or_null(value: &Value, key: &str) -> Result<Option<Value>, String> {
++    match value {
++        Value::Null => Ok(None),
++        Value::Object(_) => Ok(Some(value.clone())),
++        _ => Err(format!("data.{key} must be an object or null")),
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use serde_json::json;
++
++    const FETCHED_AT: &str = "2026-10-11T05:00:00Z";
++    const RAW: &str = r#"{
++      "data": {
++        "scheduled_reset": {
++          "id": "r-1", "status": "scheduled", "reset_type": "regular",
++          "announced_at": "2026-10-10T22:16:00Z", "scheduled_for": "2026-10-11T07:00:00Z",
++          "text": "Global reset by EOD", "source": {"type": "tracker", "author": "Ada", "url": "https://example.test/source"}
++        },
++        "active_watch": {"reset_chance_percent": 80, "text": "watch"},
++        "latest_reset": {"id": "r-0", "announced_at": "2026-10-08T00:00:00Z"}
++      },
++      "meta": {"generated_at": "2026-10-11T04:59:00Z"}
++    }"#;
++
++    fn sample_snapshot() -> ResetStatusSnapshot {
++        parse_status(RAW, FETCHED_AT).unwrap()
++    }
++
++    fn raw_with_data(data: Value) -> String {
++        json!({ "data": data, "meta": { "generated_at": "2026-10-11T04:59:00Z" } }).to_string()
++    }
++
++    #[test]
++    fn parses_status_contract_and_preserves_upstream_fields() {
++        let snapshot = parse_status(RAW, FETCHED_AT).unwrap();
++        let reset = snapshot.scheduled_reset.unwrap();
++        assert_eq!(reset.reset_type, "regular");
++        assert_eq!(reset.announced_at, "2026-10-10T22:16:00Z");
++        assert_eq!(reset.scheduled_for, "2026-10-11T07:00:00Z");
++        assert_eq!(reset.text, "Global reset by EOD");
++        assert_eq!(reset.source.source_type, "tracker");
++        assert_eq!(reset.source.author.as_deref(), Some("Ada"));
++        assert_eq!(snapshot.generated_at.as_deref(), Some("2026-10-11T04:59:00Z"));
++        assert_eq!(snapshot.fetched_at.as_deref(), Some(FETCHED_AT));
++        assert_eq!(snapshot.fresh_until.as_deref(), Some("2026-10-11T05:15:00Z"));
++        assert_eq!(snapshot.status, "ok");
++    }
++
++    #[test]
++    fn successful_null_schedule_replaces_the_previous_plan() {
++        let mut service = ResetStatusService::new(Some(sample_snapshot()));
++        let raw = raw_with_data(json!({
++            "scheduled_reset": null,
++            "active_watch": null,
++            "latest_reset": null
++        }));
++        let fresh = parse_status(&raw, "2026-10-11T05:10:00Z").unwrap();
++        service.apply_fetch_result(Ok(fresh), "2026-10-11T05:10:00Z", Instant::now());
++        let snapshot = service.snapshot.as_ref().unwrap();
++        assert_eq!(snapshot.status, "ok");
++        assert!(snapshot.scheduled_reset.is_none());
++        assert!(snapshot.active_watch.is_none());
++        assert!(snapshot.latest_reset.is_none());
++    }
++
++    #[test]
++    fn cached_success_is_reused_until_the_poll_interval_boundary() {
++        let mut service = ResetStatusService::new(Some(sample_snapshot()));
++        let start = Instant::now();
++        service.last_attempt_instant = Some(start);
++        assert!(!service.refresh_due(start + Duration::from_secs(899)));
++        assert!(service.refresh_due(start + Duration::from_secs(900)));
++
++        // 磁盘快照没有单调锚点，首次调用必须执行真实请求。
++        let saved = ResetStatusService::new(Some(sample_snapshot()));
++        assert!(saved.refresh_due(start));
++    }
++
++    #[test]
++    fn fetch_error_preserves_last_success_fields_and_updates_attempt_state() {
++        let mut service = ResetStatusService::new(Some(sample_snapshot()));
++        let before = service.snapshot.as_ref().unwrap().clone();
++        service.apply_fetch_result(
++            Err("network timeout".into()),
++            "2026-10-11T05:20:00Z",
++            Instant::now(),
++        );
++        let after = service.snapshot.as_ref().unwrap();
++        assert_eq!(after.scheduled_reset, before.scheduled_reset);
++        assert_eq!(after.active_watch, before.active_watch);
++        assert_eq!(after.latest_reset, before.latest_reset);
++        assert_eq!(after.fetched_at, before.fetched_at);
++        assert_eq!(after.fresh_until, before.fresh_until);
++        assert_eq!(after.generated_at, before.generated_at);
++        assert_eq!(after.status, "error");
++        assert_eq!(after.message.as_deref(), Some("network timeout"));
++        assert_eq!(after.last_attempt_at, "2026-10-11T05:20:00Z");
++    }
++
++    #[test]
++    fn error_without_saved_data_returns_an_error_snapshot() {
++        let mut service = ResetStatusService::new(None);
++        service.apply_fetch_result(
++            Err("offline".into()),
++            "2026-10-11T05:20:00Z",
++            Instant::now(),
++        );
++        let snapshot = service.snapshot.as_ref().unwrap();
++        assert_eq!(snapshot.status, "error");
++        assert_eq!(snapshot.message.as_deref(), Some("offline"));
++        assert!(snapshot.fetched_at.is_none());
++        assert!(snapshot.fresh_until.is_none());
++    }
++
++    #[test]
++    fn required_keys_and_json_shapes_are_validated() {
++        for missing in ["scheduled_reset", "active_watch", "latest_reset"] {
++            let mut data = json!({
++                "scheduled_reset": null,
++                "active_watch": null,
++                "latest_reset": null
++            });
++            data.as_object_mut().unwrap().remove(missing);
++            assert!(parse_status(&raw_with_data(data), FETCHED_AT).is_err(), "{missing}");
++        }
++        for (key, value) in [
++            ("scheduled_reset", json!("not-object")),
++            ("active_watch", json!([])),
++            ("latest_reset", json!(false)),
++        ] {
++            let mut data = json!({
++                "scheduled_reset": null,
++                "active_watch": null,
++                "latest_reset": null
++            });
++            data[key] = value;
++            assert!(parse_status(&raw_with_data(data), FETCHED_AT).is_err(), "{key}");
++        }
++        assert!(parse_status(RAW, "not-rfc3339").is_err());
++    }
++
++    #[test]
++    fn malformed_envelope_and_missing_or_non_object_data_meta_are_rejected() {
++        assert!(parse_status("{bad json", FETCHED_AT).is_err());
++        assert!(parse_status(r#"{"meta":{}}"#, FETCHED_AT).is_err());
++        assert!(parse_status(r#"{"data":[],"meta":{}}"#, FETCHED_AT).is_err());
++
++        let data = json!({
++            "scheduled_reset": null,
++            "active_watch": null,
++            "latest_reset": null
++        });
++        assert!(parse_status(&json!({ "data": data }).to_string(), FETCHED_AT).is_err());
++        assert!(parse_status(
++            &json!({ "data": data, "meta": [] }).to_string(),
++            FETCHED_AT,
++        )
++        .is_err());
++    }
++
++    #[test]
++    fn scheduled_reset_object_requires_its_contract_fields() {
++        let mut data: Value = serde_json::from_str::<Value>(RAW).unwrap()["data"].clone();
++        data["scheduled_reset"].as_object_mut().unwrap().remove("scheduled_for");
++        assert!(parse_status(&raw_with_data(data), FETCHED_AT).is_err());
++    }
++
++    #[tokio::test]
++    async fn client_build_error_returns_error_snapshot_without_network() {
++        let mut cold = ResetStatusService::new(None);
++        cold.client = Err("invalid resolver".into());
++        let cold_result = cold.snapshot().await;
++        assert_eq!(cold_result.status, "error");
++        assert!(cold_result.message.as_deref().unwrap().contains("invalid resolver"));
++        assert!(cold_result.fetched_at.is_none());
++        assert!(cold_result.fresh_until.is_none());
++        DateTime::parse_from_rfc3339(&cold_result.last_attempt_at).unwrap();
++
++        let saved = sample_snapshot();
++        let mut warm = ResetStatusService::new(Some(saved.clone()));
++        warm.client = Err("invalid resolver".into());
++        let warm_result = warm.snapshot().await;
++        assert_eq!(warm_result.status, "error");
++        assert!(warm_result.message.as_deref().unwrap().contains("invalid resolver"));
++        assert_ne!(warm_result.last_attempt_at, saved.last_attempt_at);
++        assert_eq!(warm_result.fetched_at, saved.fetched_at);
++        assert_eq!(warm_result.fresh_until, saved.fresh_until);
++        assert_eq!(warm_result.scheduled_reset, saved.scheduled_reset);
++        assert_eq!(warm_result.active_watch, saved.active_watch);
++        assert_eq!(warm_result.latest_reset, saved.latest_reset);
++        assert_eq!(warm_result.generated_at, saved.generated_at);
++    }
++
++    #[test]
++    fn serialization_uses_camel_case_snapshot_and_announcement_keys() {
++        let value = serde_json::to_value(sample_snapshot()).unwrap();
++        assert!(value.get("fetchedAt").is_some());
++        assert!(value.get("freshUntil").is_some());
++        assert!(value.get("lastAttemptAt").is_some());
++        let reset = &value["scheduledReset"];
++        assert!(reset.get("resetType").is_some());
++        assert!(reset.get("announcedAt").is_some());
++        assert!(reset.get("scheduledFor").is_some());
++        assert_eq!(reset["source"]["type"], "tracker");
++        assert!(reset.get("scheduled_for").is_none());
++    }
++
++    #[tokio::test]
++    #[ignore = "manual live TLS probe; run explicitly with --ignored"]
++    async fn live_status_tls_probe() {
++        let service = ResetStatusService::new(None);
++        let response = service
++            .client
++            .as_ref()
++            .expect("reqwest client construction should succeed")
++            .get(STATUS_URL)
++            .header(reqwest::header::ACCEPT, "application/json")
++            .send()
++            .await
++            .expect("live HTTPS request should succeed")
++            .error_for_status()
++            .expect("status endpoint should return success");
++        let raw = response.text().await.expect("response body should be readable");
++        let fetched_at = Utc::now().to_rfc3339_opts(SecondsFormat::AutoSi, true);
++        let parsed = parse_status(&raw, &fetched_at).expect("live response should match schema");
++        println!("raw status response: {raw}\nparsed status snapshot: {parsed:#?}");
++    }
++}
+diff --git a/src-tauri/src/snapshots.rs b/src-tauri/src/snapshots.rs
+index 889d897..1585124 100644
+--- a/src-tauri/src/snapshots.rs
++++ b/src-tauri/src/snapshots.rs
+@@ -88,6 +88,7 @@ mod tests {
+ 
+     fn ok_snapshot() -> ProviderSnapshot {
+         ProviderSnapshot {
++            reset_status: None,
+             provider: "codex".into(),
+             display_name: "CODEX".into(),
+             plan: Some("PRO".into()),
+@@ -146,6 +147,32 @@ mod tests {
+         std::fs::remove_dir_all(&dir).ok();
+     }
+ 
++    #[test]
++    fn legacy_snapshots_without_status_remain_readable() {
++        let mut value = serde_json::to_value(ok_snapshot()).unwrap();
++        value.as_object_mut().unwrap().remove("resetStatus");
++        let restored: ProviderSnapshot = serde_json::from_value(value).unwrap();
++        assert!(restored.reset_status.is_none());
++        assert_eq!(restored.reset_credits, Some(2));
++    }
++
++    #[test]
++    fn source_metadata_roundtrips_independently_of_stale_quota() {
++        let dir = temp_dir("status-source");
++        let fetched = "2026-10-11T04:00:00Z";
++        let now = "2026-10-11T04:10:00Z".parse::<DateTime<Utc>>().unwrap();
++        let mut snapshot = ok_snapshot();
++        snapshot.reset_status = Some(crate::reset_status::parse_status(
++            r#"{"data":{"scheduled_reset":null,"active_watch":null,"latest_reset":null},"meta":{"generated_at":"2026-10-11T03:59:00Z"}}"#,
++            fetched,
++        ).unwrap());
++        persist_snapshot_cache(&dir, &[snapshot.clone()], fetched).unwrap();
++        let restored = load_persisted_snapshot_cache(&dir, now).unwrap();
++        assert_eq!(restored.snapshots[0].status, "stale");
++        assert_eq!(restored.snapshots[0].reset_status, snapshot.reset_status);
++        std::fs::remove_dir_all(&dir).ok();
++    }
++
+     /// 文件缺失 → None（冷启动）。出处：参考 lib.rs:415-417 read .ok() 链。
+     #[test]
+     fn load_missing_file_returns_none() {
+diff --git a/src/lib/__tests__/fixtures/resetStatus.ts b/src/lib/__tests__/fixtures/resetStatus.ts
+new file mode 100644
+index 0000000..6271e87
+--- /dev/null
++++ b/src/lib/__tests__/fixtures/resetStatus.ts
+@@ -0,0 +1,13 @@
++import type { ResetStatusSnapshot } from "../../resetStatus";
++export const sourceSnapshot = (patch: Partial<ResetStatusSnapshot> = {}): ResetStatusSnapshot => ({
++  scheduledReset: {
++    id: "future", status: "scheduled", resetType: "regular",
++    announcedAt: "2026-10-11T04:00:00Z", scheduledFor: "2026-10-11T07:00:00Z",
++    text: "Announced reset", source: { type: "x_post", url: "https://example.invalid/notice" },
++  },
++  latestReset: { announced_at: "2026-10-11T04:01:09Z", reset_type: "regular" },
++  activeWatch: { reset_chance_percent: 80 },
++  fetchedAt: "2026-10-11T04:59:00Z", generatedAt: "2026-10-11T04:58:00Z",
++  freshUntil: "2026-10-11T05:14:00Z", lastAttemptAt: "2026-10-11T04:59:00Z",
++  status: "ok", message: null, ...patch,
++});
+diff --git a/src/lib/__tests__/resetStatus.core.test.ts b/src/lib/__tests__/resetStatus.core.test.ts
+new file mode 100644
+index 0000000..1101f41
+--- /dev/null
++++ b/src/lib/__tests__/resetStatus.core.test.ts
+@@ -0,0 +1,69 @@
++import { describe, expect, it } from "vitest";
++import { evaluateResetStatus, historyWithResetStatus } from "../resetStatus";
++import { sourceSnapshot } from "./fixtures/resetStatus";
++
++const NOW = new Date("2026-10-11T05:00:00Z");
++
++describe("公告来源新鲜度与可用性", () => {
++  it("新鲜成功来源的regular计划可用于配速", () => {
++    const snapshot = sourceSnapshot();
++    const result = evaluateResetStatus(snapshot, NOW);
++    expect(result.state).toBe("ok");
++    expect(result.actionableReset).toEqual(snapshot.scheduledReset);
++  });
++
++  it.each([
++    { freshUntil: "2026-10-11T05:00:00Z" }, // 精确边界已过期
++    { freshUntil: null },
++    { freshUntil: "invalid" },
++    { fetchedAt: "2026-10-11T05:01:00Z" }, // 未来时钟不能伪新鲜
++    { fetchedAt: null },
++    { freshUntil: "2026-10-11T04:58:59Z" },
++  ])("来源时效不可信时保留公告但不清仓 (%j)", (patch) => {
++    const result = evaluateResetStatus(sourceSnapshot(patch), NOW);
++    expect(result.state).toBe("stale");
++    expect(result.announcement?.state).toBe("planned");
++    expect(result.actionableReset).toBeNull();
++  });
++
++  it("新抓取失败与旧计划可同时展示，禁止继续行动", () => {
++    const result = evaluateResetStatus(sourceSnapshot({ status: "error", message: "timeout" }), NOW);
++    expect(result.state).toBe("error");
++    expect(result.announcement?.announcement.id).toBe("future");
++    expect(result.actionableReset).toBeNull();
++  });
++
++  it("来源成功但计划时刻已过时只标待核实", () => {
++    const snapshot = sourceSnapshot();
++    snapshot.scheduledReset!.scheduledFor = NOW.toISOString();
++    const result = evaluateResetStatus(snapshot, NOW);
++    expect(result.state).toBe("ok");
++    expect(result.announcement?.state).toBe("awaiting-confirmation");
++    expect(result.actionableReset).toBeNull();
++  });
++
++  it("成功null公告表示本次确实无计划", () => {
++    expect(evaluateResetStatus(sourceSnapshot({ scheduledReset: null }), NOW).announcement).toBeNull();
++  });
++});
++
++describe("最新事件并入历史", () => {
++  it("新确认事件并入，让风险模型及时看到重置", () => {
++    expect(historyWithResetStatus(["2026-10-08T00:00:00Z"], sourceSnapshot(), NOW)).toEqual([
++      "2026-10-08T00:00:00Z", "2026-10-11T04:01:09Z",
++    ]);
++  });
++  it("相同时刻不同ISO形式不重复增加样本", () => {
++    const history = ["2026-10-11T12:01:09+08:00"];
++    expect(historyWithResetStatus(history, sourceSnapshot(), NOW)).toBe(history);
++  });
++  it("失败、过期、未来或非法确认事件不并入", () => {
++    const history = ["2026-10-08T00:00:00Z"];
++    for (const source of [
++      sourceSnapshot({ status: "error" }), sourceSnapshot({ freshUntil: NOW.toISOString() }),
++      sourceSnapshot({ latestReset: { announced_at: "2026-10-11T05:01:00Z", reset_type: "regular" } }),
++      sourceSnapshot({ latestReset: { announced_at: "invalid", reset_type: "regular" } }),
++      sourceSnapshot({ latestReset: { announced_at: "2026-10-11T04:01:09Z", reset_type: "banked" } }),
++    ]) expect(historyWithResetStatus(history, source, NOW)).toBe(history);
++  });
++});
+diff --git a/src/lib/index.ts b/src/lib/index.ts
+index 8439550..9dbfc0a 100644
+--- a/src/lib/index.ts
++++ b/src/lib/index.ts
+@@ -7,3 +7,4 @@ export * from "./resetCard";
+ export * from "./calibration";
+ export * from "./predictions";
+ export * from "./scheduledReset";
++export * from "./resetStatus";
+diff --git a/src/lib/resetStatus.ts b/src/lib/resetStatus.ts
+new file mode 100644
+index 0000000..adcb4e1
+--- /dev/null
++++ b/src/lib/resetStatus.ts
+@@ -0,0 +1,47 @@
++// RR23：公告来源的可用性判断在核心，adapter只透传，React不再做一份清仓规则。
++import { assessScheduledReset, type ScheduledReset, type ScheduledResetAssessment } from "./scheduledReset.ts";
++
++/** Rust reset_status::ResetStatusSnapshot camelCase契约，旧缓存允许没有整个字段。 */
++export interface ResetStatusSnapshot {
++  scheduledReset: ScheduledReset | null;
++  activeWatch: Record<string, unknown> | null; // B07原文；RR16再接watch因子，不猜上游缺字段
++  latestReset: Record<string, unknown> | null;
++  fetchedAt: string | null;
++  generatedAt: string | null;
++  freshUntil: string | null; // 数据层按实际轮询周期提供，核心不另抄TTL常数
++  lastAttemptAt: string;
++  status: string;
++  message: string | null;
++}
++
++export interface ResetStatusEvaluation {
++  state: "ok" | "stale" | "error";
++  announcement: ScheduledResetAssessment | null;
++  actionableReset: ScheduledReset | null;
++}
++
++/** 失败与stale保留公告信息供展示，停止把它当有效规划输入。精确有效期边界即过期。 */
++export function evaluateResetStatus(snapshot: ResetStatusSnapshot, now: Date): ResetStatusEvaluation {
++  const nowMs = now.getTime();
++  const fetchedMs = Date.parse(snapshot.fetchedAt ?? "");
++  const deadline = Date.parse(snapshot.freshUntil ?? "");
++  const fresh = Number.isFinite(nowMs) && Number.isFinite(fetchedMs) && Number.isFinite(deadline)
++    && fetchedMs <= nowMs && deadline > nowMs && deadline > fetchedMs;
++  const state = snapshot.status !== "ok" ? "error" : fresh ? "ok" : "stale";
++  const announcement = assessScheduledReset(snapshot.scheduledReset, now);
++  return {
++    state, announcement,
++    actionableReset: state === "ok" && announcement?.state === "planned" && announcement.appliesToQuota
++      ? announcement.announcement : null,
++  };
++}
++
++/** 来源成功时把最新已公布事件并入历史，按时间戳去重；不在UI实现风险模型。 */
++export function historyWithResetStatus(history: readonly string[], snapshot: ResetStatusSnapshot, now: Date): readonly string[] {
++  if (evaluateResetStatus(snapshot, now).state !== "ok") return history;
++  if (snapshot.latestReset?.reset_type !== "regular") return history; // banked发卡并非额度自动回满，D022/B07
++  const date = snapshot.latestReset?.announced_at;
++  const timestamp = typeof date === "string" ? Date.parse(date) : NaN;
++  if (!Number.isFinite(timestamp) || timestamp > now.getTime() || history.some((value) => Date.parse(value) === timestamp)) return history;
++  return [...history, date as string];
++}
+diff --git a/src/ui/__tests__/ui.reset-status.test.ts b/src/ui/__tests__/ui.reset-status.test.ts
+new file mode 100644
+index 0000000..0e95e40
+--- /dev/null
++++ b/src/ui/__tests__/ui.reset-status.test.ts
+@@ -0,0 +1,60 @@
++import { describe, expect, it } from "vitest";
++import { buildDashboard } from "../adapters";
++import type { ProviderSnapshot } from "../types";
++import { assessResetRisk, planDailyUsage, planResetCard, estimateDailyNeedPercent } from "../../lib";
++import { sourceSnapshot } from "../../lib/__tests__/fixtures/resetStatus";
++
++const NOW = new Date("2026-10-11T05:00:00Z");
++const HISTORY = ["2026-10-08T00:00:00Z"];
++const snapshot = (): ProviderSnapshot => ({
++  provider: "codex", displayName: "CODEX", plan: "PLUS", status: "ok", message: null,
++  resetCredits: 3, shortWindow: null,
++  weeklyWindow: { remainingPercent: 29, resetsAt: "2026-10-17T05:00:00Z", windowSeconds: 604800 },
++  rateLimitSnapshot: { source: "app-server", observedAt: "2026-10-10T05:00:00Z", usedPercent: 71,
++    windowDurationMins: 10080, resetsAt: "2026-10-17T05:00:00Z" },
++  updatedAt: "2026-10-10T05:00:00Z", resetStatus: sourceSnapshot(),
++});
++
++describe("公告生产adapter接线", () => {
++  it("新公告不冻结在旧额度观测时间，建议与核心同参逐字段一致", () => {
++    const input = snapshot();
++    const vm = buildDashboard(input, HISTORY, NOW);
++    const schedule = input.resetStatus!.scheduledReset;
++    const risk = assessResetRisk([...HISTORY, "2026-10-11T04:01:09Z"], NOW, undefined, schedule);
++    expect(vm.observedAt).toBe("2026-10-10T05:00:00Z");
++    expect(vm.riskEvaluatedAt).toBe(NOW.toISOString());
++    expect(vm.risk).toEqual(risk);
++    expect(vm.dailyPlan).toEqual(planDailyUsage({ remaining: 29, daysToReset: 6, risk: risk.score, now: NOW, scheduledReset: schedule }));
++    expect(vm.cardPlan).toEqual(planResetCard({ remainingPercent: 29, resetsAt: input.weeklyWindow!.resetsAt!,
++      resetCredits: 3, creditExpiresAt: null, dailyNeedPercent: estimateDailyNeedPercent([]),
++      tomorrowRiskPercent: risk.score, now: NOW, scheduledReset: schedule }));
++    expect(vm.resetStatus?.state).toBe("ok");
++    expect(vm.dailyPlan?.planningResetAt).toBe("2026-10-11T07:00:00Z");
++  });
++
++  it("失败来源只保留展示信息，传给规划的公告为空", () => {
++    const input = snapshot();
++    input.resetStatus = sourceSnapshot({ status: "error", message: "TLS request failed" });
++    const vm = buildDashboard(input, HISTORY, NOW);
++    expect(vm.resetStatus?.state).toBe("error");
++    expect(vm.resetStatus?.announcement?.announcement.id).toBe("future");
++    expect(vm.resetStatus?.message).toBe("TLS request failed");
++    expect(vm.dailyPlan?.planningResetAt).toBeUndefined();
++    expect(vm.cardPlan?.planningResetAt).toBeUndefined();
++  });
++
++  it("不把来源抓取时间写成额度观测时间，也不合成watch概率", () => {
++    const vm = buildDashboard(snapshot(), HISTORY, NOW);
++    expect(vm.resetStatus?.fetchedAt).toBe("2026-10-11T04:59:00Z");
++    expect(vm.observedAt).not.toBe(vm.resetStatus?.fetchedAt);
++    expect(vm.risk?.factors.some((factor) => factor.id === "tracker-watch")).toBe(false); // RR16消费，RR23原样透传
++    expect(vm.resetStatus?.activeWatch).toEqual({ reset_chance_percent: 80 });
++  });
++
++  it("已过自然窗口不沿用旧额度时间生成今天的用卡建议", () => {
++    const input = snapshot();
++    input.weeklyWindow!.resetsAt = "2026-10-11T04:59:59Z";
++    expect(buildDashboard(input, HISTORY, NOW).dailyPlan).toBeNull();
++    expect(buildDashboard(input, HISTORY, NOW).cardPlan).toBeNull();
++  });
++});
+diff --git a/src/ui/adapters.ts b/src/ui/adapters.ts
+index e388c47..e81fa3a 100644
+--- a/src/ui/adapters.ts
++++ b/src/ui/adapters.ts
+@@ -8,6 +8,10 @@ import {
+   type DailyUsagePlan,
+   type ResetCardPlan,
+   type ResetRisk,
++  evaluateResetStatus,
++  historyWithResetStatus,
++  type ResetStatusSnapshot,
++  type ResetStatusEvaluation,
+ } from "../lib";
+ import type { ProviderSnapshot } from "./types";
+ 
+@@ -27,11 +31,13 @@ export interface DashboardViewModel {
+   /** 短窗剩余 %（辅助展示）。 */
+   shortRemainingPercent: number | null;
+   updatedAt: string;
+-  /** 数据新鲜度时刻（risk 的 now 语义，risk.ts 文件头：取快照观测时刻而非墙钟）。 */
++  /** 额度观测时刻；与公告抓取、风险评估时刻分开。旧快照无公告来源时仍为风险as_of。 */
+   observedAt: string;
+   risk: ResetRisk | null;
+   dailyPlan: DailyUsagePlan | null;
+   cardPlan: ResetCardPlan | null;
++  resetStatus: (ResetStatusSnapshot & ResetStatusEvaluation) | null;
++  riskEvaluatedAt: string;
+ }
+ 
+ /**
+@@ -50,7 +56,16 @@ export function buildDashboard(
+   const observedMs = Date.parse(observedAt);
+   const asOf = Number.isFinite(observedMs) ? new Date(observedMs) : now;
+ 
+-  const risk = assessResetRisk(history, asOf);
++  const status = snapshot.resetStatus ?? null;
++  const statusEvaluation = status == null ? null : evaluateResetStatus(status, now);
++  // 额度observedAt保留原义；新公告的发布/到期不冻结在旧额度观测时间。
++  // 无公告来源字段时保持旧golden；来源成功时用本次评估时刻与最新确认事件。
++  const modelAsOf = statusEvaluation?.state === "ok" ? now : asOf;
++  const effectiveHistory = status == null ? history : historyWithResetStatus(history, status, now);
++  const risk = assessResetRisk(effectiveHistory, modelAsOf, undefined,
++    statusEvaluation?.state === "ok" ? status?.scheduledReset : null);
++  const planningAsOf = status == null ? asOf : now;
++  const scheduledReset = statusEvaluation?.actionableReset ?? null;
+ 
+   const weekly = snapshot.weeklyWindow;
+   const remaining =
+@@ -64,15 +79,16 @@ export function buildDashboard(
+   let cardPlan: ResetCardPlan | null = null;
+   if (remaining != null && resetsAt != null) {
+     const resetsAtMs = Date.parse(resetsAt);
+-    if (Number.isFinite(resetsAtMs) && resetsAtMs > asOf.getTime()) {
++    if (Number.isFinite(resetsAtMs) && resetsAtMs > planningAsOf.getTime()) {
+       // daysToReset 是 planner 的入参契约（planner.ts:20），单位换算在调用侧完成。
+-      const daysToReset = (resetsAtMs - asOf.getTime()) / MS_PER_DAY;
++      const daysToReset = (resetsAtMs - planningAsOf.getTime()) / MS_PER_DAY;
+       dailyPlan = planDailyUsage(
+         {
+           remaining,
+           daysToReset,
+           risk: risk.score,
+-          now: asOf,
++          now: planningAsOf,
++          scheduledReset,
+         },
+       );
+       cardPlan = planResetCard({
+@@ -83,7 +99,8 @@ export function buildDashboard(
+         // 无日消耗观测样本：走 lib 兜底均匀周配速 100/7（resetCard.ts:137 契约）。
+         dailyNeedPercent: estimateDailyNeedPercent([]),
+         tomorrowRiskPercent: risk.score,
+-        now: asOf,
++        now: planningAsOf,
++        scheduledReset,
+       });
+     }
+   }
+@@ -107,5 +124,7 @@ export function buildDashboard(
+     risk,
+     dailyPlan,
+     cardPlan,
++    resetStatus: status != null && statusEvaluation != null ? { ...status, ...statusEvaluation } : null,
++    riskEvaluatedAt: modelAsOf.toISOString(),
+   };
+ }
+diff --git a/src/ui/types.ts b/src/ui/types.ts
+index c44887b..2dff6c5 100644
+--- a/src/ui/types.ts
++++ b/src/ui/types.ts
+@@ -1,5 +1,6 @@
+ // UI 层契约类型：与 src-tauri/src/models.rs 的 serde camelCase 输出一一对应（RR08）。
+ // UI 层零业务规则（ARCHITECTURE §2）——本文件只描述数据形状，不含任何计算。
++import type { ResetStatusSnapshot } from "../lib";
+ 
+ /** 用量窗口（周窗/短窗共用）。对应 Rust UsageWindow。 */
+ export interface UsageWindow {
+@@ -29,4 +30,5 @@ export interface ProviderSnapshot {
+   updatedAt: string;
+   status: string;
+   message: string | null;
++  resetStatus?: ResetStatusSnapshot | null;
+ }
+diff --git a/task_logs/RR23_artifacts/cargo-check-final.txt b/task_logs/RR23_artifacts/cargo-check-final.txt
+new file mode 100644
+index 0000000..526ddf9
+--- /dev/null
++++ b/task_logs/RR23_artifacts/cargo-check-final.txt
+@@ -0,0 +1,2 @@
++    Checking reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR23\src-tauri)
++    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.09s
+diff --git a/task_logs/RR23_artifacts/cargo-check-initial.txt b/task_logs/RR23_artifacts/cargo-check-initial.txt
+new file mode 100644
+index 0000000..fddddbb
+--- /dev/null
++++ b/task_logs/RR23_artifacts/cargo-check-initial.txt
+@@ -0,0 +1,69 @@
++    Checking smallvec v1.16.3
++    Checking icu_normalizer v2.3.0
++    Checking form_urlencoded v1.2.2
++    Checking futures-core v0.3.34
++    Checking socket2 v0.6.5
++   Compiling ring v0.17.14
++    Checking tracing-core v0.1.36
++    Checking zeroize v1.9.1
++    Checking http-body v1.1.0
++    Checking tokio v1.53.2
++    Checking getrandom v0.2.17
++    Checking rustls-pki-types v1.15.1
++    Checking slab v0.4.12
++    Checking futures-task v0.3.34
++    Checking untrusted v0.9.0
++   Compiling httparse v1.10.1
++   Compiling rustls v0.23.45
++    Checking try-lock v0.2.5
++    Checking tower-service v0.3.3
++    Checking parking_lot_core v0.9.12
++    Checking want v0.3.2
++    Checking subtle v2.6.1
++    Checking tracing v0.1.44
++    Checking futures-util v0.3.34
++    Checking atomic-waker v1.1.2
++    Checking sync_wrapper v1.0.2
++    Checking futures-channel v0.3.34
++    Checking windows-registry v0.6.1
++    Checking tower-layer v0.3.3
++    Checking ipnet v2.12.2
++    Checking parking_lot v0.12.5
++    Checking softbuffer v0.4.8
++    Checking webpki-roots v1.0.9
++    Checking ryu v1.0.23
++    Checking http-body-util v0.1.5
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR23\src-tauri)
++    Checking base64 v0.22.1
++    Checking serde_urlencoded v0.7.1
++    Checking idna_adapter v1.2.2
++    Checking idna v1.1.0
++    Checking url v2.5.8
++    Checking urlpattern v0.6.0
++    Checking tao v0.37.1
++    Checking tauri-utils v2.10.1
++    Checking hyper v1.12.0
++    Checking tower v0.5.3
++    Checking rustls-webpki v0.103.15
++    Checking hyper-util v0.1.21
++    Checking tower-http v0.6.11
++    Checking tauri-runtime v2.12.1
++    Checking tauri-runtime-wry v2.12.1
++    Checking tauri v2.12.2
++    Checking tokio-rustls v0.26.6
++    Checking hyper-rustls v0.27.10
++    Checking reqwest v0.12.28
++error[E0282]: type annotations needed
++   --> src\reset_status.rs:394:31
++    |
++394 |         let mut data: Value = serde_json::from_str(RAW).unwrap()["data"].clone();
++    |                               ^^^^^^^^^^^^^^^^^^^^ cannot infer type of the type parameter `T` declared on the function `from_str`
++    |
++help: consider specifying a concrete type for the type parameter `T`
++    |
++394 |         let mut data: Value = serde_json::from_str::</* Type */>(RAW).unwrap()["data"].clone();
++    |                                                   ++++++++++++++
++
++For more information about this error, try `rustc --explain E0282`.
++error: could not compile `reset-radar` (lib test) due to 1 previous error
++warning: build failed, waiting for other jobs to finish...
+diff --git a/task_logs/RR23_artifacts/cargo-check.txt b/task_logs/RR23_artifacts/cargo-check.txt
+new file mode 100644
+index 0000000..7312f82
+--- /dev/null
++++ b/task_logs/RR23_artifacts/cargo-check.txt
+@@ -0,0 +1,2 @@
++    Checking reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR23\src-tauri)
++    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.92s
+diff --git a/task_logs/RR23_artifacts/cargo-tests.txt b/task_logs/RR23_artifacts/cargo-tests.txt
+new file mode 100644
+index 0000000..9a66c93
+--- /dev/null
++++ b/task_logs/RR23_artifacts/cargo-tests.txt
+@@ -0,0 +1,234 @@
++   Compiling windows-link v0.2.1
++   Compiling cfg-if v1.0.5
++   Compiling itoa v1.0.18
++   Compiling memchr v2.8.3
++   Compiling litemap v0.8.3
++   Compiling writeable v0.6.4
++   Compiling siphasher v1.0.4
++   Compiling utf8_iter v1.0.4
++   Compiling bytes v1.12.1
++   Compiling serde_core v1.0.229
++   Compiling icu_normalizer_data v2.3.0
++   Compiling icu_properties_data v2.3.0
++   Compiling zmij v1.0.23
++   Compiling zerofrom v0.1.8
++   Compiling thiserror v2.0.21
++   Compiling stable_deref_trait v1.2.1
++   Compiling windows-sys v0.61.2
++   Compiling scopeguard v1.2.0
++   Compiling num-conv v0.2.2
++   Compiling yoke v0.8.3
++   Compiling phf_shared v0.13.1
++   Compiling time-core v0.1.9
++   Compiling lock_api v0.4.14
++   Compiling winnow v1.0.4
++   Compiling log v0.4.34
++   Compiling powerfmt v0.2.1
++   Compiling deranged v0.5.8
++   Compiling base64 v0.23.1
++   Compiling zerovec v0.11.8
++   Compiling phf_generator v0.13.1
++   Compiling zerotrie v0.2.5
++   Compiling smallvec v1.16.3
++   Compiling toml_writer v1.1.3+spec-1.1.0
++   Compiling typeid v1.0.3
++   Compiling windows-strings v0.5.1
++   Compiling phf_codegen v0.13.1
++   Compiling phf_macros v0.13.1
++   Compiling toml_parser v1.1.5+spec-1.1.0
++   Compiling http v1.5.0
++   Compiling aho-corasick v1.1.5
++   Compiling windows-result v0.4.1
++   Compiling regex-syntax v0.8.11
++   Compiling fnv v1.0.7
++   Compiling web-time v1.1.0
++   Compiling string_cache_codegen v0.6.1
++   Compiling parking_lot_core v0.9.12
++   Compiling equivalent v1.0.2
++   Compiling alloc-no-stdlib v3.0.0
++   Compiling tinystr v0.8.4
++   Compiling potential_utf v0.1.6
++   Compiling hashbrown v0.17.1
++   Compiling web_atoms v0.2.6
++   Compiling icu_locale_core v2.3.0
++   Compiling icu_collections v2.3.0
++   Compiling alloc-stdlib v0.3.0
++   Compiling parking_lot v0.12.5
++   Compiling phf v0.13.1
++   Compiling quick-xml v0.42.0
++   Compiling dunce v1.0.5
++   Compiling pin-project-lite v0.2.17
++   Compiling string_cache v0.9.0
++   Compiling brotli-decompressor v6.0.1
++   Compiling indexmap v2.14.2
++   Compiling getrandom v0.4.3
++   Compiling serde_json v1.0.151
++   Compiling serde_spanned v1.1.2
++   Compiling toml_datetime v1.1.2+spec-1.1.0
++   Compiling percent-encoding v2.3.2
++   Compiling toml v1.1.8+spec-1.1.0
++   Compiling uuid v1.28.0
++   Compiling serde v1.0.229
++   Compiling anyhow v1.0.104
++   Compiling icu_provider v2.3.1
++   Compiling selectors v0.38.0
++   Compiling brotli v9.0.0
++   Compiling ctor v1.0.13
++   Compiling once_cell v1.21.4
++   Compiling glob v0.3.4
++   Compiling regex-automata v0.4.18
++   Compiling icu_properties v2.3.0
++   Compiling icu_normalizer v2.3.0
++   Compiling markup5ever v0.39.0
++   Compiling cssparser v0.37.0
++   Compiling windows-core v0.62.2
++   Compiling option-ext v0.2.0
++   Compiling html5ever v0.39.0
++   Compiling jsonptr v0.7.1
++   Compiling winapi-util v0.1.11
++   Compiling cfb v0.14.0
++   Compiling same-file v1.0.6
++   Compiling form_urlencoded v1.2.2
++   Compiling time v0.3.55
++   Compiling erased-serde v0.4.10
++   Compiling futures-core v0.3.34
++   Compiling cargo_metadata v0.19.2
++   Compiling walkdir v2.5.0
++   Compiling idna_adapter v1.2.2
++   Compiling idna v1.1.0
++   Compiling serde-untagged v0.1.9
++   Compiling infer v0.22.0
++   Compiling json-patch v4.2.0
++   Compiling serde_with v3.24.0
++   Compiling windows-threading v0.2.1
++   Compiling url v2.5.8
++   Compiling dom_query v0.28.0
++   Compiling windows-future v0.3.2
++   Compiling windows-numerics v0.3.1
++   Compiling windows-collections v0.3.2
++   Compiling schemars v0.8.22
++   Compiling time-macros v0.2.32
++   Compiling embed-resource v3.0.12
++   Compiling windows v0.62.2
++   Compiling crc32fast v1.5.2
++   Compiling dirs-sys v0.5.0
++   Compiling tracing-core v0.1.36
++   Compiling bitflags v2.13.2
++   Compiling regex v1.13.1
++   Compiling webview2-com-sys v0.39.1
++   Compiling heck v0.5.0
++   Compiling raw-window-handle v0.6.2
++   Compiling zeroize v1.9.1
++   Compiling rustls-pki-types v1.15.1
++   Compiling socket2 v0.6.5
++   Compiling mio v1.2.4
++   Compiling urlpattern v0.6.0
++   Compiling tracing v0.1.44
++   Compiling flate2 v1.1.10
++   Compiling dirs v7.0.0
++   Compiling tauri-winres v0.3.6
++   Compiling libc v0.2.190
++   Compiling cargo_toml v1.0.1
++   Compiling dpi v0.1.2
++   Compiling plist v1.10.1
++   Compiling http-body v1.1.0
++   Compiling tokio v1.53.2
++   Compiling getrandom v0.2.17
++   Compiling futures-task v0.3.34
++   Compiling slab v0.4.12
++   Compiling untrusted v0.9.0
++   Compiling ring v0.17.14
++   Compiling futures-util v0.3.34
++   Compiling crossbeam-utils v0.8.23
++   Compiling windows-version v0.1.7
++   Compiling tauri-utils v2.10.1
++   Compiling tower-service v0.3.3
++   Compiling try-lock v0.2.5
++   Compiling png v0.17.16
++   Compiling want v0.3.2
++   Compiling crossbeam-channel v0.5.17
++   Compiling rustls-webpki v0.103.15
++   Compiling httparse v1.10.1
++   Compiling cookie v0.18.2
++   Compiling atomic-waker v1.1.2
++   Compiling subtle v2.6.1
++   Compiling semver v1.0.28
++   Compiling base64 v0.22.1
++   Compiling rustls v0.23.45
++   Compiling ico v0.5.0
++   Compiling sha2 v0.10.9
++   Compiling png v0.18.1
++   Compiling futures-channel v0.3.34
++   Compiling sync_wrapper v1.0.2
++   Compiling windows-registry v0.6.1
++   Compiling tower-layer v0.3.3
++   Compiling unicode-segmentation v1.13.3
++   Compiling ipnet v2.12.2
++   Compiling softbuffer v0.4.8
++   Compiling webpki-roots v1.0.9
++   Compiling keyboard-types v0.8.3
++   Compiling ryu v1.0.23
++   Compiling serialize-to-javascript v0.1.2
++   Compiling num-traits v0.2.19
++   Compiling serde_urlencoded v0.7.1
++   Compiling getrandom v0.3.4
++   Compiling window-vibrancy v0.8.1
++   Compiling http-body-util v0.1.5
++   Compiling mime v0.3.17
++   Compiling dirs v6.0.0
++   Compiling chrono v0.4.45
++   Compiling muda v0.20.0
++   Compiling hyper v1.12.0
++   Compiling tower v0.5.3
++   Compiling tower-http v0.6.11
++   Compiling hyper-util v0.1.21
++   Compiling tokio-rustls v0.26.6
++   Compiling hyper-rustls v0.27.10
++   Compiling reqwest v0.12.28
++   Compiling tauri-build v2.7.1
++   Compiling tauri-codegen v2.7.1
++   Compiling tauri v2.12.2
++   Compiling tauri-macros v2.7.1
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR23\src-tauri)
++   Compiling tao v0.37.1
++   Compiling webview2-com v0.39.1
++   Compiling wry v0.57.0
++   Compiling tauri-runtime v2.12.1
++   Compiling tauri-runtime-wry v2.12.1
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (lib test) generated 1 warning
++    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 56s
++     Running unittests src\lib.rs (C:/Users/slsjz/Desktop/reset-radar/src-tauri/target\debug\deps\reset_radar_lib-0c14c46607274616.exe)
++
++running 25 tests
++test reset_status::tests::live_status_tls_probe ... ignored, manual live TLS probe; run explicitly with --ignored
++test build_manifest::manifest_declares_per_monitor_dpi_awareness ... ok
++test build_manifest::manifest_keeps_common_controls_v6_dependency ... ok
++test codex::tests::clamps_remaining_into_0_100 ... ok
++test codex::tests::accepts_snake_case_keys ... ok
++test codex::tests::does_not_mislabel_short_app_server_window_as_weekly ... ok
++test codex::tests::timestamp_converts_unix_seconds_to_rfc3339 ... ok
++test codex::tests::prefers_rate_limits_by_limit_id_bucket ... ok
++test codex::tests::parses_official_app_server_weekly_snapshot ... ok
++test reset_status::tests::malformed_envelope_and_missing_or_non_object_data_meta_are_rejected ... ok
++test reset_status::tests::parses_status_contract_and_preserves_upstream_fields ... ok
++test reset_status::tests::serialization_uses_camel_case_snapshot_and_announcement_keys ... ok
++test reset_status::tests::required_keys_and_json_shapes_are_validated ... ok
++test reset_status::tests::scheduled_reset_object_requires_its_contract_fields ... ok
++test snapshots::tests::legacy_snapshots_without_status_remain_readable ... ok
++test snapshots::tests::unparsable_fetched_at_defaults_to_24h ... ok
++test snapshots::tests::load_missing_file_returns_none ... ok
++test reset_status::tests::successful_null_schedule_replaces_the_previous_plan ... ok
++test reset_status::tests::fetch_error_preserves_last_success_fields_and_updates_attempt_state ... ok
++test reset_status::tests::error_without_saved_data_returns_an_error_snapshot ... ok
++test reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary ... ok
++test reset_status::tests::client_build_error_returns_error_snapshot_without_network ... ok
++test snapshots::tests::load_marks_ok_snapshots_stale ... ok
++test snapshots::tests::source_metadata_roundtrips_independently_of_stale_quota ... ok
++test snapshots::tests::persist_then_load_roundtrips_with_camel_case_keys ... ok
++
++test result: ok. 24 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
++
+diff --git a/task_logs/RR23_artifacts/domain-final.txt b/task_logs/RR23_artifacts/domain-final.txt
+new file mode 100644
+index 0000000..0cbc5d5
+--- /dev/null
++++ b/task_logs/RR23_artifacts/domain-final.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR23
++
++
++ Test Files  9 passed (9)
++      Tests  110 passed (110)
++   Start at  13:04:16
++   Duration  986ms (import 49%, transform 35%, tests 10%, worker 5%)
++
++    Isolate  9 workers spawned · ~113ms startup each (spawn + environment, per file)
++             at least ~394ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR23_artifacts/full-final.txt b/task_logs/RR23_artifacts/full-final.txt
+new file mode 100644
+index 0000000..0838a81
+--- /dev/null
++++ b/task_logs/RR23_artifacts/full-final.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR23
++
++
++ Test Files  12 passed (12)
++      Tests  125 passed (125)
++   Start at  13:04:19
++   Duration  1.62s (import 50%, transform 31%, tests 12%, worker 6%)
++
++    Isolate  12 workers spawned · ~166ms startup each (spawn + environment, per file)
++             at least ~830ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR23_artifacts/full-green.txt b/task_logs/RR23_artifacts/full-green.txt
+new file mode 100644
+index 0000000..db21b85
+--- /dev/null
++++ b/task_logs/RR23_artifacts/full-green.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR23
++
++
++ Test Files  12 passed (12)
++      Tests  125 passed (125)
++   Start at  13:01:48
++   Duration  1.94s (import 47%, transform 31%, tests 14%, worker 8%)
++
++    Isolate  12 workers spawned · ~196ms startup each (spawn + environment, per file)
++             at least ~978ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR23_artifacts/production-cache-smoke.json b/task_logs/RR23_artifacts/production-cache-smoke.json
+new file mode 100644
+index 0000000..1827946
+--- /dev/null
++++ b/task_logs/RR23_artifacts/production-cache-smoke.json
+@@ -0,0 +1,29 @@
++{
++  "pid": 32568,
++  "startedAt": "2026-10-11T05:05:10.4473508+00:00",
++  "cachePath": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\last-snapshots.json",
++  "provider": "codex",
++  "quotaStatus": "ok",
++  "quotaObservedAt": "2026-10-11T05:05:13.773898400+00:00",
++  "resetStatus": {
++    "scheduledReset": null,
++    "activeWatch": null,
++    "latestReset": {
++      "announced_at": "2026-10-11T04:01:09Z",
++      "id": "2109132167112782291",
++      "reset_type": "regular",
++      "source": {
++        "author": "thsottiaux",
++        "type": "x_post",
++        "url": "https://x.com/thsottiaux/status/2109132167112782291"
++      },
++      "text": "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj"
++    },
++    "fetchedAt": "2026-10-11T05:05:12.553657700Z",
++    "freshUntil": "2026-10-11T05:20:12.553657700Z",
++    "generatedAt": "2026-10-11T05:05:02.089Z",
++    "lastAttemptAt": "2026-10-11T05:05:11.806572900Z",
++    "status": "ok",
++    "message": null
++  }
++}
+diff --git a/task_logs/RR23_artifacts/release-build.txt b/task_logs/RR23_artifacts/release-build.txt
+new file mode 100644
+index 0000000..3f11ec5
+--- /dev/null
++++ b/task_logs/RR23_artifacts/release-build.txt
+@@ -0,0 +1,62 @@
++   Compiling smallvec v1.16.3
++   Compiling icu_normalizer v2.3.0
++   Compiling form_urlencoded v1.2.2
++   Compiling futures-core v0.3.34
++   Compiling socket2 v0.6.5
++   Compiling ring v0.17.14
++   Compiling tracing-core v0.1.36
++   Compiling zeroize v1.9.1
++   Compiling http-body v1.1.0
++   Compiling getrandom v0.2.17
++   Compiling httparse v1.10.1
++   Compiling slab v0.4.12
++   Compiling untrusted v0.9.0
++   Compiling futures-task v0.3.34
++   Compiling rustls v0.23.45
++   Compiling try-lock v0.2.5
++   Compiling tower-service v0.3.3
++   Compiling parking_lot_core v0.9.12
++   Compiling tokio v1.53.2
++   Compiling rustls-pki-types v1.15.1
++   Compiling want v0.3.2
++   Compiling atomic-waker v1.1.2
++   Compiling futures-util v0.3.34
++   Compiling subtle v2.6.1
++   Compiling futures-channel v0.3.34
++   Compiling sync_wrapper v1.0.2
++   Compiling windows-registry v0.6.1
++   Compiling tracing v0.1.44
++   Compiling parking_lot v0.12.5
++   Compiling ipnet v2.12.2
++   Compiling tower-layer v0.3.3
++   Compiling softbuffer v0.4.8
++   Compiling webpki-roots v1.0.9
++   Compiling ryu v1.0.23
++   Compiling http-body-util v0.1.5
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR23\src-tauri)
++   Compiling serde_urlencoded v0.7.1
++   Compiling base64 v0.22.1
++   Compiling idna_adapter v1.2.2
++   Compiling idna v1.1.0
++   Compiling url v2.5.8
++   Compiling urlpattern v0.6.0
++   Compiling tao v0.37.1
++   Compiling tauri-utils v2.10.1
++   Compiling hyper v1.12.0
++   Compiling tower v0.5.3
++   Compiling tower-http v0.6.11
++   Compiling hyper-util v0.1.21
++   Compiling rustls-webpki v0.103.15
++   Compiling tauri-runtime v2.12.1
++   Compiling tauri-runtime-wry v2.12.1
++   Compiling tauri v2.12.2
++   Compiling tokio-rustls v0.26.6
++   Compiling hyper-rustls v0.27.10
++   Compiling reqwest v0.12.28
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++         C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (bin "reset-radar") generated 1 warning
++    Finished `release` profile [optimized] target(s) in 1m 12s
+diff --git a/task_logs/RR23_artifacts/rust-mutant-red.txt b/task_logs/RR23_artifacts/rust-mutant-red.txt
+new file mode 100644
+index 0000000..96cdee9
+--- /dev/null
++++ b/task_logs/RR23_artifacts/rust-mutant-red.txt
+@@ -0,0 +1,45 @@
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR23\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (lib test) generated 1 warning
++    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.06s
++     Running unittests src\lib.rs (C:/Users/slsjz/Desktop/reset-radar/src-tauri/target\debug\deps\reset_radar_lib-0c14c46607274616.exe)
++
++running 11 tests
++test reset_status::tests::live_status_tls_probe ... ignored, manual live TLS probe; run explicitly with --ignored
++test reset_status::tests::malformed_envelope_and_missing_or_non_object_data_meta_are_rejected ... ok
++test reset_status::tests::required_keys_and_json_shapes_are_validated ... ok
++test reset_status::tests::serialization_uses_camel_case_snapshot_and_announcement_keys ... ok
++test reset_status::tests::scheduled_reset_object_requires_its_contract_fields ... ok
++test reset_status::tests::parses_status_contract_and_preserves_upstream_fields ... FAILED
++test reset_status::tests::error_without_saved_data_returns_an_error_snapshot ... ok
++test reset_status::tests::successful_null_schedule_replaces_the_previous_plan ... ok
++test reset_status::tests::fetch_error_preserves_last_success_fields_and_updates_attempt_state ... ok
++test reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary ... FAILED
++test reset_status::tests::client_build_error_returns_error_snapshot_without_network ... ok
++
++failures:
++
++---- reset_status::tests::parses_status_contract_and_preserves_upstream_fields stdout ----
++
++thread 'reset_status::tests::parses_status_contract_and_preserves_upstream_fields' (13516) panicked at src\reset_status.rs:276:9:
++assertion `left == right` failed
++  left: Some("2026-10-11T05:01:00Z")
++ right: Some("2026-10-11T05:15:00Z")
++note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
++
++---- reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary stdout ----
++
++thread 'reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary' (25940) panicked at src\reset_status.rs:302:9:
++assertion failed: !service.refresh_due(start + Duration::from_secs(899))
++
++
++failures:
++    reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary
++    reset_status::tests::parses_status_contract_and_preserves_upstream_fields
++
++test result: FAILED. 8 passed; 2 failed; 1 ignored; 0 measured; 14 filtered out; finished in 0.00s
++
++error: test failed, to rerun pass `--lib`
+diff --git a/task_logs/RR23_artifacts/rust-restored-green.txt b/task_logs/RR23_artifacts/rust-restored-green.txt
+new file mode 100644
+index 0000000..b2b7c55
+--- /dev/null
++++ b/task_logs/RR23_artifacts/rust-restored-green.txt
+@@ -0,0 +1,38 @@
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR23\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (lib test) generated 1 warning
++    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.01s
++     Running unittests src\lib.rs (C:/Users/slsjz/Desktop/reset-radar/src-tauri/target\debug\deps\reset_radar_lib-0c14c46607274616.exe)
++
++running 25 tests
++test reset_status::tests::live_status_tls_probe ... ignored, manual live TLS probe; run explicitly with --ignored
++test build_manifest::manifest_declares_per_monitor_dpi_awareness ... ok
++test build_manifest::manifest_keeps_common_controls_v6_dependency ... ok
++test codex::tests::clamps_remaining_into_0_100 ... ok
++test codex::tests::accepts_snake_case_keys ... ok
++test codex::tests::does_not_mislabel_short_app_server_window_as_weekly ... ok
++test codex::tests::timestamp_converts_unix_seconds_to_rfc3339 ... ok
++test codex::tests::prefers_rate_limits_by_limit_id_bucket ... ok
++test codex::tests::parses_official_app_server_weekly_snapshot ... ok
++test reset_status::tests::malformed_envelope_and_missing_or_non_object_data_meta_are_rejected ... ok
++test reset_status::tests::parses_status_contract_and_preserves_upstream_fields ... ok
++test reset_status::tests::serialization_uses_camel_case_snapshot_and_announcement_keys ... ok
++test reset_status::tests::scheduled_reset_object_requires_its_contract_fields ... ok
++test reset_status::tests::required_keys_and_json_shapes_are_validated ... ok
++test snapshots::tests::legacy_snapshots_without_status_remain_readable ... ok
++test snapshots::tests::unparsable_fetched_at_defaults_to_24h ... ok
++test snapshots::tests::load_missing_file_returns_none ... ok
++test reset_status::tests::error_without_saved_data_returns_an_error_snapshot ... ok
++test reset_status::tests::fetch_error_preserves_last_success_fields_and_updates_attempt_state ... ok
++test reset_status::tests::successful_null_schedule_replaces_the_previous_plan ... ok
++test reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary ... ok
++test reset_status::tests::client_build_error_returns_error_snapshot_without_network ... ok
++test snapshots::tests::load_marks_ok_snapshots_stale ... ok
++test snapshots::tests::persist_then_load_roundtrips_with_camel_case_keys ... ok
++test snapshots::tests::source_metadata_roundtrips_independently_of_stale_quota ... ok
++
++test result: ok. 24 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
++
+diff --git a/task_logs/RR23_artifacts/tls-live.txt b/task_logs/RR23_artifacts/tls-live.txt
+new file mode 100644
+index 0000000..fa4404e
+--- /dev/null
++++ b/task_logs/RR23_artifacts/tls-live.txt
+@@ -0,0 +1,43 @@
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (lib test) generated 1 warning
++    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.42s
++     Running unittests src\lib.rs (C:/Users/slsjz/Desktop/reset-radar/src-tauri/target\debug\deps\reset_radar_lib-0c14c46607274616.exe)
++
++running 1 test
++raw status response: {"data":{"latest_reset":{"id":"2109132167112782291","reset_type":"regular","announced_at":"2026-10-11T04:01:09.000Z","text":"Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj","source":{"type":"x_post","author":"thsottiaux","url":"https://x.com/thsottiaux/status/2109132167112782291"}},"scheduled_reset":null,"active_watch":null,"stats":{"total":60,"last_reset_at":"2026-10-11T04:01:09.000Z","days_since_last":0,"avg_interval_days":6.6}},"meta":{"api_version":"v1","generated_at":"2026-10-11T05:03:01.289Z"}}
++parsed status snapshot: ResetStatusSnapshot {
++    scheduled_reset: None,
++    active_watch: None,
++    latest_reset: Some(
++        Object {
++            "announced_at": String("2026-10-11T04:01:09.000Z"),
++            "id": String("2109132167112782291"),
++            "reset_type": String("regular"),
++            "source": Object {
++                "author": String("thsottiaux"),
++                "type": String("x_post"),
++                "url": String("https://x.com/thsottiaux/status/2109132167112782291"),
++            },
++            "text": String("Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj"),
++        },
++    ),
++    fetched_at: Some(
++        "2026-10-11T05:03:40.171424200Z",
++    ),
++    fresh_until: Some(
++        "2026-10-11T05:18:40.171424200Z",
++    ),
++    generated_at: Some(
++        "2026-10-11T05:03:01.289Z",
++    ),
++    last_attempt_at: "2026-10-11T05:03:40.171424200Z",
++    status: "ok",
++    message: None,
++}
++test reset_status::tests::live_status_tls_probe ... ok
++
++test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.59s
++
+diff --git a/task_logs/RR23_artifacts/ts-mutant-red.txt b/task_logs/RR23_artifacts/ts-mutant-red.txt
+new file mode 100644
+index 0000000..fe235d6
+--- /dev/null
++++ b/task_logs/RR23_artifacts/ts-mutant-red.txt
+@@ -0,0 +1,108 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR23
++
++ ❯ src/lib/__tests__/resetStatus.core.test.ts (13 tests | 7 failed) 24ms
++   ❯ 公告来源新鲜度与可用性 (10)
++     × 来源时效不可信时保留公告但不清仓 ({"freshUntil":"2026-10-11T05:00:00Z"}) 7ms
++     × 来源时效不可信时保留公告但不清仓 ({"freshUntil":null}) 1ms
++     × 来源时效不可信时保留公告但不清仓 ({"freshUntil":"invalid"}) 1ms
++     × 来源时效不可信时保留公告但不清仓 ({"fetchedAt":"2026-10-11T05:01:00Z"}) 2ms
++     × 来源时效不可信时保留公告但不清仓 ({"fetchedAt":null}) 2ms
++     × 来源时效不可信时保留公告但不清仓 ({"freshUntil":"2026-10-11T04:58:59Z"}) 1ms
++     × 新抓取失败与旧计划可同时展示，禁止继续行动 1ms
++ ❯ src/ui/__tests__/ui.reset-status.test.ts (4 tests | 1 failed) 19ms
++   ❯ 公告生产adapter接线 (4)
++     × 失败来源只保留展示信息，传给规划的公告为空 7ms
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/ui/__tests__/ui.reset-status.test.ts > 公告生产adapter接线 > 失败来源只保留展示信息，传给规划的公告为空
++AssertionError: expected '2026-10-11T07:00:00Z' to be undefined
++
++- Expected:
++undefined
++
+++ Received:
++"2026-10-11T07:00:00Z"
++
++ ❯ src/ui/__tests__/ui.reset-status.test.ts:42:43
++     40|     expect(vm.resetStatus?.announcement?.announcement.id).toBe("future…
++     41|     expect(vm.resetStatus?.message).toBe("TLS request failed");
++     42|     expect(vm.dailyPlan?.planningResetAt).toBeUndefined();
++       |                                           ^
++     43|     expect(vm.cardPlan?.planningResetAt).toBeUndefined();
++     44|   });
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
++
++ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"freshUntil":"2026-10-11T05:00:00Z"})
++ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"freshUntil":null})
++ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"freshUntil":"invalid"})
++ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"fetchedAt":"2026-10-11T05:01:00Z"})
++ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"fetchedAt":null})
++ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 来源时效不可信时保留公告但不清仓 ({"freshUntil":"2026-10-11T04:58:59Z"})
++AssertionError: expected { id: 'future', …(6) } to be null
++
++- Expected:
++null
++
+++ Received:
++{
++  "announcedAt": "2026-10-11T04:00:00Z",
++  "id": "future",
++  "resetType": "regular",
++  "scheduledFor": "2026-10-11T07:00:00Z",
++  "source": {
++    "type": "x_post",
++    "url": "https://example.invalid/notice",
++  },
++  "status": "scheduled",
++  "text": "Announced reset",
++}
++
++ ❯ src/lib/__tests__/resetStatus.core.test.ts:26:36
++     24|     expect(result.state).toBe("stale");
++     25|     expect(result.announcement?.state).toBe("planned");
++     26|     expect(result.actionableReset).toBeNull();
++       |                                    ^
++     27|   });
++     28|
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
++
++ FAIL  src/lib/__tests__/resetStatus.core.test.ts > 公告来源新鲜度与可用性 > 新抓取失败与旧计划可同时展示，禁止继续行动
++AssertionError: expected { id: 'future', …(6) } to be null
++
++- Expected:
++null
++
+++ Received:
++{
++  "announcedAt": "2026-10-11T04:00:00Z",
++  "id": "future",
++  "resetType": "regular",
++  "scheduledFor": "2026-10-11T07:00:00Z",
++  "source": {
++    "type": "x_post",
++    "url": "https://example.invalid/notice",
++  },
++  "status": "scheduled",
++  "text": "Announced reset",
++}
++
++ ❯ src/lib/__tests__/resetStatus.core.test.ts:33:36
++     31|     expect(result.state).toBe("error");
++     32|     expect(result.announcement?.announcement.id).toBe("future");
++     33|     expect(result.actionableReset).toBeNull();
++       |                                    ^
++     34|   });
++     35|
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
++
++
++ Test Files  2 failed (2)
++      Tests  8 failed | 9 passed (17)
++   Start at  13:01:44
++   Duration  593ms (transform 50%, import 39%, tests 8%, worker 3%)
++
+diff --git a/task_logs/RR23_artifacts/tsc-green.txt b/task_logs/RR23_artifacts/tsc-green.txt
+new file mode 100644
+index 0000000..3e0103c
+--- /dev/null
++++ b/task_logs/RR23_artifacts/tsc-green.txt
+@@ -0,0 +1,2 @@
++
++exit=0
+diff --git a/task_logs/RR23_artifacts/vite-build.txt b/task_logs/RR23_artifacts/vite-build.txt
+new file mode 100644
+index 0000000..b9ea44d
+--- /dev/null
++++ b/task_logs/RR23_artifacts/vite-build.txt
+@@ -0,0 +1,13 @@
++
++> reset-radar@0.1.0 build
++> tsc && vite build
++
++vite v7.3.7 building client environment for production...
++transforming...
++✓ 53 modules transformed.
++rendering chunks...
++computing gzip size...
++dist/index.html                   0.59 kB │ gzip:  0.45 kB
++dist/assets/window-CHsUFCaC.js   13.49 kB │ gzip:  3.29 kB
++dist/assets/index-C3gLUFrN.js   271.94 kB │ gzip: 87.61 kB
++✓ built in 1.36s
+diff --git a/task_logs/RR23_artifacts/vitest-domain-initial.txt b/task_logs/RR23_artifacts/vitest-domain-initial.txt
+new file mode 100644
+index 0000000..f309565
+--- /dev/null
++++ b/task_logs/RR23_artifacts/vitest-domain-initial.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR23
++
++
++ Test Files  12 passed (12)
++      Tests  125 passed (125)
++   Start at  12:52:56
++   Duration  1.19s (import 54%, transform 30%, tests 10%, worker 6%)
++
++    Isolate  12 workers spawned · ~111ms startup each (spawn + environment, per file)
++             at least ~557ms faster with isolate: false — reuses workers across files instead of one per file
++
+-- 
+2.52.0.windows.1
+

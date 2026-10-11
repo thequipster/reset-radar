@@ -1,0 +1,2774 @@
+From 62d71e1d5f1caa1ae9093076a52ab75f338ffd2a Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 13:37:59 +0800
+Subject: [PATCH] fix: refresh reset history and guard calibration freshness
+ (RR18)
+
+---
+ TRUTH.md                                      |   6 +
+ data/resets-history.json                      |  36 +-
+ docs/DECISIONS.md                             |   5 +
+ docs/calibration-latest.md                    |   8 +-
+ docs/design/04-progress.md                    |   4 +
+ docs/history-refresh-20261011.md              |  26 +
+ docs/review-20261011.md                       |   4 +
+ scripts/calibrate.mjs                         | 118 +---
+ scripts/calibration-report.mjs                | 124 +++++
+ scripts/calibration-report.test.mjs           |  36 ++
+ scripts/fetch-history.mjs                     |  43 +-
+ scripts/fetch-history.test.mjs                |  56 ++
+ scripts/log-prediction.mjs                    |  12 +-
+ scripts/review-calibration.mjs                |  63 +++
+ scripts/review-calibration.test.mjs           |  54 ++
+ src/App.tsx                                   |   4 +-
+ .../fixtures/resets-history-20261010.json     | 525 ++++++++++++++++++
+ src/lib/__tests__/history.freshness.test.ts   |  56 ++
+ src/lib/__tests__/risk.core.test.ts           |   5 +-
+ src/lib/history.ts                            |  87 +++
+ src/lib/index.ts                              |   1 +
+ src/ui/__tests__/ui.adapters.test.ts          |  25 +
+ src/ui/adapters.ts                            |   6 +
+ src/ui/history.ts                             |  20 +-
+ task_logs/RR18_artifacts/build.txt            |  13 +
+ task_logs/RR18_artifacts/consumer-live.json   |  49 ++
+ task_logs/RR18_artifacts/domain.txt           |  12 +
+ task_logs/RR18_artifacts/fetch-live.txt       |   4 +
+ task_logs/RR18_artifacts/full-restored.txt    |  12 +
+ .../mutation-interleaved-dedupe-red.txt       | 225 ++++++++
+ task_logs/RR18_artifacts/mutation-proof.txt   |   6 +
+ .../mutation-quota-type-red.txt               |  37 ++
+ .../mutation-seven-day-boundary-red.txt       |  38 ++
+ task_logs/RR18_artifacts/mutations.py         |  28 +
+ task_logs/RR18_artifacts/node-all.txt         | 184 ++++++
+ task_logs/RR18_artifacts/node-restored.txt    | 232 ++++++++
+ .../RR18_artifacts/production-dom-fresh.json  |   6 +
+ task_logs/RR18_artifacts/production-dom.json  |   6 +
+ .../production-history-verified.json          |  27 +
+ task_logs/RR18_artifacts/release.txt          |   8 +
+ task_logs/RR18_artifacts/review-final.txt     |  28 +
+ task_logs/RR18_artifacts/review-refresh.txt   |   4 +
+ 42 files changed, 2074 insertions(+), 169 deletions(-)
+ create mode 100644 docs/history-refresh-20261011.md
+ create mode 100644 scripts/calibration-report.mjs
+ create mode 100644 scripts/calibration-report.test.mjs
+ create mode 100644 scripts/review-calibration.mjs
+ create mode 100644 scripts/review-calibration.test.mjs
+ create mode 100644 src/lib/__tests__/fixtures/resets-history-20261010.json
+ create mode 100644 src/lib/__tests__/history.freshness.test.ts
+ create mode 100644 src/lib/history.ts
+ create mode 100644 task_logs/RR18_artifacts/build.txt
+ create mode 100644 task_logs/RR18_artifacts/consumer-live.json
+ create mode 100644 task_logs/RR18_artifacts/domain.txt
+ create mode 100644 task_logs/RR18_artifacts/fetch-live.txt
+ create mode 100644 task_logs/RR18_artifacts/full-restored.txt
+ create mode 100644 task_logs/RR18_artifacts/mutation-interleaved-dedupe-red.txt
+ create mode 100644 task_logs/RR18_artifacts/mutation-proof.txt
+ create mode 100644 task_logs/RR18_artifacts/mutation-quota-type-red.txt
+ create mode 100644 task_logs/RR18_artifacts/mutation-seven-day-boundary-red.txt
+ create mode 100644 task_logs/RR18_artifacts/mutations.py
+ create mode 100644 task_logs/RR18_artifacts/node-all.txt
+ create mode 100644 task_logs/RR18_artifacts/node-restored.txt
+ create mode 100644 task_logs/RR18_artifacts/production-dom-fresh.json
+ create mode 100644 task_logs/RR18_artifacts/production-dom.json
+ create mode 100644 task_logs/RR18_artifacts/production-history-verified.json
+ create mode 100644 task_logs/RR18_artifacts/release.txt
+ create mode 100644 task_logs/RR18_artifacts/review-final.txt
+ create mode 100644 task_logs/RR18_artifacts/review-refresh.txt
+
+diff --git a/TRUTH.md b/TRUTH.md
+index ac98dd5..018d8d4 100644
+--- a/TRUTH.md
++++ b/TRUTH.md
+@@ -161,3 +161,9 @@
+ - 重启ownedPID30192：05:18:12Z重新采集成功，日志188bytes→188bytes完全相同，无遗留.lock；production-restart-idempotent.json。默认calibrate实际同时读取仓内1行+应用1行，--path生产文件仅读1行；今日未完结，计分n=0，未伪造命中率。两份报告在RR15_artifacts。
+ - TS137/137、Rust29passed+1手动网络ignored、Node6/6；目标日/额度独立/路径/CAS变异均红且原字节恢复绿。完整门禁与借鉴出处见RR15_done.md；新幂等业务仍唯一src/lib/predictions.ts，不在Rust复算。
+ - RR15最终复验补记：Node补测未知/重复参数和读失败，8/8绿；最终release ownedPID31512在05:21:45Z启动，重新采集来源ok，刷新前后CDP hook=ok、日志188字节完全不变、锁已释放（production-verified-idempotent.json）。首轮时间探针用ConvertFrom-Json默认DateTime转换丢原ISO时区，已改-DateKind String；新鲜缓存可先完成风险记录，探针必须另等实际后台新采集，不能将一次早观察当采集失败。
++
++### 2026-10-11 RR18 历史刷新实证（B07追加）
++- REVIEW入口真实拉两个HTTPS API后生成data/resets-history.json，fetchedAt=2026-10-11T05:33:27.738Z；60条原始事件（54regular、6banked），最新regular.id=2109132167112782291、announcedAt=2026-10-11T04:01:09.000Z；regular北京星期Sun..Sat=[10,4,10,10,7,5,8]。原始status与sources随夹具保留，诊断及核心消费结果见RR18_artifacts/review-refresh.txt、consumer-live.json。
++- 采集前原始59条夹具原字节复制src/lib/__tests__/fixtures/resets-history-20261010.json，SHA256=D3E54A8F986FC8E0E214DF5D2F4A089AA0EF4FD80E7BA1F1BFD3FD8A27F347D5，旧golden统计不因联网更新而重写。
++- 当前calibrate双源各1行、今日未完结计分n=0；7日严格边界/非法覆盖/排除banked的实际报告测试通过。说明docs/history-refresh-20261011.md、D026；门禁与生产实证最终见RR18_done。
++- RR18生产补验：GNU custom-protocol ownedPID26652，新来源fetchedAt=2026-10-11T05:36:33.524549900Z、quota/source均ok；只读CDP风险32.1%、hook=ok。输入变化后自然追加32.1，日志188→361字节，44的旧行及原前缀不变，无锁残留， owned进程已关闭。最终报告归档1+应用2行仍n=0；production-history-verified.json、production-dom-fresh.json。
+diff --git a/data/resets-history.json b/data/resets-history.json
+index e72a9f5..b2b4a70 100644
+--- a/data/resets-history.json
++++ b/data/resets-history.json
+@@ -1,13 +1,13 @@
+ {
+   "schema": "reset-radar/resets-history@1",
+-  "fetchedAt": "2026-10-10T17:20:15.727Z",
++  "fetchedAt": "2026-10-11T05:33:27.738Z",
+   "sources": {
+     "resets": "https://codex-resets.com/api/v1/resets?limit=100&order=desc",
+     "status": "https://codex-resets.com/api/v1/status"
+   },
+   "upstream": {
+     "apiVersion": "v1",
+-    "generatedAt": "2026-10-10T17:15:21.280Z",
++    "generatedAt": "2026-10-11T05:31:36.506Z",
+     "pagination": {
+       "has_more": false,
+       "next_cursor": null
+@@ -15,26 +15,34 @@
+   },
+   "status": {
+     "latest_reset": {
+-      "id": "2108040921044639779",
+-      "reset_type": "banked",
+-      "announced_at": "2026-10-08T03:44:55.000Z",
+-      "text": "Confirmed landed across all accounts. How are we doing so far? https://t.co/tzw7dNX4pN",
++      "id": "2109132167112782291",
++      "reset_type": "regular",
++      "announced_at": "2026-10-11T04:01:09.000Z",
++      "text": "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj",
+       "source": {
+         "type": "x_post",
+         "author": "thsottiaux",
+-        "url": "https://x.com/thsottiaux/status/2108040921044639779"
++        "url": "https://x.com/thsottiaux/status/2109132167112782291"
+       }
+     },
+     "scheduled_reset": null,
+     "active_watch": null,
+     "stats": {
+-      "total": 59,
+-      "last_reset_at": "2026-10-08T03:44:55.000Z",
+-      "days_since_last": 2.6,
+-      "avg_interval_days": 6.7
++      "total": 60,
++      "last_reset_at": "2026-10-11T04:01:09.000Z",
++      "days_since_last": 0.1,
++      "avg_interval_days": 6.6
+     }
+   },
+   "events": [
++    {
++      "id": "2109132167112782291",
++      "resetType": "regular",
++      "announcedAt": "2026-10-11T04:01:09.000Z",
++      "text": "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2109132167112782291"
++    },
+     {
+       "id": "2108040921044639779",
+       "resetType": "banked",
+@@ -509,9 +517,9 @@
+     }
+   ],
+   "summary": {
+-    "count": 59,
++    "count": 60,
+     "earliest": "2025-09-17T04:02:52.000Z",
+-    "latest": "2026-10-08T03:44:55.000Z",
++    "latest": "2026-10-11T04:01:09.000Z",
+     "byWeekdayBeijing": {
+       "Mon": 4,
+       "Tue": 10,
+@@ -519,7 +527,7 @@
+       "Thu": 8,
+       "Fri": 7,
+       "Sat": 9,
+-      "Sun": 9
++      "Sun": 10
+     }
+   }
+ }
+diff --git a/docs/DECISIONS.md b/docs/DECISIONS.md
+index 39fa3a7..b125159 100644
+--- a/docs/DECISIONS.md
++++ b/docs/DECISIONS.md
+@@ -232,3 +232,8 @@
+ - app仅记录真实有效风险评估：公告来源存在但非ok不写；来源新鲜时风险与额度独立，额度失败不抹去有效风险预测。无来源旧契约只有quota为ok才沿原as_of记录。候选date是riskEvaluatedAt北京日，fetchedAt为执行时间；demo不落盘，旧快照不是新的成功预测。
+ - app与Node用同名predictions.jsonl.lock create_new排他锁，持锁比对读取内容再append，竞争后重读核心重算；只追加新行与必要的末尾换行，不改坏行/旧字节。不自动删未知持有者的锁，失败明确返回busy/error；app有限重试防止永久等待。
+ - log-prediction默认写生产文件；calibrate默认双源按实际记录fetchedAt稳定排序，同时间归档先，核心继续同日首行。--path指定独立来源方便归档/测试；不自动将生产记录写回受锁数据夹具。RR17/RR28沿本路径消费，历史新鲜度仍交RR18处理。
++
++## D026 RR18 历史类型隔离与诚实覆盖边界（2026-10-11）
++- banked发卡不等于额度回满（D022/D024）；原始采集两类保留且按类型窗口去重，风险/脚本日志/校准共享纯核心regular筛选。旧算法golden移至采集前原字节归档，新生产数据由真实脚本生成，不手改数值。
++- 超过7日标stale且保留历史as_of；缺失/非法/未来时间标invalid，不用当前墙钟制造“未重置”观测。UI适配器新增historySource，区别于quota与实时status来源，后续照图UI无需自己判断7日。
++- REVIEW入口先采集再校准，刷新失败不继续；采集时间在完整成功后记录。仅新增载体及review文档，不改运行协议。现在n=0为真实无已完结样本，目标窗与预测时点审计交RR17。
+diff --git a/docs/calibration-latest.md b/docs/calibration-latest.md
+index 60da6f9..ccc0dd6 100644
+--- a/docs/calibration-latest.md
++++ b/docs/calibration-latest.md
+@@ -1,10 +1,10 @@
+ # 校准报告（calibration-latest）
+ 
+-> 生成：2026-10-11T00:49:52.370Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
++> 生成：2026-10-11T05:36:57.773Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
+ 
+-- 重置历史：data/resets-history.json —— 59 events（fetchedAt 2026-10-10T17:20:15.727Z）
+-- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-10T17:20:15.727Z
+-- 预测日志：data/predictions.jsonl —— 1 行有效
++- 重置历史：data/resets-history.json —— 60 条原始事件 / 54 条额度重置（仅regular；排除 6 条）（fetchedAt 2026-10-11T05:33:27.738Z）
++- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-11T05:33:27.738Z
++- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar_wt\RR18\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：2 行有效；合计 3 行有效
+ - 计分日：0 个（同日多行取首行 + 未完结日剔除；其中实际重置日 0 个）
+ 
+ ## 总分
+diff --git a/docs/design/04-progress.md b/docs/design/04-progress.md
+index 8c87d7d..772f81a 100644
+--- a/docs/design/04-progress.md
++++ b/docs/design/04-progress.md
+@@ -44,3 +44,7 @@ Rust已把/status来源并行接到额度快照，15分钟缓存/失败保留/
+ ## RR15预测日志汇流
+ 
+ app已从统一VM获取纯核心候选，真实成功评估自动记录到Tauri应用配置目录；Rust仅读/CAS追加，Node同名文件锁共用核心阈值，calibrate默认双源、--path可独立读取。浏览器demo与过期来源不写，旧契约热启动stale不写；新鲜来源下风险与额度失败独立，坏行及旧字节保留。具体运行实证见RR15_done及docs/prediction-runtime-20261011.md；历史新鲜度/自动回测/校准UI仍依后续卡。
++
++## RR18历史刷新
++
++真实历史已刷新为60条原始事件，风险/脚本日志/校准统一只消费54条额度重置，6条发卡仍保留原始证据。VM新增historySource元数据，校准超过7日标红且非法时间不计分；REVIEW入口先采集再报告。旧golden原字节归档，数值不随联网更新重写。门禁和生产验证见RR18_done；继续RR19→RR16→RR17→RR28→RR27。
+diff --git a/docs/history-refresh-20261011.md b/docs/history-refresh-20261011.md
+new file mode 100644
+index 0000000..e2c4d72
+--- /dev/null
++++ b/docs/history-refresh-20261011.md
+@@ -0,0 +1,26 @@
++# RR18 历史刷新与新鲜度
++
++REVIEW 前先运行 `node scripts/review-calibration.mjs > docs/calibration-latest.md`。入口先拉两个真实接口，校验成功并原子替换历史，再运行校准；采集诊断走 stderr，Markdown 走 stdout。采集失败非零退出，不继续校准，不给旧数据盖新时间。脚本失败时保留上一份报告；如需原子更新报告，可先输出到临时文件，确认退出0后再替换正式报告。
++
++本卡不修改 RUNBOOK。上述入口是 §9.1 校准命令的前置采集载体，独立运行 `node scripts/calibrate.mjs` 仍可离线检查现有历史。采集使用4秒请求超时、默认TLS验证；fetchedAt 在两个请求均成功后记录。
++
++## 数据口径
++
++- 原始夹具保留 regular（额度重置）与 banked（发放可主动兑换的卡），同类型5分钟窗口去重；不同类型邻近记录互不吞掉，交错记录也各自去重。
++- 风险、脚本预测与校准统一调用 `src/lib/history.ts`，只使用合法 regular 时间。未知类型不猜成额度重置。UI通过 buildDashboard.historySource 获取历史抓取时间、原始/额度重置/排除数量与状态，业务逻辑不落React。
++- 新鲜度严格超过7日才 stale，正好7日为 fresh；未来、非法或缺失 fetchedAt 为 invalid。stale 在报告顶部标红，仍只计 fetchedAt 覆盖内已完结日；invalid 不计分，不回退墙钟。日志脚本对 stale 提醒，并保持日期为历史时刻，invalid 不写。
++- 实时公告来源与离线历史分别评估，公告有效并不把旧历史标为新鲜。运行时最新确认额度重置仍由既有 resetStatus 核心并入；历史全量滚动采集由REVIEW入口完成。
++
++## 本轮真实证据
++
++`data/resets-history.json` 由入口实际生成：fetchedAt=2026-10-11T05:33:27.738Z；60条原始记录，54条regular、6条banked；最新regular为2026-10-11T04:01:09Z，id=2109132167112782291。regular北京星期Sun..Sat计数为[10,4,10,10,7,5,8]。参见 task_logs/RR18_artifacts/review-refresh.txt 与 consumer-live.json。
++
++RR03旧夹具在采集前原字节复制至 `src/lib/__tests__/fixtures/resets-history-20261010.json`，SHA256=D3E54A8F986FC8E0E214DF5D2F4A089AA0EF4FD80E7BA1F1BFD3FD8A27F347D5。旧风险golden仍验证历史算法；当前生产消费者另测regular筛选，更新真实数据不需要改旧golden数值。
++
++刷新时实际归档与应用日志各1行；生产验证后应用按既有变化阈值自然追加32.1一行，44的旧预测原字节保留。均属今日，今日未完结，实际校准n=0，各项指标显示缺值。不能用今日事后预测冒充昨日有效样本。预测目标与观测窗进一步核对由RR17处理，校准显示由RR28/RR27处理。
++
++## 验证与借鉴
++
++tsc、核心与adapter域129项、全量147项、Node30项通过；7日边界、误纳banked、交错去重三个变异均红，原字节恢复后全量复绿。Vite及GNU custom-protocol release成功；ownedPID26652只读CDP看到32.1%、hook=ok，真实新采集05:36:33.524549900Z；日志188→361字节，旧前缀不变，无锁残留，进程已关闭。证据production-history-verified.json与production-dom-fresh.json。风险因子算法未改。
++
++采集清洗的5分钟容差与去重窗口沿MIT参考 `codex-cockpit/src-tauri/src/reset_forecast.rs:8-9,103-132`，本卡在事件类型之间隔离窗口；banked语义回源codex-resets.com首页与原APIreset_type字段，原始证据锚点TRUTH B07及D022/D024。本卡7日守卫来自BACKLOG RR18。
+diff --git a/docs/review-20261011.md b/docs/review-20261011.md
+index e7f16dd..bf4ee98 100644
+--- a/docs/review-20261011.md
++++ b/docs/review-20261011.md
+@@ -114,3 +114,7 @@ RR13（小修快赢）→ RR14（ui 同域串行）→ RR15（校准闭环命脉
+ 首批 12 卡全部闭环：86/86 测试、tsc/vite build/cargo check 全绿、校准闭环管线全线贯通
+ （预测落盘→校准报告）、胶囊态真实数据端到端、发布三步就绪。差距 10 条全部定夺，
+ 新卡批次 RR13–RR19 共 7 张入 BACKLOG。循环进入永续迭代（M4 达成）。
++
++## RR18 REVIEW前置采集补记（2026-10-11）
++
++后续每轮生成校准前用 `node scripts/review-calibration.mjs`：先刷新并校验真实历史，成功再输出校准Markdown，任一步失败非零退出。离线calibrate仍可读旧夹具，但超过7日顶部标红，非法时间不计分；使用fetchedAt覆盖边界，不用墙钟补齐未观测日。细节与本轮真实证据见 docs/history-refresh-20261011.md；RUNBOOK原协议不改。
+diff --git a/scripts/calibrate.mjs b/scripts/calibrate.mjs
+index eca419c..a892bbb 100644
+--- a/scripts/calibrate.mjs
++++ b/scripts/calibrate.mjs
+@@ -9,9 +9,9 @@
+ // 未被历史覆盖的预测日按「未完结」剔除，绝不误判为 realized=false。
+ 
+ import { readFileSync } from "node:fs";
+-import { join, resolve } from "node:path";
++import { join } from "node:path";
+ import { fileURLToPath } from "node:url";
+-import { joinPredictionsWithResets, scorePredictions } from "../src/lib/calibration.ts";
++import { generateCalibrationReport } from "./calibration-report.mjs";
+ import {
+   canonicalPredictionPath,
+   parsePredictionPathArg,
+@@ -27,8 +27,6 @@ const predictionSources = resolvePredictionPaths({
+   canonicalPath: canonicalPredictionPath(),
+ });
+ const generatedAt = new Date().toISOString();
+-const lines = [];
+-const emit = (s = "") => lines.push(s);
+ 
+ function readJsonIfExists(path, label) {
+   try {
+@@ -47,114 +45,4 @@ catch (err) {
+   console.error(`[calibrate] ${err.message}`);
+   process.exit(1);
+ }
+-const predictionPathSummary = predictions.files.map((file) =>
+-  `${file.label} ${resolve(file.path)}：${file.missing ? "缺失" : `${file.rows} 行有效`}`,
+-).join("；");
+-const noPredictionFiles = predictions.files.every((file) => file.missing);
+-
+-emit("# 校准报告（calibration-latest）");
+-emit();
+-emit(`> 生成：${generatedAt}｜命令：\`node scripts/calibrate.mjs > docs/calibration-latest.md\``);
+-emit();
+-
+-if (history.missing || history.broken || !Array.isArray(history.events)) {
+-  emit("## ⚠️ 无法计分");
+-  emit();
+-  emit(`- 历史夹具 data/resets-history.json 不可用（${history.missing ? "文件不存在" : history.broken ? "解析失败" : "events 非数组"}）。`);
+-  emit("- 先运行 `node scripts/fetch-history.mjs` 拉取重置历史，再重新生成本报告。");
+-  emit();
+-  process.stdout.write(lines.join("\n") + "\n");
+-  process.exit(0);
+-}
+-
+-const announcedAt = history.events
+-  .map((e) => e?.announcedAt)
+-  .filter((v) => typeof v === "string");
+-const fetchedAtMs = Date.parse(history.fetchedAt ?? "");
+-const asOf = Number.isFinite(fetchedAtMs) ? new Date(fetchedAtMs) : generatedAtDate();
+-
+-function generatedAtDate() {
+-  console.error("[calibrate] 夹具 fetchedAt 缺失/非法，as_of 退化为墙钟（结果仅作骨架参考）");
+-  return new Date();
+-}
+-
+-emit(
+-  `- 重置历史：data/resets-history.json —— ${announcedAt.length} events（fetchedAt ${history.fetchedAt ?? "缺失"}）`,
+-);
+-emit(`- as_of（数据新鲜度时刻）= 夹具 fetchedAt：${asOf.toISOString()}`);
+-
+-if (noPredictionFiles) {
+-  emit(`- 预测日志来源：${predictionPathSummary}`);
+-  emit();
+-  emit("## ⚠️ 暂无预测日志，无可计分样本");
+-  emit();
+-  emit("- 校准闭环需要先积累「每日预测 → 落盘」（应用自动记录，或运行npm run log-prediction）。");
+-  emit("- 该文件出现后本报告自动给出完整指标；此前本文件仅作报告骨架（REVIEW 拍仍会生成）。");
+-  emit();
+-  emit("## 指标口径（供对照）");
+-  emit();
+-  emit("| 指标 | 定义 | 参照 |");
+-  emit("|---|---|---|");
+-  emit("| Brier 分数 | mean((p − y)²)，y∈{0,1} | 0=完美 / 0.25=恒50% / 1=全错 |");
+-  emit("| 命中率 | p≥50% 判「会重置」，与实际一致即命中 | 地板=「全猜不重置」=1−基准率 |");
+-  emit("| 基准率 | 实际重置日占比 | 预测技能的参照基线 |");
+-  emit();
+-  process.stdout.write(lines.join("\n") + "\n");
+-  process.exit(0);
+-}
+-
+-emit(
+-  `- 预测日志来源：${predictionPathSummary}；合计 ${predictions.rows.length} 行有效${predictions.skipped ? ` / ${predictions.skipped} 行坏行跳过` : ""}`,
+-);
+-
+-const outcomes = joinPredictionsWithResets(predictions.rows, announcedAt, asOf);
+-const score = scorePredictions(outcomes);
+-const realizedDays = outcomes.filter((r) => r.realized).length;
+-
+-emit(`- 计分日：${score.n} 个（同日多行取首行 + 未完结日剔除；其中实际重置日 ${realizedDays} 个）`);
+-emit();
+-emit("## 总分");
+-emit();
+-emit("| 指标 | 值 | 解读 |");
+-emit("|---|---|---|");
+-emit(`| 计分样本 n | ${score.n} | 每行 = 一个已完结的北京日 |`);
+-emit(
+-  `| Brier 分数 | ${fmt(score.brier, (v) => v.toFixed(3))} | 0=完美 / 0.25=恒50%参照 / 1=全错，越低越好 |`,
+-);
+-emit(`| 命中率（阈 ${score.thresholdPercent}%） | ${fmt(score.hitRate, pct)} | 阈值化命中占比 |`);
+-emit(`| 基准率 | ${fmt(score.baseRate, pct)} | 实际重置日占比；「全猜不重置」命中率为 ${score.baseRate === null ? "—" : pct(1 - score.baseRate)} |`);
+-emit();
+-emit("## 分周走势（周一起）");
+-emit();
+-emit("| 周（周一） | 样本 | Brier | 命中率 |");
+-emit("|---|---|---|---|");
+-for (const w of score.byWeek) {
+-  emit(`| ${w.weekKey} | ${w.n} | ${w.brier.toFixed(3)} | ${pct(w.hitRate)} |`);
+-}
+-if (score.byWeek.length === 0) emit("| —（无样本） | | | |");
+-emit();
+-emit("## 可靠性曲线（预测十分桶）");
+-emit();
+-emit("| 预测区间% | 样本 | 平均预测% | 实际发生% |");
+-emit("|---|---|---|---|");
+-for (const b of score.reliability) {
+-  emit(`| ${b.label} | ${b.n} | ${b.avgPredictedPercent.toFixed(1)} | ${b.observedPercent.toFixed(1)} |`);
+-}
+-if (score.reliability.length === 0) emit("| —（无样本） | | | |");
+-emit();
+-emit("## 读法");
+-emit();
+-emit("- Brier ≤ 0.25 才优于「恒猜 50%」；**样本 < 30 时各项指标仅供参考**。");
+-emit("- 可靠性表「平均预测」与「实际发生」越贴近对角线，概率越可信；系统性高估/低估即校准偏差方向。");
+-emit("- 分周 Brier 持续走高 = 模型状态漂移，优先复核 risk 因子与夹具新鲜度。");
+-emit();
+-
+-process.stdout.write(lines.join("\n") + "\n");
+-
+-function pct(v) {
+-  return `${(v * 100).toFixed(1)}%`;
+-}
+-
+-function fmt(v, f) {
+-  return v === null ? "—（暂无可计分日）" : f(v);
+-}
++process.stdout.write(generateCalibrationReport({ history, predictions, generatedAt }));
+diff --git a/scripts/calibration-report.mjs b/scripts/calibration-report.mjs
+new file mode 100644
+index 0000000..3a113b5
+--- /dev/null
++++ b/scripts/calibration-report.mjs
+@@ -0,0 +1,124 @@
++// RR18：校准报告纯呈现；新鲜度、事件选择与计分唯一实现均在src/lib。
++import { resolve } from "node:path";
++import { joinPredictionsWithResets, scorePredictions } from "../src/lib/calibration.ts";
++import { assessHistorySource, selectQuotaResetHistory, HISTORY_STALE_DAYS } from "../src/lib/history.ts";
++
++export function generateCalibrationReport({ history, predictions, generatedAt }) {
++  const lines = [];
++  const emit = (s = "") => lines.push(s);
++  const predictionPathSummary = predictions.files.map((file) =>
++    `${file.label} ${resolve(file.path)}：${file.missing ? "缺失" : `${file.rows} 行有效`}`,
++  ).join("；");
++  const noPredictionFiles = predictions.files.every((file) => file.missing);
++
++  emit("# 校准报告（calibration-latest）");
++  emit();
++  emit(`> 生成：${generatedAt}｜命令：\`node scripts/calibrate.mjs > docs/calibration-latest.md\``);
++  emit();
++
++  if (history.missing || history.broken || !Array.isArray(history.events)) {
++    emit("## ⚠️ 无法计分");
++    emit();
++    emit(`- 历史夹具 data/resets-history.json 不可用（${history.missing ? "文件不存在" : history.broken ? "解析失败" : "events 非数组"}）。`);
++    emit("- 先运行 `node scripts/fetch-history.mjs` 拉取重置历史，再重新生成本报告。");
++    emit();
++    return lines.join("\n") + "\n";
++  }
++
++  const source = assessHistorySource(history, new Date(generatedAt));
++  if (source.state === "invalid") {
++    emit("## ⚠️ 无法计分");
++    emit();
++    emit("- 历史 fetchedAt 缺失、非法或位于未来；不能使用墙钟代替历史覆盖时刻。");
++    emit("- 先运行 `node scripts/fetch-history.mjs`，成功后重新生成本报告。");
++    return lines.join("\n") + "\n";
++  }
++  if (source.state === "stale") {
++    emit("## 🔴 历史数据已过期");
++    emit();
++    emit(`> fetchedAt 距生成时刻 ${source.ageDays.toFixed(1)} 天，超过 ${HISTORY_STALE_DAYS} 天。以下仅计历史覆盖内已完结日，不代表当前校准。先刷新历史。`);
++    emit();
++  }
++  const announcedAt = selectQuotaResetHistory(history.events);
++  const asOf = new Date(source.asOf);
++  emit(
++    `- 重置历史：data/resets-history.json —— ${source.totalEvents} 条原始事件 / ${announcedAt.length} 条额度重置（仅regular；排除 ${source.excludedEvents} 条）（fetchedAt ${history.fetchedAt ?? "缺失"}）`,
++  );
++  emit(`- as_of（数据新鲜度时刻）= 夹具 fetchedAt：${asOf.toISOString()}`);
++
++  if (noPredictionFiles) {
++    emit(`- 预测日志来源：${predictionPathSummary}`);
++    emit();
++    emit("## ⚠️ 暂无预测日志，无可计分样本");
++    emit();
++    emit("- 校准闭环需要先积累「每日预测 → 落盘」（应用自动记录，或运行npm run log-prediction）。");
++    emit("- 该文件出现后本报告自动给出完整指标；此前本文件仅作报告骨架（REVIEW 拍仍会生成）。");
++    emit();
++    emit("## 指标口径（供对照）");
++    emit();
++    emit("| 指标 | 定义 | 参照 |");
++    emit("|---|---|---|");
++    emit("| Brier 分数 | mean((p − y)²)，y∈{0,1} | 0=完美 / 0.25=恒50% / 1=全错 |");
++    emit("| 命中率 | p≥50% 判「会重置」，与实际一致即命中 | 地板=「全猜不重置」=1−基准率 |");
++    emit("| 基准率 | 实际重置日占比 | 预测技能的参照基线 |");
++    emit();
++    return lines.join("\n") + "\n";
++  }
++
++  emit(
++    `- 预测日志来源：${predictionPathSummary}；合计 ${predictions.rows.length} 行有效${predictions.skipped ? ` / ${predictions.skipped} 行坏行跳过` : ""}`,
++  );
++
++  const outcomes = joinPredictionsWithResets(predictions.rows, announcedAt, asOf);
++  const score = scorePredictions(outcomes);
++  const realizedDays = outcomes.filter((r) => r.realized).length;
++
++  emit(`- 计分日：${score.n} 个（同日多行取首行 + 未完结日剔除；其中实际重置日 ${realizedDays} 个）`);
++  emit();
++  emit("## 总分");
++  emit();
++  emit("| 指标 | 值 | 解读 |");
++  emit("|---|---|---|");
++  emit(`| 计分样本 n | ${score.n} | 每行 = 一个已完结的北京日 |`);
++  emit(
++    `| Brier 分数 | ${fmt(score.brier, (v) => v.toFixed(3))} | 0=完美 / 0.25=恒50%参照 / 1=全错，越低越好 |`,
++  );
++  emit(`| 命中率（阈 ${score.thresholdPercent}%） | ${fmt(score.hitRate, pct)} | 阈值化命中占比 |`);
++  emit(`| 基准率 | ${fmt(score.baseRate, pct)} | 实际重置日占比；「全猜不重置」命中率为 ${score.baseRate === null ? "—" : pct(1 - score.baseRate)} |`);
++  emit();
++  emit("## 分周走势（周一起）");
++  emit();
++  emit("| 周（周一） | 样本 | Brier | 命中率 |");
++  emit("|---|---|---|---|");
++  for (const w of score.byWeek) {
++    emit(`| ${w.weekKey} | ${w.n} | ${w.brier.toFixed(3)} | ${pct(w.hitRate)} |`);
++  }
++  if (score.byWeek.length === 0) emit("| —（无样本） | | | |");
++  emit();
++  emit("## 可靠性曲线（预测十分桶）");
++  emit();
++  emit("| 预测区间% | 样本 | 平均预测% | 实际发生% |");
++  emit("|---|---|---|---|");
++  for (const b of score.reliability) {
++    emit(`| ${b.label} | ${b.n} | ${b.avgPredictedPercent.toFixed(1)} | ${b.observedPercent.toFixed(1)} |`);
++  }
++  if (score.reliability.length === 0) emit("| —（无样本） | | | |");
++  emit();
++  emit("## 读法");
++  emit();
++  emit("- Brier ≤ 0.25 才优于「恒猜 50%」；**样本 < 30 时各项指标仅供参考**。");
++  emit("- 可靠性表「平均预测」与「实际发生」越贴近对角线，概率越可信；系统性高估/低估即校准偏差方向。");
++  emit("- 分周 Brier 持续走高 = 模型状态漂移，优先复核 risk 因子与夹具新鲜度。");
++  emit();
++
++  return lines.join("\n") + "\n";
++
++  function pct(v) {
++    return `${(v * 100).toFixed(1)}%`;
++  }
++
++  function fmt(v, f) {
++    return v === null ? "—（暂无可计分日）" : f(v);
++  }
++
++}
+diff --git a/scripts/calibration-report.test.mjs b/scripts/calibration-report.test.mjs
+new file mode 100644
+index 0000000..a54d47c
+--- /dev/null
++++ b/scripts/calibration-report.test.mjs
+@@ -0,0 +1,36 @@
++// RR18：真实报告渲染验证，算法由TS核心执行；合成边界是测试输入，非生产夹具。
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { generateCalibrationReport } from "./calibration-report.mjs";
++
++const fetchedAt = "2026-10-10T12:00:00.000Z";
++const history = { fetchedAt, events: [
++  { resetType: "regular", announcedAt: "2026-10-08T01:00:00Z" },
++  { resetType: "banked", announcedAt: "2026-10-09T01:00:00Z" },
++] };
++const predictions = { files: [{ label: "测试", path: "sample.jsonl", missing: false, rows: 3 }], skipped: 0,
++  rows: ["2026-10-08", "2026-10-09", "2026-10-11"].map((date) => ({ date, predictedRisk: 100, fetchedAt, factorsDigest: "test" })) };
++const report = (generatedAt, input = history) => generateCalibrationReport({ history: input, predictions, generatedAt });
++
++test("鲜活历史：仅regular计实际重置；未覆盖的未来日不计分", () => {
++  const output = report("2026-10-11T12:00:00Z");
++  assert.doesNotMatch(output, /历史数据已过期/);
++  assert.match(output, /2 条原始事件 \/ 1 条额度重置/);
++  assert.match(output, /计分日：2 个.*实际重置日 1 个/);
++  assert.match(output, /\| Brier 分数 \| 0\.500 \|/);
++});
++test("恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻", () => {
++  assert.doesNotMatch(report("2026-10-17T12:00:00.000Z"), /历史数据已过期/);
++  const output = report("2026-10-17T12:00:00.001Z");
++  assert.match(output, /## 🔴 历史数据已过期/);
++  assert.ok(output.indexOf("历史数据已过期") < output.indexOf("重置历史："));
++  assert.match(output, /as_of.*2026-10-10T12:00:00.000Z/);
++  assert.match(output, /计分日：2 个/);
++});
++test("非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标", () => {
++  for (const value of [undefined, "invalid", "2026-10-12T12:00:00Z"]) {
++    const output = report("2026-10-11T12:00:00Z", { ...history, fetchedAt: value });
++    assert.match(output, /无法计分/);
++    assert.doesNotMatch(output, /## 总分|计分日：|\| Brier 分数 \|/);
++  }
++});
+diff --git a/scripts/fetch-history.mjs b/scripts/fetch-history.mjs
+index 3374502..cdd5c98 100644
+--- a/scripts/fetch-history.mjs
++++ b/scripts/fetch-history.mjs
+@@ -5,7 +5,8 @@
+ //   GET https://codex-resets.com/api/v1/status                         （latest_reset / stats / active_watch）
+ // 清洗规则移植自参考实现 codex-cockpit（MIT）src-tauri/src/reset_forecast.rs 的 sanitize_history
+ // （函数体 :103-132；FUTURE_TOLERANCE_MINUTES=5、DUPLICATE_WINDOW_MINUTES=5 定义于 :8-9）：
+-//   解析失败丢弃 → 未来容差过滤 → 倒序 → 相邻 5 分钟窗口去重；/status 的 latest_reset 并入再清洗。
++//   解析失败丢弃 → 未来容差过滤 → 倒序 → 同类型 5 分钟窗口去重；/status 的 latest_reset 并入再清洗。
++// RR18按regular/banked分别去重，避免发卡事件吞掉额度重置；原始两类都保留，消费者由纯核心筛regular。
+ // 星期统计按 D004 全项目唯一日边界（北京零点，UTC+8 固定偏移、无夏令时）。
+ 
+ import { mkdir, rename, writeFile } from 'node:fs/promises';
+@@ -56,10 +57,12 @@ export function sanitizeEvents(rawEvents, asOfMs) {
+   parsed.sort((a, b) => b.ms - a.ms); // 倒序（right.cmp(left)）
+   const windowMs = DUPLICATE_WINDOW_MIN * 60_000;
+   const kept = [];
++  const lastByType = new Map();
+   for (const item of parsed) {
+-    const prev = kept[kept.length - 1];
+-    if (prev !== undefined && Math.abs(prev.ms - item.ms) <= windowMs) continue; // 5 分钟窗口去重
++    const prev = lastByType.get(item.ev.resetType);
++    if (prev !== undefined && Math.abs(prev.ms - item.ms) <= windowMs) continue; // 跨类型交错也不打断同类型去重
+     kept.push(item);
++    lastByType.set(item.ev.resetType, item);
+   }
+   return kept.map(({ ev, ms }) => ({ ...ev, announcedAt: ms.toISOString() }));
+ }
+@@ -106,10 +109,30 @@ export async function fetchJson(url) {
+   }
+ }
+ 
+-function buildDocument({ resets, status, fetchedAtIso }) {
+-  const asOfMs = Date.parse(fetchedAtIso);
++function isObject(value) {
++  return value !== null && typeof value === 'object' && !Array.isArray(value);
++}
++
++export function buildDocument({ resets, status, fetchedAtIso }) {
++  if (!isObject(resets) || !Array.isArray(resets.data) || !isObject(resets.meta)) {
++    throw new TypeError('invalid resets response: expected object data array and meta object');
++  }
++  if (!isObject(status) || !isObject(status.data) || !isObject(status.meta)) {
++    throw new TypeError('invalid status response: expected data and meta objects');
++  }
++  if (!Object.hasOwn(status.data, 'latest_reset') ||
++      (status.data.latest_reset !== null && !isObject(status.data.latest_reset))) {
++    throw new TypeError('invalid status.data.latest_reset: expected object or null');
++  }
++  for (const key of ['scheduled_reset', 'active_watch']) {
++    if (Object.hasOwn(status.data, key) && status.data[key] !== null && !isObject(status.data[key])) {
++      throw new TypeError(`invalid status.data.${key}: expected object or null`);
++    }
++  }
++  const asOfMs = parseIsoMs(fetchedAtIso);
++  if (asOfMs === null) throw new TypeError('invalid fetchedAtIso: expected ISO timestamp');
+   // /status 的 latest_reset 并入历史再清洗（参考 reset_forecast.rs:108-110 的 chain 写法）
+-  const rawEvents = [...(Array.isArray(resets?.data) ? resets.data : [])];
++  const rawEvents = [...resets.data];
+   const latest = status?.data?.latest_reset;
+   if (latest && typeof latest === 'object') rawEvents.push(latest);
+   const events = sanitizeEvents(rawEvents, asOfMs);
+@@ -118,23 +141,23 @@ function buildDocument({ resets, status, fetchedAtIso }) {
+     fetchedAt: fetchedAtIso,
+     sources: { resets: RESETS_URL, status: STATUS_URL },
+     upstream: {
+-      apiVersion: resets?.meta?.api_version ?? null,
+-      generatedAt: resets?.meta?.generated_at ?? null,
++      apiVersion: resets.meta.api_version ?? null,
++      generatedAt: resets.meta.generated_at ?? null,
+       pagination: resets?.pagination ?? null,
+     },
+     // /status 侧信息原样保留（RR04 风险模型要用 active_watch.reset_chance_percent 等字段）
+-    status: status?.data ?? null,
++    status: status.data,
+     events,
+     summary: summarize(events),
+   };
+ }
+ 
+ async function main() {
+-  const fetchedAtIso = new Date().toISOString();
+   console.log(`[fetch-history] 拉取 ${RESETS_URL}`);
+   const resets = await fetchJson(RESETS_URL);
+   console.log(`[fetch-history] 拉取 ${STATUS_URL}`);
+   const status = await fetchJson(STATUS_URL);
++  const fetchedAtIso = new Date().toISOString();
+   const doc = buildDocument({ resets, status, fetchedAtIso });
+   const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
+   const outPath = join(outDir, 'resets-history.json');
+diff --git a/scripts/fetch-history.test.mjs b/scripts/fetch-history.test.mjs
+index 4dd17b0..c8a8cd7 100644
+--- a/scripts/fetch-history.test.mjs
++++ b/scripts/fetch-history.test.mjs
+@@ -8,6 +8,7 @@ import {
+   sanitizeEvents,
+   summarize,
+   weekdayBeijing,
++  buildDocument,
+ } from './fetch-history.mjs';
+ 
+ const AS_OF = Date.parse('2026-10-11T00:00:00.000Z');
+@@ -67,6 +68,61 @@ describe('sanitizeEvents（移植自 reset_forecast.rs sanitize_history）', ()
+     const out = sanitizeEvents([ev(a), ev(b3), ev(c7), ev(dEdge)], AS_OF);
+     assert.deepEqual(out.map((e) => e.announcedAt), [b3, dEdge]);
+   });
++  test('不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重', () => {
++    const newer = new Date(AS_OF - 10 * MIN).toISOString();
++    const older = new Date(AS_OF - 12 * MIN).toISOString();
++    const regularNew = ev(newer, 'regular-new');
++    const regularNewer = { ...regularNew, id: 'regular-duplicate', announced_at: new Date(AS_OF - 9 * MIN).toISOString() };
++    const banked = { ...ev(older, 'banked'), reset_type: 'banked' };
++    const out = sanitizeEvents([banked, regularNew, regularNewer], AS_OF);
++    assert.deepEqual(out.map(({ id, resetType }) => [id, resetType]), [
++      ['regular-duplicate', 'regular'],
++      ['banked', 'banked'],
++    ]);
++  });
++});
++
++describe('buildDocument（上游封装校验）', () => {
++  test('跨类型交错不打断同类型5分钟去重', () => {
++    const newest = ev(new Date(AS_OF - 10 * MIN).toISOString(), 'regular-new');
++    const middle = { ...ev(new Date(AS_OF - 11 * MIN).toISOString(), 'banked'), reset_type: 'banked' };
++    const older = ev(new Date(AS_OF - 13 * MIN).toISOString(), 'regular-old');
++    assert.deepEqual(sanitizeEvents([older, middle, newest], AS_OF).map((e) => e.id), ['regular-new', 'banked']);
++  });
++  const valid = () => ({
++    resets: { data: [], meta: { api_version: 'v1', generated_at: '2026-10-11T00:00:00Z' } },
++    status: { data: { latest_reset: null, scheduled_reset: null, active_watch: null }, meta: {} },
++    fetchedAtIso: '2026-10-11T00:00:00.000Z',
++  });
++
++  test('缺字段或坏形状直接 reject', () => {
++    const cases = [
++      (x) => { x.resets.data = {}; },
++      (x) => { x.resets.meta = null; },
++      (x) => { x.status.data = null; },
++      (x) => { x.status.meta = []; },
++      (x) => { delete x.status.data.latest_reset; },
++      (x) => { x.status.data.latest_reset = []; },
++      (x) => { x.status.data.scheduled_reset = false; },
++      (x) => { x.status.data.active_watch = []; },
++      (x) => { x.fetchedAtIso = 'not-a-date'; },
++    ];
++    for (const corrupt of cases) {
++      const input = valid();
++      corrupt(input);
++      assert.throws(() => buildDocument(input), TypeError);
++    }
++  });
++
++  test('兼容真实 API 的 object/null 可选字段并保留 status 原形', () => {
++    const input = valid();
++    input.status.data.scheduled_reset = { announced_at: null };
++    delete input.status.data.active_watch;
++    const doc = buildDocument(input);
++    assert.deepEqual(doc.status, input.status.data);
++    assert.equal(doc.events.length, 0);
++    assert.equal(doc.fetchedAt, input.fetchedAtIso);
++  });
+ });
+ 
+ describe('weekdayBeijing（D004 北京零点边界）', () => {
+diff --git a/scripts/log-prediction.mjs b/scripts/log-prediction.mjs
+index 29f7b96..d904d48 100644
+--- a/scripts/log-prediction.mjs
++++ b/scripts/log-prediction.mjs
+@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
+ 
+ import { appendPredictionLog, digestFactors, predictionDateKey } from "../src/lib/predictions.ts";
+ import { assessResetRisk } from "../src/lib/risk.ts";
++import { assessHistorySource, selectQuotaResetHistory } from "../src/lib/history.ts";
+ import { appendPredictionFile, canonicalPredictionPath, parsePredictionPathArg } from "./prediction-files.mjs";
+ 
+ const root = fileURLToPath(new URL("../", import.meta.url));
+@@ -22,15 +23,14 @@ const override = parsePredictionPathArg(process.argv.slice(2));
+ const logPath = override ?? canonicalPredictionPath();
+ 
+ const history = JSON.parse(readFileSync(`${root}data/resets-history.json`, "utf8"));
+-const announcedAt = history.events
+-  .map((e) => e?.announcedAt)
+-  .filter((v) => typeof v === "string");
+-const fetchedAtMs = Date.parse(history.fetchedAt ?? "");
+-if (!Number.isFinite(fetchedAtMs)) {
++const source = assessHistorySource(history, new Date());
++if (source.state === "invalid") {
+   console.error("[log-prediction] 夹具 fetchedAt 缺失/非法：先跑 node scripts/fetch-history.mjs");
+   process.exit(1);
+ }
+-const asOf = new Date(fetchedAtMs);
++if (source.state === "stale") console.error("[log-prediction] 历史已过期：本次只评估历史fetchedAt所在日，请先刷新历史。");
++const announcedAt = selectQuotaResetHistory(history.events);
++const asOf = new Date(source.asOf);
+ 
+ const risk = assessResetRisk(announcedAt, asOf);
+ const candidate = {
+diff --git a/scripts/review-calibration.mjs b/scripts/review-calibration.mjs
+new file mode 100644
+index 0000000..fa5de32
+--- /dev/null
++++ b/scripts/review-calibration.mjs
+@@ -0,0 +1,63 @@
++#!/usr/bin/env node
++// scripts/review-calibration.mjs —— REVIEW 入口：先刷新真实历史，再生成校准 Markdown。
++// 算法仍由 scripts/calibrate.mjs 与 src/lib/calibration.ts 提供，本文件只编排命令。
++
++import { spawnSync } from 'node:child_process';
++import { dirname, join } from 'node:path';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++
++const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
++
++function resultText(result, key) {
++  return typeof result?.[key] === 'string' ? result[key] : '';
++}
++
++function failed(result) {
++  return result?.error || result?.status !== 0;
++}
++
++function failureMessage(result) {
++  if (result?.error) return `命令启动失败：${result.error.message ?? result.error}`;
++  return `命令退出状态：${result?.status ?? 'unknown'}`;
++}
++
++// 先拉取并校验真实历史；fetch 诊断始终走 stderr，校准报告仅在成功时交给 stdout。
++export function runReviewCalibration({ run = spawnSync } = {}) {
++  const fetchResult = run(process.execPath, [join(ROOT, 'scripts/fetch-history.mjs')], {
++    cwd: ROOT,
++    encoding: 'utf8',
++  });
++  const fetchDiagnostics = resultText(fetchResult, 'stdout') + resultText(fetchResult, 'stderr');
++  if (failed(fetchResult)) {
++    return {
++      exitCode: 1,
++      stdout: '',
++      stderr: fetchDiagnostics + `\n[review-calibration] 历史刷新失败；已中止校准。${failureMessage(fetchResult)}\n`,
++    };
++  }
++
++  const calibrationResult = run(process.execPath, [join(ROOT, 'scripts/calibrate.mjs')], {
++    cwd: ROOT,
++    encoding: 'utf8',
++  });
++  if (failed(calibrationResult)) {
++    return {
++      exitCode: 1,
++      stdout: '',
++      stderr: fetchDiagnostics + resultText(calibrationResult, 'stderr') +
++        `[review-calibration] 校准失败。${failureMessage(calibrationResult)}\n`,
++    };
++  }
++  return {
++    exitCode: 0,
++    stdout: resultText(calibrationResult, 'stdout'),
++    stderr: fetchDiagnostics + resultText(calibrationResult, 'stderr'),
++  };
++}
++
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  const result = runReviewCalibration();
++  if (result.stderr) process.stderr.write(result.stderr);
++  if (result.stdout) process.stdout.write(result.stdout);
++  process.exitCode = result.exitCode;
++}
+diff --git a/scripts/review-calibration.test.mjs b/scripts/review-calibration.test.mjs
+new file mode 100644
+index 0000000..326ecc9
+--- /dev/null
++++ b/scripts/review-calibration.test.mjs
+@@ -0,0 +1,54 @@
++// scripts/review-calibration.test.mjs —— REVIEW 命令编排测试（注入 run，零网络）。
++import assert from 'node:assert/strict';
++import { test } from 'node:test';
++import { dirname, join } from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { runReviewCalibration } from './review-calibration.mjs';
++
++const ok = (stdout = '', stderr = '') => ({ status: 0, stdout, stderr });
++const bad = (status, stdout = '', stderr = '') => ({ status, stdout, stderr });
++
++test('先刷新历史，再运行校准；输出流按用途分流', () => {
++  const calls = [];
++  const result = runReviewCalibration({
++    run: (command, args, options) => {
++      calls.push({ command, args, options });
++      return calls.length === 1 ? ok('fetch log\n') : ok('# calibration\n');
++    },
++  });
++  assert.equal(calls.length, 2);
++  assert.match(calls[0].args[0], /scripts[\\/]fetch-history\.mjs$/);
++  assert.match(calls[1].args[0], /scripts[\\/]calibrate\.mjs$/);
++  assert.equal(calls[0].options.cwd, join(dirname(fileURLToPath(import.meta.url)), '..'));
++  assert.equal(calls[1].options.cwd, calls[0].options.cwd);
++  assert.equal(result.exitCode, 0);
++  assert.equal(result.stderr, 'fetch log\n');
++  assert.equal(result.stdout, '# calibration\n');
++});
++
++test('fetch 失败时非零退出并且不运行 calibrate', () => {
++  let calls = 0;
++  const result = runReviewCalibration({
++    run: () => {
++      calls += 1;
++      return bad(1, 'fetch output', 'network error');
++    },
++  });
++  assert.equal(calls, 1);
++  assert.equal(result.exitCode, 1);
++  assert.equal(result.stdout, '');
++  assert.match(result.stderr, /fetch outputnetwork error/);
++  assert.match(result.stderr, /已中止校准/);
++});
++
++test('calibrate 失败时非零退出且不输出部分 Markdown', () => {
++  let calls = 0;
++  const result = runReviewCalibration({
++    run: () => (++calls === 1 ? ok() : bad(2, '# incomplete', 'calibration error')),
++  });
++  assert.equal(calls, 2);
++  assert.equal(result.exitCode, 1);
++  assert.equal(result.stdout, '');
++  assert.match(result.stderr, /calibration error/);
++  assert.match(result.stderr, /校准失败/);
++});
+diff --git a/src/App.tsx b/src/App.tsx
+index 28571f5..834903d 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -8,7 +8,7 @@ import { buildDashboard } from "./ui/adapters";
+ import { initialExpanded } from "./ui/appState";
+ import Capsule from "./ui/Capsule";
+ import ExpandedCard from "./ui/ExpandedCard";
+-import { RESET_HISTORY_ANNOUNCED_AT } from "./ui/history";
++import { RESET_HISTORY_ANNOUNCED_AT, RESET_HISTORY_SOURCE } from "./ui/history";
+ import { usePredictionLog } from "./ui/usePredictionLog";
+ import { useSnapshots } from "./ui/useSnapshots";
+ import { applyWidgetSize, closeWidget } from "./ui/widgetWindow";
+@@ -39,7 +39,7 @@ export default function App() {
+   }, [expanded]);
+ 
+   const codex = snapshots.find((item) => item.provider === "codex") ?? snapshots[0];
+-  const vm = codex != null ? buildDashboard(codex, RESET_HISTORY_ANNOUNCED_AT) : null;
++  const vm = codex != null ? buildDashboard(codex, RESET_HISTORY_ANNOUNCED_AT, new Date(), RESET_HISTORY_SOURCE) : null;
+ 
+   const predictionLog = usePredictionLog(vm?.prediction ?? null, live, vm?.updatedAt ?? "");
+ 
+diff --git a/src/lib/__tests__/fixtures/resets-history-20261010.json b/src/lib/__tests__/fixtures/resets-history-20261010.json
+new file mode 100644
+index 0000000..e72a9f5
+--- /dev/null
++++ b/src/lib/__tests__/fixtures/resets-history-20261010.json
+@@ -0,0 +1,525 @@
++{
++  "schema": "reset-radar/resets-history@1",
++  "fetchedAt": "2026-10-10T17:20:15.727Z",
++  "sources": {
++    "resets": "https://codex-resets.com/api/v1/resets?limit=100&order=desc",
++    "status": "https://codex-resets.com/api/v1/status"
++  },
++  "upstream": {
++    "apiVersion": "v1",
++    "generatedAt": "2026-10-10T17:15:21.280Z",
++    "pagination": {
++      "has_more": false,
++      "next_cursor": null
++    }
++  },
++  "status": {
++    "latest_reset": {
++      "id": "2108040921044639779",
++      "reset_type": "banked",
++      "announced_at": "2026-10-08T03:44:55.000Z",
++      "text": "Confirmed landed across all accounts. How are we doing so far? https://t.co/tzw7dNX4pN",
++      "source": {
++        "type": "x_post",
++        "author": "thsottiaux",
++        "url": "https://x.com/thsottiaux/status/2108040921044639779"
++      }
++    },
++    "scheduled_reset": null,
++    "active_watch": null,
++    "stats": {
++      "total": 59,
++      "last_reset_at": "2026-10-08T03:44:55.000Z",
++      "days_since_last": 2.6,
++      "avg_interval_days": 6.7
++    }
++  },
++  "events": [
++    {
++      "id": "2108040921044639779",
++      "resetType": "banked",
++      "announcedAt": "2026-10-08T03:44:55.000Z",
++      "text": "Confirmed landed across all accounts. How are we doing so far? https://t.co/tzw7dNX4pN",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2108040921044639779"
++    },
++    {
++      "id": "2107676072871600470",
++      "resetType": "regular",
++      "announcedAt": "2026-10-07T03:35:09.000Z",
++      "text": "We shipped four things that were deemed good to great and some math proofs, but the vote is clear and the community demands a reset. I did calibrate it and it *seems* that the game is rigged in reset's favor, but such are the rules at the moment.\n\nTherefore ... the reset has been https://t.co/mHSI0Pcu4M",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2107676072871600470"
++    },
++    {
++      "id": "2106131810921136451",
++      "resetType": "regular",
++      "announcedAt": "2026-10-02T21:18:48.000Z",
++      "text": "Reset all propagated. Enjoy. https://t.co/GaVJhbptR0",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2106131810921136451"
++    },
++    {
++      "id": "observed-20260929T190000Z",
++      "resetType": "banked",
++      "announcedAt": "2026-09-29T19:00:00.000Z",
++      "text": "@theo Shhhhhh",
++      "sourceType": "observed",
++      "sourceUrl": "https://x.com/thsottiaux/status/2105120226027450685"
++    },
++    {
++      "id": "2103911959544610829",
++      "resetType": "regular",
++      "announcedAt": "2026-09-26T18:17:54.000Z",
++      "text": "Resets all propagated. That will be all. Have a fantastic weekend.",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2103911959544610829"
++    },
++    {
++      "id": "2102463847714247142",
++      "resetType": "banked",
++      "announcedAt": "2026-09-22T18:23:37.000Z",
++      "text": "GPT-6 Sol and Luna are out. Not only are they a very significant improvement across the board, but also in writing and general \"you know when you try it\" quality. \n\nWe are also permanently reducing the API price by 50% making both of them viable for a ton of new usecases and making your usage go further too, even on the subscriptions.\n\nAnd one more thing. We are loading a banked reset into all accounts of our Plus, Pro and Business users. Let's go!\n\nhttps://t.co/00DRh1sRrO",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2102463847714247142"
++    },
++    {
++      "id": "2098685367058612394",
++      "resetType": "regular",
++      "announcedAt": "2026-09-12T08:09:17.000Z",
++      "text": "Reset all propagated. Sweet dreams. https://t.co/VgKVUixoJG",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2098685367058612394"
++    },
++    {
++      "id": "observed-2097043464538264003",
++      "resetType": "regular",
++      "announcedAt": "2026-09-08T01:56:57.501Z",
++      "text": "All reset for everyone. Enjoy the week with Astra. https://t.co/WBM38JotGO",
++      "sourceType": "observed",
++      "sourceUrl": "https://x.com/thsottiaux/status/2097174560412246215"
++    },
++    {
++      "id": "2096035437299237298",
++      "resetType": "banked",
++      "announcedAt": "2026-09-05T00:39:25.000Z",
++      "text": "Because we are beyond happy to have Astra rolled out today ahead of schedule and you have been super patient with us (not really, but it’s ok!)… we will do the full banked reset today too for all Plus, Pro and Business users. Lands end of day.\n\nHappy Astra day and enjoy a phenomenal weekend. \n\nPS: If you create the account or upgrade before 8pm PT you will get it too. Still time!",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2096035437299237298"
++    },
++    {
++      "id": "2095651088502591861",
++      "resetType": "banked",
++      "announcedAt": "2026-09-03T23:12:09.000Z",
++      "text": "We will give one banked reset for every day you don't have access to Astra on your paid ChatGPT plan, starting today.  Team is moving mountains to give access as fast as we can.\n\nFirst one will land in ~ 3 hours. There is still time to create your account if you don't have one.",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2095651088502591861"
++    },
++    {
++      "id": "2094251180121854309",
++      "resetType": "regular",
++      "announcedAt": "2026-08-31T02:29:25.000Z",
++      "text": "What I wanted to say yesterday is that we hit 25M active users and to celebrate we have now reset usage for all paid subscriptions for ChatGPT Work and Codex.\n\nSee you see for more news from The Reset Company. https://t.co/7Yc5znAJIc",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2094251180121854309"
++    },
++    {
++      "id": "2093801758665715784",
++      "resetType": "regular",
++      "announcedAt": "2026-08-29T20:43:34.000Z",
++      "text": "We are reseting usage for all paid users of Codex and ChatGPT Work.\n\nPlease continue reading for an update on Codex usage limits. The team has been working around the clock, going through thousands of reports and shipping fixes.\n\nDepending on how you use Codex, you should see your usage go between 10% and 50% further than before.\n\nWe really went with a fine comb, with many uncovered small things being longstanding and here is what we found and fixed:\n- Compaction. We were keeping old images during compaction, sometimes making the context large enough to trigger compaction again. After the fix, usage dropped around 10% for users making heavy use of images. Fixed.\n- Memory. Background memory workers could inherit Stop hooks and keep running when the hook wouldn’t let them finish. This affected fewer than 1% of users, with the long tail being pretty bad and we saw one example thread check whether it could stop 15,000 times. Fixed.\n- Goals. In some cases, a set /goal could finish and then keep going past the intended stop condition, or the model would keep retrying broken tools without stopping. We saw examples consume anywhere from 15% to 70% of a weekly allowance. Fixed.\n- Automations. Some custom schedules could run more frequently than configured. Fixed.\n- Subagents. Smaller models (e.g. Luna) sometimes picked more capable helpers without being explicitly asked. The same was true where the orchestrating model not running in /fast mode could request sub-agents to run /fast. Fixed.\n- Computer History. The older implementation could lead to repeatedly summarizing overlapping activity. For some cases we saw it consume up to one fifth of the weekly usage per week. Fixed.\n- Rolling task summaries. Ordinary turns were triggering extra background requests. These added about 1% to token usage. Small each time, but it adds up. We have disabled this.\n- MCP. Some tool results could be encoded twice. We also found tool instructions getting cut off and fetched again. Fixed.\n\nWe’ve also made architectural changes to prevent these from regressing and our teams will get paged if it happens regardless. We are also working on showing you directly in the app where your usage goes so you don’t have to guess.\n\nGoes without saying that we’re resetting usage limits and I hope you enjoy a very nice Saturday!",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2093801758665715784"
++    },
++    {
++      "id": "2093014447833116908",
++      "resetType": "regular",
++      "announcedAt": "2026-08-27T16:35:05.000Z",
++      "text": "Never slept better and feeling reseted. Brand new me and brand new usage for all ChatGPT Work and Codex users. Regaining my youth one button press at a time.\n\nHappy Thursday",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2093014447833116908"
++    },
++    {
++      "id": "observed-20260825T143200Z",
++      "resetType": "regular",
++      "announcedAt": "2026-08-25T14:30:00.000Z",
++      "text": "@dtzy_88 Ah yeah, forgot to say",
++      "sourceType": "observed",
++      "sourceUrl": "https://x.com/thsottiaux/status/2092311059197808936"
++    },
++    {
++      "id": "2091688655828246890",
++      "resetType": "regular",
++      "announcedAt": "2026-08-24T00:46:51.000Z",
++      "text": "Good Sunday. Reset has been propagated to accounts and we landed some fixes to usage for things mentioned yesterday as issues we found. You should feel a positive difference. More to come tomorrow and will keep communicating. https://t.co/6mgUetJnhg",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2091688655828246890"
++    },
++    {
++      "id": "2090766694897619318",
++      "resetType": "banked",
++      "announcedAt": "2026-08-21T11:43:19.000Z",
++      "text": "It's me again. I come bearing great news. \n\nFirst of all, we have hit 20M active users for Codex some time this week. Second of all, this is cause for celebration and during the day we will credit every Codex and ChatGPT Work user with a BANKED reset that you can use at your own https://t.co/mooGnI0KJO",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2090766694897619318"
++    },
++    {
++      "id": "2087706104814023111",
++      "resetType": "regular",
++      "announcedAt": "2026-08-13T01:01:37.000Z",
++      "text": "Old news actually from a bunch of days ago, but crossed that 15M. Enjoy a nice reset everyone. Landing in the next hour or so, go /fast. https://t.co/TFRN2SrpCi",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2087706104814023111"
++    },
++    {
++      "id": "2086972802457063486",
++      "resetType": "regular",
++      "announcedAt": "2026-08-11T00:27:44.000Z",
++      "text": "Hi.\n\nIt is done. https://t.co/JRYltKvT0v",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2086972802457063486"
++    },
++    {
++      "id": "2086188036493344823",
++      "resetType": "regular",
++      "announcedAt": "2026-08-08T20:29:22.000Z",
++      "text": "That's right, GPT-5.6 Sol is awesome and can be used pretty much anywhere, including in the CC harness. \n\nTo celebrate this, together with the fact that I'm not going anywhere... I have reset usage limits for all paid users of ChatGPT Work and Codex. \n\nHave fun out there! https://t.co/2rtjtOxFt0",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2086188036493344823"
++    },
++    {
++      "id": "2083395449814229287",
++      "resetType": "regular",
++      "announcedAt": "2026-08-01T03:32:37.000Z",
++      "text": "To celebrate a week of efficiency and let you run 100'000 Luna threads this weekend... that's right... wait for it... I have reset usage limits for Codex and ChatGPT Work.\n\nEnjoy.",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2083395449814229287"
++    },
++    {
++      "id": "2082317452755751098",
++      "resetType": "regular",
++      "announcedAt": "2026-07-29T04:09:02.000Z",
++      "text": "Hello people of Sol! I've reset usage limits for all ChatGPT Work and Codex users. Together with that, a quick update on GPT-5.6 Sol usage limits.\n\nOver the past few weeks, many of you have told us that Sol was using your Codex limits faster than expected. To be clear, we have",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2082317452755751098"
++    },
++    {
++      "id": "2081940052154933696",
++      "resetType": "regular",
++      "announcedAt": "2026-07-28T03:09:23.000Z",
++      "text": "Back at the laptop. The usage limits have been reset for all paid users of Codex and ChatGPT Work. Weeeeeeeee. It's a good day! https://t.co/Li7De9EDHz",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2081940052154933696"
++    },
++    {
++      "id": "2081096447718723984",
++      "resetType": "regular",
++      "announcedAt": "2026-07-25T19:17:12.000Z",
++      "text": "We have reset usage limits for all Codex and ChatGPT Work users.\n\nLast night around 2am to 4am we suffered an almost global outage. All well and recovered, but you know what comes next.\n\nWe learn. We reset. Enjoy. https://t.co/rAPzefTyaa",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2081096447718723984"
++    },
++    {
++      "id": "2079609157934886975",
++      "resetType": "regular",
++      "announcedAt": "2026-07-21T16:47:15.000Z",
++      "text": "10M! \n\nNew day, new usage reset for paid users of Codex and ChatGPT Work. Lands in the next hour. Enjoy. https://t.co/VUJ4S3vKDG",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2079609157934886975"
++    },
++    {
++      "id": "2078320950488297917",
++      "resetType": "regular",
++      "announcedAt": "2026-07-18T03:28:22.000Z",
++      "text": "Oops... I did it again. \n\nEnjoy reset usage limits for all paid users for Codex and ChatGPT Work. Super grateful for an incredible team who is iterating at lightspeed and keeping the infra up as we scale faster than ever.\n\nEnjoy the weekend! https://t.co/WIuS07doKA https://t.co/3NwNqHG7TV",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2078320950488297917"
++    },
++    {
++      "id": "2077607697487188198",
++      "resetType": "regular",
++      "announcedAt": "2026-07-16T04:14:09.000Z",
++      "text": "Another reset for our Codex and ChatGPT Work users. Actually hit 9M active users way earlier today, but then got distracted by the approximately millions of things the team is doing to keep the systems up and reliable.\n\nShould have that sweet 100% weekly usage limit back in a few",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2077607697487188198"
++    },
++    {
++      "id": "2077114635308986427",
++      "resetType": "regular",
++      "announcedAt": "2026-07-14T19:34:54.000Z",
++      "text": "Hello. We have reached 8M active users across Codex and ChatGPT Work.\n\nWe are once again resetting the usage limits for all. And we continue to not have the 5h rate limit as well, allowing everyone to explore the boundaries of GPT-5.6 Sol and discover how ambitious you can be. https://t.co/pKunziOGRm",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2077114635308986427"
++    },
++    {
++      "id": "2076735790567338203",
++      "resetType": "regular",
++      "announcedAt": "2026-07-13T18:29:31.000Z",
++      "text": "Thank you to the 7M active users who are now using Codex and ChatGPT Work.\n\nWe have added a banked reset to everyone's account to celebrate the milestone. You can apply the reset in the desktop app or on web and it will replenish the weekly usage for you.\n\nHave fun out there.",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2076735790567338203"
++    },
++    {
++      "id": "2076418567143408112",
++      "resetType": "regular",
++      "announcedAt": "2026-07-12T21:28:59.000Z",
++      "text": "Added a banked reset to 500k users of ChatGPT Work and Codex.\n\nWhat’s been happening:\n- Just released the ability to use a banked reset from web and mobile. Before today you could only do it in the desktop app\n- Had an issue where less than 10% of users who used a banked reset",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2076418567143408112"
++    },
++    {
++      "id": "2075820987833274448",
++      "resetType": "regular",
++      "announcedAt": "2026-07-11T05:54:25.000Z",
++      "text": "Introducing... another usage limit reset for all our ChatGPT Work and Codex users. Should land over next 30 minutes. Hope you have an awesome weekend.\n\nThank you for pushing our systems to the absolute limit, we have never seen traffic increase so quickly. Keep the feedback https://t.co/WOd7fr2viS",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2075820987833274448"
++    },
++    {
++      "id": "2075641131002700120",
++      "resetType": "regular",
++      "announcedAt": "2026-07-10T17:59:43.000Z",
++      "text": "Hello beautiful people! We have reset usage limits across Codex and ChatGPT Work. And another one will come later in the day. Rejoice.\n\nNow that I have your attention, a quick update on ChatGPT Work, Codex and all the updates we shared yesterday.\n\nWe’ve spent the last 24 hours",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2075641131002700120"
++    },
++    {
++      "id": "2075330198887940337",
++      "resetType": "regular",
++      "announcedAt": "2026-07-09T21:24:11.000Z",
++      "text": "Enjoy a full reset of your usage limits for ChatGPT Work and Codex. Propagating in the next hour.\n\n@_rajanagarwal just joined to work on model research and push on coding capabilities. You can thank him for pressing the button today. https://t.co/vMMwKJibBI",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2075330198887940337"
++    },
++    {
++      "id": "2071740419030053227",
++      "resetType": "regular",
++      "announcedAt": "2026-06-29T23:39:41.000Z",
++      "text": "Codex usage limits will be fully reset again in the next hour and we will credit one additional reset into your bank for your own usage over the next 24 hours.\n\nWe investigated reports that Codex usage was being consumed faster than expected. There wasn't one central issue, but a https://t.co/UdCSbW0BGs",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2071740419030053227"
++    },
++    {
++      "id": "2071381664853319742",
++      "resetType": "regular",
++      "announcedAt": "2026-06-28T23:54:07.000Z",
++      "text": "As we are still investigating, I have reset everyone's Codex usage limits. This is a hard reset given some users had stacked up to three banked resets already that they can apply on their own schedule.\n\nFunnily enough, this week at OpenAI is called the RESET week, which is meant https://t.co/UdCSbW03QU",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2071381664853319742"
++    },
++    {
++      "id": "2070653282440405046",
++      "resetType": "regular",
++      "announcedAt": "2026-06-26T23:39:48.000Z",
++      "text": "We are giving all Codex users a usage reset on the house. Should be showing in your accounts in the next few hours.\n\nWe have applied some mitigations, but our investigation hasn't shown users being impacted at large. We are continuing to monitor the situation. https://t.co/rLJrQdI1ks",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2070653282440405046"
++    },
++    {
++      "id": "2067399435009622521",
++      "resetType": "regular",
++      "announcedAt": "2026-06-18T00:10:10.000Z",
++      "text": "Dearest gentle codexer.\n\nWe did a sneaky double reset. Not only do you get a full reset on us. But you are also getting one into the reset bank to use at your own leisure. \n\nEnjoy https://t.co/eORoaKb3pL",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2067399435009622521"
++    },
++    {
++      "id": "2062329981548802523",
++      "resetType": "regular",
++      "announcedAt": "2026-06-04T00:25:58.000Z",
++      "text": "Hi. Over the last 24 hours we had three separate small incidents that affected Codex reliability. Those are three too many and we are taking active steps for them to not reproduce.\n\nI have reset usage limits for Codex across all paid plans. May the tokens flow again.",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2062329981548802523"
++    },
++    {
++      "id": "2061106703446450392",
++      "resetType": "regular",
++      "announcedAt": "2026-05-31T15:25:06.000Z",
++      "text": "The Codex usage limits have been reset for all paid ChatGPT subscriptions. You should be back to 100% weekly and 100% hourly limits.\n\nLet the tokens do incredible things today and have fun. https://t.co/e7iJcJ1iHy",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2061106703446450392"
++    },
++    {
++      "id": "2058280452851638313",
++      "resetType": "regular",
++      "announcedAt": "2026-05-23T20:14:35.000Z",
++      "text": "Some of you noticed limits drained faster in Codex, we root caused it to an optimization that we rolled back that had an impact on cache hit rates when compacting across long running sessions. \n\nWe fixed this and have now reset usage limits for all accounts. Enjoy the weekend. https://t.co/t1O8jCd4PB",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2058280452851638313"
++    },
++    {
++      "id": "2055707616605835333",
++      "resetType": "regular",
++      "announcedAt": "2026-05-16T17:51:03.000Z",
++      "text": "Codex usage limits have now been reset across all paid plans. Enjoy the weekend! https://t.co/VnYKZ7ND3b",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2055707616605835333"
++    },
++    {
++      "id": "2048997818673537399",
++      "resetType": "regular",
++      "announcedAt": "2026-04-28T05:28:43.000Z",
++      "text": "Don't just reset Codex rate limits for fun, it costs money.\nDon't just reset Codex rate limits for fun, it costs money.\n\n... but the vibes are good ...\n\nI have reset Codex rate limits for ALL paid plans to celebrate a good week and allow everyone to build more with GPT-5.5. Enjoy",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2048997818673537399"
++    },
++    {
++      "id": "2046367145588916687",
++      "resetType": "regular",
++      "announcedAt": "2026-04-20T23:15:21.000Z",
++      "text": "Codex incident is mitigated, seeing recovery. Lasted about 10 mins, Codex itself helped with the remediation, but ultimately the insight came from a human this time. \n\nApologies for the disruption and rate limit reset incoming. https://t.co/RiuRnNsH2u https://t.co/efVDAsHrBa",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2046367145588916687"
++    },
++    {
++      "id": "2044943514832871564",
++      "resetType": "regular",
++      "announcedAt": "2026-04-17T00:58:21.000Z",
++      "text": "Hi! To celebrate its 1-year anniversary, I have allowed Codex to reset its own rate limits across all plans. Enjoy all the new features. https://t.co/xIGXQwMzpa",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2044943514832871564"
++    },
++    {
++      "id": "2042299371602264319",
++      "resetType": "regular",
++      "announcedAt": "2026-04-09T17:51:28.000Z",
++      "text": "We did it, say hi to the $100 plan! \n\nIt should be the sweet spot for a ton of you. It comes with a ton of codex usage. And yes we are resetting the limits again too as I mentioned yesterday. Let’s keep building! https://t.co/eX25QBuWqV",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2042299371602264319"
++    },
++    {
++      "id": "2041655710346572085",
++      "resetType": "regular",
++      "announcedAt": "2026-04-07T23:13:48.000Z",
++      "text": "Three million people are now using Codex weekly - up from two million a little under a month ago. Incredible to see the growth. Thank you to all of you and to the ecosystem we’re part of. To celebrate, we’re resetting rate limits so you can keep building, and we’ll reset them",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2041655710346572085"
++    },
++    {
++      "id": "2039248564967424483",
++      "resetType": "regular",
++      "announcedAt": "2026-04-01T07:48:39.000Z",
++      "text": "Our Codex dashboards are showing increased rate of users hitting rate limits and since we don't fully understand why I have made the cautious decision of resetting the usage limits for all plans. Enjoy.\n\nI also wanted to celebrate us finding a pocket of fraudulent accounts that",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2039248564967424483"
++    },
++    {
++      "id": "2037346989244096581",
++      "resetType": "regular",
++      "announcedAt": "2026-03-27T01:52:28.000Z",
++      "text": "Hello. We have reset Codex usage limits across all plans to let everyone experiment with the magnificent plugins we just launched, and because it had been a while! \n\nYou can just build unlimited things with Codex. Have fun!",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2037346989244096581"
++    },
++    {
++      "id": "2031605592352313567",
++      "resetType": "regular",
++      "announcedAt": "2026-03-11T05:38:13.000Z",
++      "text": "OK, Codex is back and stable and we should be good for a while. \n\nReset button pressed, should see it in a bit https://t.co/cuVrFiFkep",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2031605592352313567"
++    },
++    {
++      "id": "2031216405266481489",
++      "resetType": "regular",
++      "announcedAt": "2026-03-10T03:51:43.000Z",
++      "text": "This codex issue is now fully resolved and stable for the last couple of hours. \n\nYou have come to expect it, but yes, that means we will be reseting rate limits in a bit. Enjoy. https://t.co/QSCRLGK4kJ",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2031216405266481489"
++    },
++    {
++      "id": "2030474136024400173",
++      "resetType": "regular",
++      "announcedAt": "2026-03-08T02:42:13.000Z",
++      "text": "We don’t have evidence of a widespread issue with codex usage being drained faster than it should but there are enough reports and we have reset rate limits for plus &amp; pro subscriptions while we work towards wrapping up our investigation over the coming 1-3 days. https://t.co/yhr8K8pOjf",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2030474136024400173"
++    },
++    {
++      "id": "2029308599835738218",
++      "resetType": "regular",
++      "announcedAt": "2026-03-04T21:30:47.000Z",
++      "text": "We caught an issue that was causing the 2X promotional increase in limits to not be applied to an estimated 9% of plus and pro users for Codex. \n\nWe have now fixed this issue and are reseting the rate limit for all plus and pro users to compensate. Apologies and thank you for the",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2029308599835738218"
++    },
++    {
++      "id": "2028649088594436225",
++      "resetType": "regular",
++      "announcedAt": "2026-03-03T01:50:07.000Z",
++      "text": "Codex is back up. We introduced an issue that caused requests to be blocked and rejected as high cyber risk. This was fixed in ~8 mins and we are now back online and fully operational.\n\nTeam will reset rate limits, that’s been a while. Enjoy one on us.",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2028649088594436225"
++    },
++    {
++      "id": "2004100061933064395",
++      "resetType": "regular",
++      "announcedAt": "2025-12-25T08:01:03.000Z",
++      "text": "For Codex users, to thank you all for the fun we've had over the last months, our first gift is that we have **reset rate limits and are lifting the usage limits to 2X the usual limits until the 1st of Jan**. Wish you all a merry holiday and lots of coding!!\n\nSpread the word 👀 https://t.co/uKAZLhpp7r https://t.co/eN919zx84y",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2004100061933064395"
++    },
++    {
++      "id": "2002137269134819610",
++      "resetType": "regular",
++      "announcedAt": "2025-12-19T22:01:37.000Z",
++      "text": "We rewrote the underlying system to track and bill usage in Codex and we have reset usage limits in the process. Backfilling is time consuming and it’s more fun to give free usage. Enjoy! https://t.co/bFwu9mb4RI",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2002137269134819610"
++    },
++    {
++      "id": "2001114683047317723",
++      "resetType": "regular",
++      "announcedAt": "2025-12-17T02:18:14.000Z",
++      "text": "Didn’t need to do this in a while, but you know the drill. We have reset everyone’s usage limits, enjoy more Codex and apologies for the disruption. https://t.co/zv4A8hWXzB",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/2001114683047317723"
++    },
++    {
++      "id": "1995988609896513743",
++      "resetType": "regular",
++      "announcedAt": "2025-12-02T22:49:02.000Z",
++      "text": "We have reset the usage limits for everyone in Codex, which helps us mitigate the issue the fastest and the team will continue to work on the underlying cause. This should propagate to all users over the next 10 mins, enjoy and apologies for the confusion! https://t.co/UdHowMWBoz",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/1995988609896513743"
++    },
++    {
++      "id": "1992370994028388670",
++      "resetType": "regular",
++      "announcedAt": "2025-11-22T23:13:56.000Z",
++      "text": "We have reset rate limits for all Codex users to compensate for the unusual high latencies in or near the US in the previous hours. Grateful for the team working hard behind the scenes to keep Codex running 24/7.\n\nI do recommend trying out GPT-5.1-Codex-Max too if you haven’t! https://t.co/xVe5IC4VFs",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/1992370994028388670"
++    },
++    {
++      "id": "1986166501435711936",
++      "resetType": "regular",
++      "announcedAt": "2025-11-05T20:19:29.000Z",
++      "text": "Codex outage resolved.\n\nWe suffered a minor outage for last 45 minutes which turned into a global outage for last 30 minutes, this is now resolved and we have reset the rate limits. Please let me know if you still see issues. https://t.co/ZkvIOaVMv2",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/1986166501435711936"
++    },
++    {
++      "id": "1968163721034994139",
++      "resetType": "regular",
++      "announcedAt": "2025-09-17T04:02:52.000Z",
++      "text": "We have reset everyone's limits for gpt-5-codex to allow you all to benefit more from it today and as a way to make up for the slowdowns earlier while we were provisioning additional GPUs. We'll continue to add capacity throughout the week to maintain the speed.\n\nEnjoy!",
++      "sourceType": "x_post",
++      "sourceUrl": "https://x.com/thsottiaux/status/1968163721034994139"
++    }
++  ],
++  "summary": {
++    "count": 59,
++    "earliest": "2025-09-17T04:02:52.000Z",
++    "latest": "2026-10-08T03:44:55.000Z",
++    "byWeekdayBeijing": {
++      "Mon": 4,
++      "Tue": 10,
++      "Wed": 12,
++      "Thu": 8,
++      "Fri": 7,
++      "Sat": 9,
++      "Sun": 9
++    }
++  }
++}
+diff --git a/src/lib/__tests__/history.freshness.test.ts b/src/lib/__tests__/history.freshness.test.ts
+new file mode 100644
+index 0000000..f5b7f77
+--- /dev/null
++++ b/src/lib/__tests__/history.freshness.test.ts
+@@ -0,0 +1,56 @@
++import { describe, expect, it } from "vitest";
++import {
++  assessHistorySource,
++  evaluateHistoryFreshness,
++  HISTORY_STALE_DAYS,
++  selectQuotaResetHistory,
++} from "../history";
++
++const NOW = new Date("2026-10-11T12:00:00.000Z");
++
++describe("历史重置筛选", () => {
++  it("只选 regular，按 epoch 去重并倒序；banked、未知类型和非法时间排除", () => {
++    expect(selectQuotaResetHistory([
++      { resetType: "regular", announcedAt: "2026-10-08T03:00:00Z" },
++      { resetType: "banked", announcedAt: "2026-10-11T03:00:00Z" },
++      { resetType: "regular", announcedAt: "2026-10-10T03:00:00+00:00" },
++      { resetType: "regular", announcedAt: "2026-10-10T11:00:00+08:00" },
++      { resetType: "unknown", announcedAt: "2026-10-09T03:00:00Z" },
++      { resetType: "regular", announcedAt: "2026-02-30T03:00:00Z" },
++      null,
++    ])).toEqual(["2026-10-10T03:00:00.000Z", "2026-10-08T03:00:00.000Z"]);
++  });
++});
++
++describe("历史抓取新鲜度", () => {
++  it("7日常数来自 RR18；精确 7 日仍新鲜，超过阈值才 stale", () => {
++    expect(HISTORY_STALE_DAYS).toBe(7);
++    const atBoundary = new Date(NOW.getTime() - HISTORY_STALE_DAYS * 24 * 60 * 60 * 1000).toISOString();
++    const justOld = new Date(Date.parse(atBoundary) - 1).toISOString();
++    expect(evaluateHistoryFreshness(atBoundary, NOW)).toMatchObject({ state: "fresh", ageDays: 7 });
++    expect(evaluateHistoryFreshness(justOld, NOW).state).toBe("stale");
++  });
++
++  it.each(["bad", "2026-10-11", "2026-10-11T13:00:00Z", null, 42])("非法/未来抓取时刻 %j 为 invalid 且不回退", (fetchedAt) => {
++    expect(evaluateHistoryFreshness(fetchedAt, NOW)).toEqual({
++      state: "invalid", fetchedAt: null, asOf: null, ageDays: null,
++    });
++  });
++
++  it("事件数组无效时整份来源 invalid，合法数组给出筛选计数", () => {
++    expect(assessHistorySource({ fetchedAt: "2026-10-11T11:00:00Z", events: null }, NOW)).toMatchObject({
++      state: "invalid", totalEvents: null, quotaResetEvents: null, excludedEvents: null,
++    });
++    expect(assessHistorySource({
++      fetchedAt: "2026-10-11T11:00:00Z",
++      events: [
++        { resetType: "regular", announcedAt: "2026-10-10T00:00:00Z" },
++        { resetType: "banked", announcedAt: "2026-10-09T00:00:00Z" },
++        { resetType: "unknown", announcedAt: "2026-10-08T00:00:00Z" },
++        { resetType: "regular", announcedAt: "bad" },
++      ],
++    }, NOW)).toMatchObject({
++      state: "fresh", totalEvents: 4, quotaResetEvents: 1, excludedEvents: 3,
++    });
++  });
++});
+diff --git a/src/lib/__tests__/risk.core.test.ts b/src/lib/__tests__/risk.core.test.ts
+index 48db0af..d21674f 100644
+--- a/src/lib/__tests__/risk.core.test.ts
++++ b/src/lib/__tests__/risk.core.test.ts
+@@ -7,8 +7,9 @@ import { fileURLToPath } from "node:url";
+ import { describe, expect, it } from "vitest";
+ import { assessResetRisk, beijingWeekday } from "../risk";
+ 
+-const root = fileURLToPath(new URL("../../../", import.meta.url));
+-const fixture = JSON.parse(readFileSync(`${root}data/resets-history.json`, "utf8"));
++// RR18：固定RR03原字节回归样本，独立于每轮联网更新；保留旧算法golden，生产仅消费regular。
++const fixturePath = fileURLToPath(new URL("./fixtures/resets-history-20261010.json", import.meta.url));
++const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
+ const fixtureDates: string[] = fixture.events.map((e: { announcedAt: string }) => e.announcedAt);
+ 
+ describe("星期基线（rs:140-144）", () => {
+diff --git a/src/lib/history.ts b/src/lib/history.ts
+new file mode 100644
+index 0000000..23a0b41
+--- /dev/null
++++ b/src/lib/history.ts
+@@ -0,0 +1,87 @@
++// RR18：历史事件只按已确认的重置类型与数据抓取时刻参与核心计算。
++
++/** RR18：BACKLOG.md §RR18 将历史新鲜度阈值定为 7 天。 */
++export const HISTORY_STALE_DAYS = 7;
++
++const DAY_MS = 24 * 60 * 60 * 1000;
++const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
++
++export type HistoryFreshnessState = "fresh" | "stale" | "invalid";
++
++export interface HistoryFreshness {
++  state: HistoryFreshnessState;
++  fetchedAt: string | null;
++  asOf: string | null;
++  ageDays: number | null;
++}
++
++export interface HistorySourceAssessment extends HistoryFreshness {
++  totalEvents: number | null;
++  quotaResetEvents: number | null;
++  excludedEvents: number | null;
++}
++
++function record(value: unknown): Record<string, unknown> | null {
++  return typeof value === "object" && value !== null && !Array.isArray(value)
++    ? value as Record<string, unknown>
++    : null;
++}
++
++function isoEpoch(value: unknown): number | null {
++  if (typeof value !== "string" || !ISO_TIMESTAMP.test(value)) return null;
++  const year = Number(value.slice(0, 4));
++  const month = Number(value.slice(5, 7));
++  const day = Number(value.slice(8, 10));
++  const hour = Number(value.slice(11, 13));
++  const minute = Number(value.slice(14, 16));
++  const second = Number(value.slice(17, 19));
++  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
++  if (month < 1 || month > 12 || day < 1 || day > daysInMonth || hour > 23 || minute > 59 || second > 59) return null;
++  const epoch = Date.parse(value);
++  return Number.isFinite(epoch) ? epoch : null;
++}
++
++/** 仅保留合法 regular 事件；按时间戳精确去重并由新到旧返回规范 ISO 时刻。 */
++export function selectQuotaResetHistory(events: readonly unknown[]): string[] {
++  const timestamps = new Set<number>();
++  for (const event of events) {
++    const item = record(event);
++    if (item?.resetType !== "regular") continue;
++    const epoch = isoEpoch(item.announcedAt);
++    if (epoch !== null) timestamps.add(epoch);
++  }
++  return [...timestamps].sort((left, right) => right - left).map((epoch) => new Date(epoch).toISOString());
++}
++
++/** 以明确传入的 now 评估抓取年龄；无效或未来时间不退回墙钟。 */
++export function evaluateHistoryFreshness(fetchedAt: unknown, now: Date): HistoryFreshness {
++  const fetchedMs = isoEpoch(fetchedAt);
++  const nowMs = now instanceof Date ? now.getTime() : NaN;
++  if (fetchedMs === null || !Number.isFinite(nowMs) || fetchedMs > nowMs) {
++    return { state: "invalid", fetchedAt: null, asOf: null, ageDays: null };
++  }
++  const ageDays = (nowMs - fetchedMs) / DAY_MS;
++  return {
++    state: ageDays > HISTORY_STALE_DAYS ? "stale" : "fresh",
++    fetchedAt: new Date(fetchedMs).toISOString(),
++    asOf: new Date(fetchedMs).toISOString(),
++    ageDays,
++  };
++}
++
++/** 组合夹具结构、抓取时效与事件筛选计数，供报告与消费者共用。 */
++export function assessHistorySource(document: unknown, now: Date): HistorySourceAssessment {
++  const source = record(document);
++  const freshness = evaluateHistoryFreshness(source?.fetchedAt, now);
++  if (!Array.isArray(source?.events)) {
++    return { ...freshness, state: "invalid", totalEvents: null, quotaResetEvents: null, excludedEvents: null };
++  }
++  const totalEvents = source.events.length;
++  const quotaResetEvents = selectQuotaResetHistory(source.events).length;
++  return {
++    ...freshness,
++    totalEvents,
++    quotaResetEvents,
++    excludedEvents: totalEvents - quotaResetEvents,
++  };
++}
+diff --git a/src/lib/index.ts b/src/lib/index.ts
+index 9dbfc0a..e774021 100644
+--- a/src/lib/index.ts
++++ b/src/lib/index.ts
+@@ -8,3 +8,4 @@ export * from "./calibration";
+ export * from "./predictions";
+ export * from "./scheduledReset";
+ export * from "./resetStatus";
++export * from "./history";
+diff --git a/src/ui/__tests__/ui.adapters.test.ts b/src/ui/__tests__/ui.adapters.test.ts
+index e53536c..cb7238a 100644
+--- a/src/ui/__tests__/ui.adapters.test.ts
++++ b/src/ui/__tests__/ui.adapters.test.ts
+@@ -10,6 +10,7 @@ import {
+ } from "../../lib";
+ import { buildDashboard } from "../adapters";
+ import type { ProviderSnapshot } from "../types";
++import { RESET_HISTORY_ANNOUNCED_AT, RESET_HISTORY_SOURCE } from "../history";
+ 
+ // 固定时间轴：观测时刻 asOf=2026-10-10T12:00Z（北京周日 20:00），
+ // 周窗重置 resetsAt=2026-10-12T12:00Z → 恰好 daysToReset=2（整数便于对账）。
+@@ -39,6 +40,30 @@ function okSnapshot(overrides: Partial<ProviderSnapshot> = {}): ProviderSnapshot
+   };
+ }
+ 
++describe("RR18历史接线与独立来源", () => {
++  it("生产夹具中banked排除，regular完整且无重复接到风险模型", () => {
++    const expected = [...new Set(RESET_HISTORY_SOURCE.events
++      .filter((event) => event.resetType === "regular")
++      .map((event) => new Date(event.announcedAt).toISOString()))].sort().reverse();
++    expect(RESET_HISTORY_ANNOUNCED_AT).toEqual(expected);
++    for (const event of RESET_HISTORY_SOURCE.events.filter((event) => event.resetType === "banked")) {
++      const instant = new Date(event.announcedAt).toISOString();
++      if (!expected.includes(instant)) expect(RESET_HISTORY_ANNOUNCED_AT).not.toContain(instant);
++    }
++  });
++  it("历史过期元数据透传，保留独立额度观测时刻且兼容旧调用", () => {
++    const source = { fetchedAt: "2026-10-01T12:00:00Z", events: [
++      { resetType: "regular", announcedAt: "2026-09-30T12:00:00Z" },
++      { resetType: "banked", announcedAt: "2026-09-29T12:00:00Z" },
++    ] };
++    const vm = buildDashboard(okSnapshot(), HISTORY, new Date(AS_OF), source);
++    expect(vm.historySource).toMatchObject({ state: "stale", asOf: "2026-10-01T12:00:00.000Z",
++      totalEvents: 2, quotaResetEvents: 1, excludedEvents: 1 });
++    expect(vm.observedAt).toBe(AS_OF);
++    expect(buildDashboard(okSnapshot(), HISTORY, new Date(AS_OF)).historySource).toBeNull();
++  });
++});
++
+ describe("字段透传（RR08 契约 models.rs）", () => {
+   it("周窗/短窗/卡量/plan 直映射到视图模型", () => {
+     const vm = buildDashboard(okSnapshot(), HISTORY);
+diff --git a/src/ui/adapters.ts b/src/ui/adapters.ts
+index 0c3b710..e012ca5 100644
+--- a/src/ui/adapters.ts
++++ b/src/ui/adapters.ts
+@@ -14,6 +14,8 @@ import {
+   historyWithResetStatus,
+   type ResetStatusSnapshot,
+   type ResetStatusEvaluation,
++  assessHistorySource,
++  type HistorySourceAssessment,
+ } from "../lib";
+ import type { ProviderSnapshot } from "./types";
+ 
+@@ -41,6 +43,8 @@ export interface DashboardViewModel {
+   resetStatus: (ResetStatusSnapshot & ResetStatusEvaluation) | null;
+   riskEvaluatedAt: string;
+   prediction: PredictionRecord | null;
++  /** 离线历史独立来源时刻/数量/过期状态，不和实时公告混成一个状态。 */
++  historySource: HistorySourceAssessment | null;
+ }
+ 
+ /**
+@@ -52,6 +56,7 @@ export function buildDashboard(
+   snapshot: ProviderSnapshot,
+   history: readonly string[],
+   now: Date = new Date(),
++  historyDocument?: unknown,
+ ): DashboardViewModel {
+   const observedAt =
+     snapshot.rateLimitSnapshot?.observedAt ?? snapshot.updatedAt;
+@@ -129,6 +134,7 @@ export function buildDashboard(
+     cardPlan,
+     resetStatus: status != null && statusEvaluation != null ? { ...status, ...statusEvaluation } : null,
+     riskEvaluatedAt: modelAsOf.toISOString(),
++    historySource: historyDocument === undefined ? null : assessHistorySource(historyDocument, now),
+     prediction: buildPredictionRecord({ risk, evaluatedAt: modelAsOf.toISOString(), recordedAt: now,
+       quotaStatus: snapshot.status, resetSourceState: statusEvaluation?.state ?? null }),
+   };
+diff --git a/src/ui/history.ts b/src/ui/history.ts
+index 8d680c8..2db8dfa 100644
+--- a/src/ui/history.ts
++++ b/src/ui/history.ts
+@@ -1,17 +1,5 @@
+-// 重置历史接线（RR09）：读取 RR03 采集夹具 data/resets-history.json（数据锁：只读）。
+-// UI 零业务规则：这里只做形状提取（events[].announcedAt），风险计算全部在 src/lib。
++// RR18：原始历史由采集脚本生成，事件选择唯一实现位于纯核心；UI只做接线。
+ import historyFixture from "../../data/resets-history.json";
+-
+-interface HistoryEvent {
+-  announcedAt: string;
+-}
+-
+-/**
+- * 已清洗的 announcedAt ISO 串列表（最新事件 2025-11-22，assessResetRisk 输入契约）。
+- * 夹具由 scripts/fetch-history.mjs 生成（RR03）；正式滚动更新由后续数据卡接管。
+- */
+-export const RESET_HISTORY_ANNOUNCED_AT: readonly string[] = (
+-  historyFixture.events as HistoryEvent[]
+-)
+-  .map((event) => event.announcedAt)
+-  .filter((value) => typeof value === "string");
++import { selectQuotaResetHistory } from "../lib";
++export const RESET_HISTORY_SOURCE = historyFixture;
++export const RESET_HISTORY_ANNOUNCED_AT: readonly string[] = selectQuotaResetHistory(historyFixture.events);
+diff --git a/task_logs/RR18_artifacts/build.txt b/task_logs/RR18_artifacts/build.txt
+new file mode 100644
+index 0000000..177a967
+--- /dev/null
++++ b/task_logs/RR18_artifacts/build.txt
+@@ -0,0 +1,13 @@
++
++> reset-radar@0.1.0 build
++> tsc && vite build
++
++vite v7.3.7 building client environment for production...
++transforming...
++✓ 56 modules transformed.
++rendering chunks...
++computing gzip size...
++dist/index.html                   0.59 kB │ gzip:  0.44 kB
++dist/assets/window-CDyAdbMZ.js   13.49 kB │ gzip:  3.29 kB
++dist/assets/index-DTd0hA-4.js   276.88 kB │ gzip: 89.45 kB
++✓ built in 789ms
+diff --git a/task_logs/RR18_artifacts/consumer-live.json b/task_logs/RR18_artifacts/consumer-live.json
+new file mode 100644
+index 0000000..dd41809
+--- /dev/null
++++ b/task_logs/RR18_artifacts/consumer-live.json
+@@ -0,0 +1,49 @@
++{
++  "source": {
++    "state": "fresh",
++    "fetchedAt": "2026-10-11T05:33:27.738Z",
++    "asOf": "2026-10-11T05:33:27.738Z",
++    "ageDays": 0.00000375,
++    "totalEvents": 60,
++    "quotaResetEvents": 54,
++    "excludedEvents": 6
++  },
++  "risk": {
++    "score": 32.1,
++    "factors": [
++      {
++        "id": "base",
++        "label": "星期启发式基线",
++        "delta": 10,
++        "note": "普通日基线 10%。"
++      },
++      {
++        "id": "consecutive-reset",
++        "label": "连续重置效应",
++        "delta": 30,
++        "note": "上次重置后 36 小时内，24h 风险至少抬到 40%。"
++      },
++      {
++        "id": "interval-hazard",
++        "label": "历史间隔条件风险",
++        "delta": -6.8,
++        "note": "已等待 0.1 天的条件下，用历史间隔经验分布校准。"
++      },
++      {
++        "id": "weekday-empirical",
++        "label": "历史星期分布",
++        "delta": -1.1,
++        "note": "用清洗后的重置星期分布做平滑校准。"
++      }
++    ]
++  },
++  "regularWeekdays": [
++    10,
++    4,
++    10,
++    10,
++    7,
++    5,
++    8
++  ]
++}
+diff --git a/task_logs/RR18_artifacts/domain.txt b/task_logs/RR18_artifacts/domain.txt
+new file mode 100644
+index 0000000..d7013e0
+--- /dev/null
++++ b/task_logs/RR18_artifacts/domain.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR18
++
++
++ Test Files  11 passed (11)
++      Tests  129 passed (129)
++   Start at  13:33:43
++   Duration  1.26s (import 51%, transform 32%, tests 11%, worker 6%)
++
++    Isolate  11 workers spawned · ~135ms startup each (spawn + environment, per file)
++             at least ~609ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR18_artifacts/fetch-live.txt b/task_logs/RR18_artifacts/fetch-live.txt
+new file mode 100644
+index 0000000..560a4b0
+--- /dev/null
++++ b/task_logs/RR18_artifacts/fetch-live.txt
+@@ -0,0 +1,4 @@
++[fetch-history] 拉取 https://codex-resets.com/api/v1/resets?limit=100&order=desc
++[fetch-history] 拉取 https://codex-resets.com/api/v1/status
++[fetch-history] 写入 C:\Users\slsjz\Desktop\reset-radar_wt\RR18\data\resets-history.json
++[fetch-history] 事件 60 条，跨度 2025-09-17T04:02:52.000Z → 2026-10-11T04:01:09.000Z；北京星期分布 Mon:4 Tue:10 Wed:12 Thu:8 Fri:7 Sat:9 Sun:10
+diff --git a/task_logs/RR18_artifacts/full-restored.txt b/task_logs/RR18_artifacts/full-restored.txt
+new file mode 100644
+index 0000000..d4e58a2
+--- /dev/null
++++ b/task_logs/RR18_artifacts/full-restored.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR18
++
++
++ Test Files  16 passed (16)
++      Tests  147 passed (147)
++   Start at  13:34:14
++   Duration  1.41s (import 50%, transform 30%, tests 12%, worker 8%)
++
++    Isolate  16 workers spawned · ~108ms startup each (spawn + environment, per file)
++             at least ~756ms faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR18_artifacts/mutation-interleaved-dedupe-red.txt b/task_logs/RR18_artifacts/mutation-interleaved-dedupe-red.txt
+new file mode 100644
+index 0000000..4026a87
+--- /dev/null
++++ b/task_logs/RR18_artifacts/mutation-interleaved-dedupe-red.txt
+@@ -0,0 +1,225 @@
++TAP version 13
++# Subtest: parseIsoMs
++    # Subtest: 合法 ISO（毫秒/Z）→ epoch 毫秒
++    ok 1 - 合法 ISO（毫秒/Z）→ epoch 毫秒
++      ---
++      duration_ms: 0.5346
++      type: 'test'
++      ...
++    # Subtest: 非法输入 → null
++    ok 2 - 非法输入 → null
++      ---
++      duration_ms: 0.1516
++      type: 'test'
++      ...
++    1..2
++ok 1 - parseIsoMs
++  ---
++  duration_ms: 1.3169
++  type: 'suite'
++  ...
++# Subtest: normalizeEvent
++    # Subtest: snake_case → camelCase，缺 source 容错
++    ok 1 - snake_case → camelCase，缺 source 容错
++      ---
++      duration_ms: 0.1505
++      type: 'test'
++      ...
++    1..1
++ok 2 - normalizeEvent
++  ---
++  duration_ms: 0.2308
++  type: 'suite'
++  ...
++# Subtest: sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++    # Subtest: 不可解析日期被丢弃
++    ok 1 - 不可解析日期被丢弃
++      ---
++      duration_ms: 0.9129
++      type: 'test'
++      ...
++    # Subtest: 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++    ok 2 - 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++      ---
++      duration_ms: 0.5916
++      type: 'test'
++      ...
++    # Subtest: 倒序输出（最新在前）
++    ok 3 - 倒序输出（最新在前）
++      ---
++      duration_ms: 0.2012
++      type: 'test'
++      ...
++    # Subtest: 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++    ok 4 - 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++      ---
++      duration_ms: 0.3121
++      type: 'test'
++      ...
++    # Subtest: 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++    not ok 5 - 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++      ---
++      duration_ms: 1.1769
++      type: 'test'
++      location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR18\\scripts\\fetch-history.test.mjs:71:3'
++      failureType: 'testCodeFailure'
++      error: |-
++        Expected values to be strictly deep-equal:
++        + actual - expected
++        
++          [
++            [
++              'regular-duplicate',
++              'regular'
++            ],
++        -   [
++        -     'banked',
++        -     'banked'
++        -   ]
++          ]
++        
++      code: 'ERR_ASSERTION'
++      name: 'AssertionError'
++      expected:
++        0:
++          0: 'regular-duplicate'
++          1: 'regular'
++        1:
++          0: 'banked'
++          1: 'banked'
++      actual:
++        0:
++          0: 'regular-duplicate'
++          1: 'regular'
++      operator: 'deepStrictEqual'
++      stack: |-
++        TestContext.<anonymous> (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR18/scripts/fetch-history.test.mjs:78:12)
++        Test.runInAsyncScope (node:async_hooks:214:14)
++        Test.run (node:internal/test_runner/test:1047:25)
++        Suite.processPendingSubtests (node:internal/test_runner/test:744:18)
++        Test.postRun (node:internal/test_runner/test:1173:19)
++        Test.run (node:internal/test_runner/test:1101:12)
++        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
++      ...
++    1..5
++not ok 3 - sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++  ---
++  duration_ms: 3.4947
++  type: 'suite'
++  location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR18\\scripts\\fetch-history.test.mjs:47:1'
++  failureType: 'subtestsFailed'
++  error: '1 subtest failed'
++  code: 'ERR_TEST_FAILURE'
++  ...
++# Subtest: buildDocument（上游封装校验）
++    # Subtest: 跨类型交错不打断同类型5分钟去重
++    not ok 1 - 跨类型交错不打断同类型5分钟去重
++      ---
++      duration_ms: 0.6259
++      type: 'test'
++      location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR18\\scripts\\fetch-history.test.mjs:86:3'
++      failureType: 'testCodeFailure'
++      error: |-
++        Expected values to be strictly deep-equal:
++        + actual - expected
++        
++          [
++            'regular-new',
++        -   'banked'
++          ]
++        
++      code: 'ERR_ASSERTION'
++      name: 'AssertionError'
++      expected:
++        0: 'regular-new'
++        1: 'banked'
++      actual:
++        0: 'regular-new'
++      operator: 'deepStrictEqual'
++      stack: |-
++        TestContext.<anonymous> (file:///C:/Users/slsjz/Desktop/reset-radar_wt/RR18/scripts/fetch-history.test.mjs:90:12)
++        Test.runInAsyncScope (node:async_hooks:214:14)
++        Test.run (node:internal/test_runner/test:1047:25)
++        Test.start (node:internal/test_runner/test:944:17)
++        node:internal/test_runner/test:1440:71
++        node:internal/per_context/primordials:466:82
++        new Promise (<anonymous>)
++        new SafePromise (node:internal/per_context/primordials:435:3)
++        node:internal/per_context/primordials:466:9
++        Array.map (<anonymous>)
++      ...
++    # Subtest: 缺字段或坏形状直接 reject
++    ok 2 - 缺字段或坏形状直接 reject
++      ---
++      duration_ms: 1.7257
++      type: 'test'
++      ...
++    # Subtest: 兼容真实 API 的 object/null 可选字段并保留 status 原形
++    ok 3 - 兼容真实 API 的 object/null 可选字段并保留 status 原形
++      ---
++      duration_ms: 0.1999
++      type: 'test'
++      ...
++    1..3
++not ok 4 - buildDocument（上游封装校验）
++  ---
++  duration_ms: 2.6893
++  type: 'suite'
++  location: 'C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR18\\scripts\\fetch-history.test.mjs:85:1'
++  failureType: 'subtestsFailed'
++  error: '1 subtest failed'
++  code: 'ERR_TEST_FAILURE'
++  ...
++# Subtest: weekdayBeijing（D004 北京零点边界）
++    # Subtest: 北京 16:00:00Z 恰跨零点 → 次日星期
++    ok 1 - 北京 16:00:00Z 恰跨零点 → 次日星期
++      ---
++      duration_ms: 0.098
++      type: 'test'
++      ...
++    # Subtest: 15:59:59Z 仍属北京当日
++    ok 2 - 15:59:59Z 仍属北京当日
++      ---
++      duration_ms: 0.0501
++      type: 'test'
++      ...
++    # Subtest: 实测锚点 2026-10-08T03:44:55Z → 北京周四
++    ok 3 - 实测锚点 2026-10-08T03:44:55Z → 北京周四
++      ---
++      duration_ms: 0.0445
++      type: 'test'
++      ...
++    1..3
++ok 5 - weekdayBeijing（D004 北京零点边界）
++  ---
++  duration_ms: 0.3003
++  type: 'suite'
++  ...
++# Subtest: summarize
++    # Subtest: count/earliest/latest/星期直方图
++    ok 1 - count/earliest/latest/星期直方图
++      ---
++      duration_ms: 0.116
++      type: 'test'
++      ...
++    # Subtest: 空输入 → count 0 且两端为 null
++    ok 2 - 空输入 → count 0 且两端为 null
++      ---
++      duration_ms: 0.0569
++      type: 'test'
++      ...
++    1..2
++ok 6 - summarize
++  ---
++  duration_ms: 0.217
++  type: 'suite'
++  ...
++1..6
++# tests 16
++# suites 6
++# pass 14
++# fail 2
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 110.7474
+diff --git a/task_logs/RR18_artifacts/mutation-proof.txt b/task_logs/RR18_artifacts/mutation-proof.txt
+new file mode 100644
+index 0000000..78e0e9c
+--- /dev/null
++++ b/task_logs/RR18_artifacts/mutation-proof.txt
+@@ -0,0 +1,6 @@
++quota-type: red exit=1
++quota-type: restored SHA256=1a2925f7ae910e76ea873f0901551d0b5f37772644036bf0020b89d7db001d7a
++seven-day-boundary: red exit=1
++seven-day-boundary: restored SHA256=1a2925f7ae910e76ea873f0901551d0b5f37772644036bf0020b89d7db001d7a
++interleaved-dedupe: red exit=1
++interleaved-dedupe: restored SHA256=1cacb8938e1c1e99b5394d6e75c18d136f25664ed45bf5e8e0ec8229d28dbd24
+diff --git a/task_logs/RR18_artifacts/mutation-quota-type-red.txt b/task_logs/RR18_artifacts/mutation-quota-type-red.txt
+new file mode 100644
+index 0000000..ea91fbc
+--- /dev/null
++++ b/task_logs/RR18_artifacts/mutation-quota-type-red.txt
+@@ -0,0 +1,37 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR18
++
++ ❯ src/lib/__tests__/history.freshness.test.ts (8 tests | 1 failed) 12ms
++   ❯ 历史重置筛选 (1)
++     × 只选 regular，按 epoch 去重并倒序；banked、未知类型和非法时间排除 8ms
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/lib/__tests__/history.freshness.test.ts > 历史重置筛选 > 只选 regular，按 epoch 去重并倒序；banked、未知类型和非法时间排除
++AssertionError: expected [ '2026-10-11T03:00:00.000Z' ] to deeply equal [ '2026-10-10T03:00:00.000Z', …(1) ]
++
++- Expected
+++ Received
++
++  [
++-   "2026-10-10T03:00:00.000Z",
++-   "2026-10-08T03:00:00.000Z",
+++   "2026-10-11T03:00:00.000Z",
++  ]
++
++ ❯ src/lib/__tests__/history.freshness.test.ts:21:9
++     19|       { resetType: "regular", announcedAt: "2026-02-30T03:00:00Z" },
++     20|       null,
++     21|     ])).toEqual(["2026-10-10T03:00:00.000Z", "2026-10-08T03:00:00.000Z…
++       |         ^
++     22|   });
++     23| });
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
++
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 7 passed (8)
++   Start at  13:34:10
++   Duration  227ms (transform 50%, import 35%, tests 11%, worker 3%)
++
+diff --git a/task_logs/RR18_artifacts/mutation-seven-day-boundary-red.txt b/task_logs/RR18_artifacts/mutation-seven-day-boundary-red.txt
+new file mode 100644
+index 0000000..03f61a0
+--- /dev/null
++++ b/task_logs/RR18_artifacts/mutation-seven-day-boundary-red.txt
+@@ -0,0 +1,38 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR18
++
++ ❯ src/lib/__tests__/history.freshness.test.ts (8 tests | 1 failed) 12ms
++   ❯ 历史抓取新鲜度 (7)
++     × 7日常数来自 RR18；精确 7 日仍新鲜，超过阈值才 stale 6ms
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/lib/__tests__/history.freshness.test.ts > 历史抓取新鲜度 > 7日常数来自 RR18；精确 7 日仍新鲜，超过阈值才 stale
++AssertionError: expected { state: 'stale', …(3) } to match object { state: 'fresh', ageDays: 7 }
++(2 matching properties omitted from actual)
++
++- Expected
+++ Received
++
++  {
++    "ageDays": 7,
++-   "state": "fresh",
+++   "state": "stale",
++  }
++
++ ❯ src/lib/__tests__/history.freshness.test.ts:30:55
++     28|     const atBoundary = new Date(NOW.getTime() - HISTORY_STALE_DAYS * 2…
++     29|     const justOld = new Date(Date.parse(atBoundary) - 1).toISOString();
++     30|     expect(evaluateHistoryFreshness(atBoundary, NOW)).toMatchObject({ …
++       |                                                       ^
++     31|     expect(evaluateHistoryFreshness(justOld, NOW).state).toBe("stale");
++     32|   });
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
++
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 7 passed (8)
++   Start at  13:34:12
++   Duration  240ms (transform 49%, import 35%, tests 12%, worker 4%)
++
+diff --git a/task_logs/RR18_artifacts/mutations.py b/task_logs/RR18_artifacts/mutations.py
+new file mode 100644
+index 0000000..aa6ee50
+--- /dev/null
++++ b/task_logs/RR18_artifacts/mutations.py
+@@ -0,0 +1,28 @@
++from pathlib import Path
++import subprocess, hashlib, shutil
++root=Path.cwd()
++out=root/'task_logs/RR18_artifacts'
++npx=shutil.which('npx.cmd')
++cases=[
++ ('quota-type', 'src/lib/history.ts', 'item?.resetType !== "regular"', 'item?.resetType !== "banked"', [npx,'vitest','run','src/lib/__tests__/history.freshness.test.ts']),
++ ('seven-day-boundary', 'src/lib/history.ts', 'ageDays > HISTORY_STALE_DAYS', 'ageDays >= HISTORY_STALE_DAYS', [npx,'vitest','run','src/lib/__tests__/history.freshness.test.ts']),
++ ('interleaved-dedupe', 'scripts/fetch-history.mjs', 'const prev = lastByType.get(item.ev.resetType);', 'const prev = kept[kept.length - 1];', ['node','--test','scripts/fetch-history.test.mjs']),
++]
++proof=[]
++for name,file,before,after,command in cases:
++ p=root/file
++ original=p.read_bytes()
++ text=original.decode('utf8')
++ assert text.count(before)==1, (name,text.count(before))
++ try:
++  p.write_bytes(text.replace(before,after).encode('utf8'))
++  result=subprocess.run(command,cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
++  (out/f'mutation-{name}-red.txt').write_bytes(result.stdout)
++  assert result.returncode!=0, f'mutation survived: {name}'
++  proof.append(f'{name}: red exit={result.returncode}')
++ finally:
++  p.write_bytes(original)
++  assert p.read_bytes()==original
++ proof.append(f'{name}: restored SHA256={hashlib.sha256(original).hexdigest()}')
++(out/'mutation-proof.txt').write_text('\n'.join(proof)+'\n',encoding='utf8')
++print('\n'.join(proof))
+diff --git a/task_logs/RR18_artifacts/node-all.txt b/task_logs/RR18_artifacts/node-all.txt
+new file mode 100644
+index 0000000..3068ae1
+--- /dev/null
++++ b/task_logs/RR18_artifacts/node-all.txt
+@@ -0,0 +1,184 @@
++TAP version 13
++# Subtest: 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++ok 1 - 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++  ---
++  duration_ms: 3.4656
++  type: 'test'
++  ...
++# Subtest: 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++ok 2 - 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++  ---
++  duration_ms: 0.4559
++  type: 'test'
++  ...
++# Subtest: 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++ok 3 - 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++  ---
++  duration_ms: 0.2767
++  type: 'test'
++  ...
++# Subtest: parseIsoMs
++    # Subtest: 合法 ISO（毫秒/Z）→ epoch 毫秒
++    ok 1 - 合法 ISO（毫秒/Z）→ epoch 毫秒
++      ---
++      duration_ms: 0.657
++      type: 'test'
++      ...
++    # Subtest: 非法输入 → null
++    ok 2 - 非法输入 → null
++      ---
++      duration_ms: 0.1995
++      type: 'test'
++      ...
++    1..2
++ok 4 - parseIsoMs
++  ---
++  duration_ms: 1.6204
++  type: 'suite'
++  ...
++# Subtest: normalizeEvent
++    # Subtest: snake_case → camelCase，缺 source 容错
++    ok 1 - snake_case → camelCase，缺 source 容错
++      ---
++      duration_ms: 0.1886
++      type: 'test'
++      ...
++    1..1
++ok 5 - normalizeEvent
++  ---
++  duration_ms: 0.2804
++  type: 'suite'
++  ...
++# Subtest: sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++    # Subtest: 不可解析日期被丢弃
++    ok 1 - 不可解析日期被丢弃
++      ---
++      duration_ms: 1.0194
++      type: 'test'
++      ...
++    # Subtest: 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++    ok 2 - 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++      ---
++      duration_ms: 0.6959
++      type: 'test'
++      ...
++    # Subtest: 倒序输出（最新在前）
++    ok 3 - 倒序输出（最新在前）
++      ---
++      duration_ms: 0.2646
++      type: 'test'
++      ...
++    # Subtest: 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++    ok 4 - 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++      ---
++      duration_ms: 0.3623
++      type: 'test'
++      ...
++    # Subtest: 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++    ok 5 - 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++      ---
++      duration_ms: 0.2891
++      type: 'test'
++      ...
++    1..5
++ok 6 - sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++  ---
++  duration_ms: 2.9914
++  type: 'suite'
++  ...
++# Subtest: buildDocument（上游封装校验）
++    # Subtest: 跨类型交错不打断同类型5分钟去重
++    ok 1 - 跨类型交错不打断同类型5分钟去重
++      ---
++      duration_ms: 0.2988
++      type: 'test'
++      ...
++    # Subtest: 缺字段或坏形状直接 reject
++    ok 2 - 缺字段或坏形状直接 reject
++      ---
++      duration_ms: 0.7838
++      type: 'test'
++      ...
++    # Subtest: 兼容真实 API 的 object/null 可选字段并保留 status 原形
++    ok 3 - 兼容真实 API 的 object/null 可选字段并保留 status 原形
++      ---
++      duration_ms: 1.0105
++      type: 'test'
++      ...
++    1..3
++ok 7 - buildDocument（上游封装校验）
++  ---
++  duration_ms: 2.2387
++  type: 'suite'
++  ...
++# Subtest: weekdayBeijing（D004 北京零点边界）
++    # Subtest: 北京 16:00:00Z 恰跨零点 → 次日星期
++    ok 1 - 北京 16:00:00Z 恰跨零点 → 次日星期
++      ---
++      duration_ms: 0.1342
++      type: 'test'
++      ...
++    # Subtest: 15:59:59Z 仍属北京当日
++    ok 2 - 15:59:59Z 仍属北京当日
++      ---
++      duration_ms: 0.0638
++      type: 'test'
++      ...
++    # Subtest: 实测锚点 2026-10-08T03:44:55Z → 北京周四
++    ok 3 - 实测锚点 2026-10-08T03:44:55Z → 北京周四
++      ---
++      duration_ms: 0.0575
++      type: 'test'
++      ...
++    1..3
++ok 8 - weekdayBeijing（D004 北京零点边界）
++  ---
++  duration_ms: 0.3974
++  type: 'suite'
++  ...
++# Subtest: summarize
++    # Subtest: count/earliest/latest/星期直方图
++    ok 1 - count/earliest/latest/星期直方图
++      ---
++      duration_ms: 0.1523
++      type: 'test'
++      ...
++    # Subtest: 空输入 → count 0 且两端为 null
++    ok 2 - 空输入 → count 0 且两端为 null
++      ---
++      duration_ms: 0.0685
++      type: 'test'
++      ...
++    1..2
++ok 9 - summarize
++  ---
++  duration_ms: 0.2759
++  type: 'suite'
++  ...
++# Subtest: 先刷新历史，再运行校准；输出流按用途分流
++ok 10 - 先刷新历史，再运行校准；输出流按用途分流
++  ---
++  duration_ms: 1.6068
++  type: 'test'
++  ...
++# Subtest: fetch 失败时非零退出并且不运行 calibrate
++ok 11 - fetch 失败时非零退出并且不运行 calibrate
++  ---
++  duration_ms: 0.3142
++  type: 'test'
++  ...
++# Subtest: calibrate 失败时非零退出且不输出部分 Markdown
++ok 12 - calibrate 失败时非零退出且不输出部分 Markdown
++  ---
++  duration_ms: 0.2873
++  type: 'test'
++  ...
++1..12
++# tests 22
++# suites 6
++# pass 22
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 141.3241
+diff --git a/task_logs/RR18_artifacts/node-restored.txt b/task_logs/RR18_artifacts/node-restored.txt
+new file mode 100644
+index 0000000..9d1b479
+--- /dev/null
++++ b/task_logs/RR18_artifacts/node-restored.txt
+@@ -0,0 +1,232 @@
++TAP version 13
++# Subtest: 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++ok 1 - 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++  ---
++  duration_ms: 4.1061
++  type: 'test'
++  ...
++# Subtest: 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++ok 2 - 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++  ---
++  duration_ms: 0.6994
++  type: 'test'
++  ...
++# Subtest: 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++ok 3 - 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++  ---
++  duration_ms: 0.3211
++  type: 'test'
++  ...
++# Subtest: parseIsoMs
++    # Subtest: 合法 ISO（毫秒/Z）→ epoch 毫秒
++    ok 1 - 合法 ISO（毫秒/Z）→ epoch 毫秒
++      ---
++      duration_ms: 0.9518
++      type: 'test'
++      ...
++    # Subtest: 非法输入 → null
++    ok 2 - 非法输入 → null
++      ---
++      duration_ms: 0.3201
++      type: 'test'
++      ...
++    1..2
++ok 4 - parseIsoMs
++  ---
++  duration_ms: 2.4819
++  type: 'suite'
++  ...
++# Subtest: normalizeEvent
++    # Subtest: snake_case → camelCase，缺 source 容错
++    ok 1 - snake_case → camelCase，缺 source 容错
++      ---
++      duration_ms: 0.2912
++      type: 'test'
++      ...
++    1..1
++ok 5 - normalizeEvent
++  ---
++  duration_ms: 0.4446
++  type: 'suite'
++  ...
++# Subtest: sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++    # Subtest: 不可解析日期被丢弃
++    ok 1 - 不可解析日期被丢弃
++      ---
++      duration_ms: 1.1399
++      type: 'test'
++      ...
++    # Subtest: 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++    ok 2 - 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++      ---
++      duration_ms: 0.6825
++      type: 'test'
++      ...
++    # Subtest: 倒序输出（最新在前）
++    ok 3 - 倒序输出（最新在前）
++      ---
++      duration_ms: 0.2529
++      type: 'test'
++      ...
++    # Subtest: 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++    ok 4 - 5 分钟窗口去重：倒序遍历保留每簇晚者（3min 簇留晚者，恰 5min 也算重复；参考 :114-127）
++      ---
++      duration_ms: 0.4562
++      type: 'test'
++      ...
++    # Subtest: 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++    ok 5 - 不同 resetType 的邻近事件保留，同类型仍按 5 分钟窗口去重
++      ---
++      duration_ms: 0.2677
++      type: 'test'
++      ...
++    1..5
++ok 6 - sanitizeEvents（移植自 reset_forecast.rs sanitize_history）
++  ---
++  duration_ms: 3.1927
++  type: 'suite'
++  ...
++# Subtest: buildDocument（上游封装校验）
++    # Subtest: 跨类型交错不打断同类型5分钟去重
++    ok 1 - 跨类型交错不打断同类型5分钟去重
++      ---
++      duration_ms: 0.2678
++      type: 'test'
++      ...
++    # Subtest: 缺字段或坏形状直接 reject
++    ok 2 - 缺字段或坏形状直接 reject
++      ---
++      duration_ms: 0.7381
++      type: 'test'
++      ...
++    # Subtest: 兼容真实 API 的 object/null 可选字段并保留 status 原形
++    ok 3 - 兼容真实 API 的 object/null 可选字段并保留 status 原形
++      ---
++      duration_ms: 0.9887
++      type: 'test'
++      ...
++    1..3
++ok 7 - buildDocument（上游封装校验）
++  ---
++  duration_ms: 2.1437
++  type: 'suite'
++  ...
++# Subtest: weekdayBeijing（D004 北京零点边界）
++    # Subtest: 北京 16:00:00Z 恰跨零点 → 次日星期
++    ok 1 - 北京 16:00:00Z 恰跨零点 → 次日星期
++      ---
++      duration_ms: 0.153
++      type: 'test'
++      ...
++    # Subtest: 15:59:59Z 仍属北京当日
++    ok 2 - 15:59:59Z 仍属北京当日
++      ---
++      duration_ms: 0.0781
++      type: 'test'
++      ...
++    # Subtest: 实测锚点 2026-10-08T03:44:55Z → 北京周四
++    ok 3 - 实测锚点 2026-10-08T03:44:55Z → 北京周四
++      ---
++      duration_ms: 0.0734
++      type: 'test'
++      ...
++    1..3
++ok 8 - weekdayBeijing（D004 北京零点边界）
++  ---
++  duration_ms: 0.4737
++  type: 'suite'
++  ...
++# Subtest: summarize
++    # Subtest: count/earliest/latest/星期直方图
++    ok 1 - count/earliest/latest/星期直方图
++      ---
++      duration_ms: 0.1927
++      type: 'test'
++      ...
++    # Subtest: 空输入 → count 0 且两端为 null
++    ok 2 - 空输入 → count 0 且两端为 null
++      ---
++      duration_ms: 0.0905
++      type: 'test'
++      ...
++    1..2
++ok 9 - summarize
++  ---
++  duration_ms: 0.3596
++  type: 'suite'
++  ...
++# Subtest: 先刷新历史，再运行校准；输出流按用途分流
++ok 10 - 先刷新历史，再运行校准；输出流按用途分流
++  ---
++  duration_ms: 1.1406
++  type: 'test'
++  ...
++# Subtest: fetch 失败时非零退出并且不运行 calibrate
++ok 11 - fetch 失败时非零退出并且不运行 calibrate
++  ---
++  duration_ms: 0.2118
++  type: 'test'
++  ...
++# Subtest: calibrate 失败时非零退出且不输出部分 Markdown
++ok 12 - calibrate 失败时非零退出且不输出部分 Markdown
++  ---
++  duration_ms: 0.2092
++  type: 'test'
++  ...
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 13 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.2268
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 14 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.4196
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 15 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 12.6615
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 16 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 17.4896
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 17 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 9.3552
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 18 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 109.3589
++  type: 'test'
++  ...
++# Subtest: unknown or duplicate path options fail instead of writing canonical data
++ok 19 - unknown or duplicate path options fail instead of writing canonical data
++  ---
++  duration_ms: 0.2462
++  type: 'test'
++  ...
++# Subtest: missing file is labelled but read errors make calibration fail explicitly
++ok 20 - missing file is labelled but read errors make calibration fail explicitly
++  ---
++  duration_ms: 96.9676
++  type: 'test'
++  ...
++1..20
++# tests 30
++# suites 6
++# pass 30
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 367.1992
+diff --git a/task_logs/RR18_artifacts/production-dom-fresh.json b/task_logs/RR18_artifacts/production-dom-fresh.json
+new file mode 100644
+index 0000000..957520a
+--- /dev/null
++++ b/task_logs/RR18_artifacts/production-dom-fresh.json
+@@ -0,0 +1,6 @@
++{
++  "url": "http://tauri.localhost/",
++  "tauri": true,
++  "logState": "ok",
++  "text": "CODEX · 重置雷达\nPLUS\n数据时刻 05:36（北京+8）\n收起\n×\n① 风险雷达 · 未来 24h 强制重置概率\n32.1%\n48h 碰撞概率\n67.2%\n+10.0\n星期启发式基线\n普通"
++}
+diff --git a/task_logs/RR18_artifacts/production-dom.json b/task_logs/RR18_artifacts/production-dom.json
+new file mode 100644
+index 0000000..327db45
+--- /dev/null
++++ b/task_logs/RR18_artifacts/production-dom.json
+@@ -0,0 +1,6 @@
++{
++  "url": "http://tauri.localhost/",
++  "tauri": true,
++  "logState": "ok",
++  "text": "CODEX\n91%\n周额度剩余\n重置风险 32.1%\n卡×3"
++}
+diff --git a/task_logs/RR18_artifacts/production-history-verified.json b/task_logs/RR18_artifacts/production-history-verified.json
+new file mode 100644
+index 0000000..1e33aac
+--- /dev/null
++++ b/task_logs/RR18_artifacts/production-history-verified.json
+@@ -0,0 +1,27 @@
++{
++  "pid": 26652,
++  "startedAt": "2026-10-11T05:36:31.7395685+00:00",
++  "runtimePath": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\predictions.jsonl",
++  "bytesBefore": 188,
++  "bytesAfter": 361,
++  "originalBytesPreserved": true,
++  "sourceStatus": "ok",
++  "freshSourceAttempt": "2026-10-11T05:36:32.821204800Z",
++  "sourceFetchedAt": "2026-10-11T05:36:33.524549900Z",
++  "quotaStatus": "ok",
++  "records": [
++    {
++      "date": "2026-10-11",
++      "predictedRisk": 44,
++      "factorsDigest": "base=10,consecutive-reset=30,interval-hazard=-6.7,recent-regime=12,weekday-empirical=-1.2",
++      "fetchedAt": "2026-10-11T05:17:20.742Z"
++    },
++    {
++      "date": "2026-10-11",
++      "predictedRisk": 32.1,
++      "factorsDigest": "base=10,consecutive-reset=30,interval-hazard=-6.8,weekday-empirical=-1.1",
++      "fetchedAt": "2026-10-11T05:36:32.810Z"
++    }
++  ],
++  "lockLeft": false
++}
+diff --git a/task_logs/RR18_artifacts/release.txt b/task_logs/RR18_artifacts/release.txt
+new file mode 100644
+index 0000000..50568b5
+--- /dev/null
++++ b/task_logs/RR18_artifacts/release.txt
+@@ -0,0 +1,8 @@
++   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR18\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++         C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (bin "reset-radar") generated 1 warning
++    Finished `release` profile [optimized] target(s) in 37.20s
+diff --git a/task_logs/RR18_artifacts/review-final.txt b/task_logs/RR18_artifacts/review-final.txt
+new file mode 100644
+index 0000000..1eaa0a1
+--- /dev/null
++++ b/task_logs/RR18_artifacts/review-final.txt
+@@ -0,0 +1,28 @@
++TAP version 13
++# Subtest: 先刷新历史，再运行校准；输出流按用途分流
++ok 1 - 先刷新历史，再运行校准；输出流按用途分流
++  ---
++  duration_ms: 1.0429
++  type: 'test'
++  ...
++# Subtest: fetch 失败时非零退出并且不运行 calibrate
++ok 2 - fetch 失败时非零退出并且不运行 calibrate
++  ---
++  duration_ms: 0.1596
++  type: 'test'
++  ...
++# Subtest: calibrate 失败时非零退出且不输出部分 Markdown
++ok 3 - calibrate 失败时非零退出且不输出部分 Markdown
++  ---
++  duration_ms: 0.1706
++  type: 'test'
++  ...
++1..3
++# tests 3
++# suites 0
++# pass 3
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 79.3708
+diff --git a/task_logs/RR18_artifacts/review-refresh.txt b/task_logs/RR18_artifacts/review-refresh.txt
+new file mode 100644
+index 0000000..560a4b0
+--- /dev/null
++++ b/task_logs/RR18_artifacts/review-refresh.txt
+@@ -0,0 +1,4 @@
++[fetch-history] 拉取 https://codex-resets.com/api/v1/resets?limit=100&order=desc
++[fetch-history] 拉取 https://codex-resets.com/api/v1/status
++[fetch-history] 写入 C:\Users\slsjz\Desktop\reset-radar_wt\RR18\data\resets-history.json
++[fetch-history] 事件 60 条，跨度 2025-09-17T04:02:52.000Z → 2026-10-11T04:01:09.000Z；北京星期分布 Mon:4 Tue:10 Wed:12 Thu:8 Fri:7 Sat:9 Sun:10
+-- 
+2.52.0.windows.1
+

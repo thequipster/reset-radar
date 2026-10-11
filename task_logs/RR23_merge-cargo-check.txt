@@ -1,0 +1,2 @@
+   Compiling reset-radar v0.1.0 (C:\Users\slsjz\Desktop\reset-radar\src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.25s

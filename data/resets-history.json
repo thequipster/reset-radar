@@ -1,13 +1,13 @@
 {
   "schema": "reset-radar/resets-history@1",
-  "fetchedAt": "2026-10-11T06:30:53.872Z",
+  "fetchedAt": "2026-10-11T07:34:13.520Z",
   "sources": {
     "resets": "https://codex-resets.com/api/v1/resets?limit=100&order=desc",
     "status": "https://codex-resets.com/api/v1/status"
   },
   "upstream": {
     "apiVersion": "v1",
-    "generatedAt": "2026-10-11T06:27:54.127Z",
+    "generatedAt": "2026-10-11T07:33:13.692Z",
     "pagination": {
       "has_more": false,
       "next_cursor": null
