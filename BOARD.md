@@ -14,7 +14,7 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（阶段4全闭环：RR17→971be17 / RR28→c546b52 / RR27→a362c4e；RR12 第2轮REVIEW完成；RR31→a89369c；RR33 版权如实声明→8aa944d；图标交付归档 docs/design/icons-20261011/；RR32 在飞 S1011-1735 → 待领 RR29/RR30）**
+**当前阶段：WORK（阶段4全闭环；RR33→8aa944d；RR32 🟡待合入〔S1011-1735，3237e5b〕→ 待领 RR29/RR30。下一班建议：先占 MERGE 合 RR32，再领 RR29；RR30 依赖用户 CI 首跑）**
 （阶段4顺序全部完成：RR23公告/RR15日志/RR18历史/RR19 CI/RR16 watch/RR17回测/RR28摘要/RR27照图UI。RR24/RR25已由RR26覆盖；六图视觉已落地为src/ui三态。
 下一拍：RR32 在飞（图标接入，S1011-1735）；其后 RR29（UI可访问性收尾）/RR30（MSVC发行DPI取证，依赖用户CI首跑）；或用户直接发布（三步就绪，push/tag留用户）。
 取材详单：docs/review-20261011-round2.md（最新）+ docs/review-20261011.md + RR27_done 排障遗产）
@@ -26,10 +26,13 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
+### [2026-10-11 18:05:00] RR32 | P3 | 🎣🟡待合入 | ui+assets | S1011-1735 交付
+- 3237e5b（base 77c8e0c，对现 main 8aa944d 路径无交集 patch 干净适用），22文件+238/−12；src-tauri/icons 换交付 ico(8帧)+三PNG（icns 无交付保留现件）、RadarLogo 按正稿 mark 几何逐值重绘+双主题 token（dark=精密蓝/light=02-glass）；tsc/UI域91/全量248/cargo check/check-release 绿；变异红验两组（ico 回旧件→指纹红/logo 硬编码→token 断言红）；release 实证 exe 内嵌=交付 ico 8 帧字节逐帧命中（exe-icon-bytes.txt）+识图 6 图 PASS（两主题 logo 可见/exe 图标非默认）；done/patch 齐；worktree 留 MERGE 班拆（node_modules+src-tauri/target 双 junction 先拆，B09）；LIGHT 释放。识图两条非阻断观察归 done（浅色横幅副文案对比度→RR29 面已覆盖）。
+
 ### [2026-10-11 17:56:00] RR33 | P2 | 🧱🟢已闭环 | license+docs | S1011-RR33（用户在线裁决：如实声明）
 - 8bffd4f→main 8aa944d 树恒等；主仓 tsc/238TS/check-release（14链接）/cargo check 复验绿；junction先拆worktree移除，branch归档。如实声明落地：THIRD_PARTY_NOTICES（对方MIT全文+复用清单）+resetCard/codex.rs/planner 版权行+README致谢补强+TRUTH §U 裁决入档；注释/文档级零代码变更，变异不适用理由记 done。
 
-### [2026-10-11 17:45:00] RR32 | P3 | 🎣🟠在飞 | ui+assets | S1011-1735
+### [2026-10-11 17:45:00] RR32 | P3 | 🎣🟠在飞→已被顶部 18:05 🟡交付条目吸收 | ui+assets | S1011-1735
 - base 77c8e0c（件务遗留已替 S1011-1722 落库）；图标接入按 handoff 四步：src-tauri/icons 换 ico+三 PNG（icns 无交付保留现件）、UI RadarLogo 重绘为交付正稿造型（浅色底走 glass 配色 token）、release 实证 exe 内嵌图标+两主题截图识图。建 worktree agent/RR32。
 
 ### [2026-10-11 17:22:00] 图标设计交付归档 | 📦🟢件务完成（非卡） | S1011-1722（用户指令）
