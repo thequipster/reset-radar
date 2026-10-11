@@ -4,6 +4,7 @@
 :root,
 [data-theme="dark"] {
   --bg-panel: rgba(12, 22, 34, 0.97);
+  --bg-header: #0c1622;
   --bg-card: #12203a;
   --bg-card-hover: #172942;
   --bg-inset: #0e1b2c;
@@ -43,6 +44,7 @@
 
 [data-theme="light"] {
   --bg-panel: rgba(245, 248, 252, 0.97);
+  --bg-header: #f5f8fc;
   --bg-card: #ffffff;
   --bg-card-hover: #f0f4fa;
   --bg-inset: #edf2f9;

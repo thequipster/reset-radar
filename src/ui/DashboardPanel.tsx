@@ -1,17 +1,18 @@
-// RR27 展开面板（图3 主参考；浅色对应图4；状态六宫格图5）。信息顺序与全状态按 02-spec
-// §1/§6：公告/异常 → 额度与今日建议 → 风险解释 → 用卡规划 → 数据来源与校准。
-// UI 零业务规则（ARCHITECTURE §2）：全部数字来自 adapters VM；校准摘要只消费 RR28
-// 只读契约。收起/关闭常驻顶栏，不在滚动区尾部。
+// RR27 展开面板 → RR31 分页重构（用户指定：页签分模块替代右侧滚动条）。
+// 四页：概览（公告/余额/建议）/ 风险 / 用卡 / 数据与校准；常驻顶栏+页签行，每页
+// 适配 690 逻辑高。信息语义仍按 02-spec §1/§6；UI 零业务规则（ARCHITECTURE §2）：
+// 全部数字来自 adapters VM，校准摘要只消费 RR28 只读契约。
 import { useState } from "react";
 import type { DashboardViewModel } from "./adapters";
-import type { CalibrationSummaryView, ResetCardDecision, RiskFactor } from "../lib";
-import { beijingFull, beijingShort, creditsLabel, deltaPct, daysLabel, percent1, percentWhole, weekdayDateLabel } from "./format";
+import type { CalibrationSummaryView, ResetCardDecision, RiskFactor, ScheduledResetAssessment } from "../lib";
+import { beijingFull, beijingShort, daysLabel, deltaPct, percent1, percentWhole, weekdayDateLabel } from "./format";
 import { buildCopySummary } from "./copySummary";
+import { PANEL_TABS, initialPanelTab, type PanelTab } from "./panelTabs";
 import { OutlookChart, ProgressRing, type OutlookBar } from "./viz";
 import {
   AlertIcon, BarChartIcon, BulbIcon, CalendarIcon, CardStackIcon, CheckIcon, ChevronUp,
-  CloseIcon, CopyIcon, DatabaseIcon, InfoIcon, MonitorIcon, MoonIcon, PulseIcon, RadarLogo,
-  RefreshIcon, ShieldIcon, SlidersIcon, SparkleIcon, SpeakerIcon, SunIcon, GripDots,
+  CloseIcon, CopyIcon, DatabaseIcon, InfoIcon, MonitorIcon, MoonIcon, PulseIcon,
+  RadarLogo, RefreshIcon, ShieldIcon, SlidersIcon, SparkleIcon, SpeakerIcon, SunIcon, GripDots,
 } from "./icons";
 import styles from "./DashboardPanel.module.css";
 
@@ -52,11 +53,20 @@ function riskBadge(score: number | null): { label: string; className: string } |
 
 export default function DashboardPanel(props: DashboardPanelProps) {
   const { vm, phase, demo } = props;
+  const [tab, setTab] = useState<PanelTab>(() => initialPanelTab(window.location.hash));
   const [copied, setCopied] = useState<"idle" | "ok" | "error">("idle");
-  const [showPacingDetail, setShowPacingDetail] = useState(false);
   const [showPlannerDetail, setShowPlannerDetail] = useState(false);
 
   const loading = vm == null || phase === "initializing";
+  // 高亮：覆盖态显示实际生效主题；正常态 system 时不好猜，高亮偏好项。
+  const activeForHighlight = props.activeTheme === "dark" ? "dark" : "light";
+  const card = loading ? null : vm.cardPlan;
+  const announcement = loading ? null : vm.resetStatus?.announcement ?? null;
+  const resetStatusStale = !loading && vm.resetStatus != null && vm.resetStatus.state === "stale";
+  const collectError = !loading && (phase === "read-error" || vm.status === "error");
+  // 卡数未知时隐藏 no-credits 决策及收益比较（02-spec §6），其余照常。
+  const hideNoCreditsDecision = !loading && vm.resetCredits == null;
+  const showPlannerBlocks = card != null && !(hideNoCreditsDecision && card.decision === "no-credits");
 
   const copySummary = () => {
     if (vm == null) return;
@@ -72,19 +82,9 @@ export default function DashboardPanel(props: DashboardPanelProps) {
     }
   };
 
-  // 高亮：覆盖态显示实际生效主题；正常态 system 时光跟随偏好不好猜，高亮偏好项。
-  const activeForHighlight = props.activeTheme === "dark" ? "dark" : "light";
-  const card = loading ? null : vm.cardPlan;
-  const announcement = loading ? null : vm.resetStatus?.announcement ?? null;
-  const resetStatusStale = !loading && vm.resetStatus != null && vm.resetStatus.state === "stale";
-  const collectError = !loading && (phase === "read-error" || vm.status === "error");
-  // 卡数未知时隐藏 no-credits 决策及收益比较（02-spec §6），其余照常。
-  const hideNoCreditsDecision = !loading && vm.resetCredits == null;
-  const showPlannerBlocks = card != null && !(hideNoCreditsDecision && card.decision === "no-credits");
-
   return (
     <div className={styles.shell} role="main" aria-label="reset-radar 展开面板">
-      {/* ── 顶栏（常驻） ── */}
+      {/* ── 常驻顶栏（不透明底，修复 RR27 半透明透出） ── */}
       <header className={styles.header}>
         <div className={styles.headerDrag} data-tauri-drag-region>
           <GripDots size={16} />
@@ -98,6 +98,7 @@ export default function DashboardPanel(props: DashboardPanelProps) {
           </span>
         </div>
         <div className={styles.headerActions}>
+          {demo && <span className={styles.demoBadge}>演示</span>}
           <span className={styles.themeToggle} role="group" aria-label="主题">
             {(["dark", "light", "system"] as const).map((pref) => (
               <button
@@ -121,11 +122,80 @@ export default function DashboardPanel(props: DashboardPanelProps) {
         </div>
       </header>
 
-      {/* ── 状态横幅区 ── */}
+      {/* ── 页签行（RR31 用户指定：分模块点选，替代滚动） ── */}
+      <nav className={styles.tabBar} role="tablist" aria-label="面板模块">
+        {PANEL_TABS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            role="tab"
+            id={`rr-tab-${item.key}`}
+            aria-selected={tab === item.key}
+            aria-controls={`rr-page-${item.key}`}
+            className={`${styles.tabButton} ${tab === item.key ? styles.tabButtonActive : ""}`}
+            onClick={() => setTab(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      <div
+        className={styles.page}
+        role="tabpanel"
+        id={`rr-page-${tab}`}
+        aria-labelledby={`rr-tab-${tab}`}
+      >
+        {tab === "overview" && (
+          <OverviewPage
+            vm={vm} phase={phase} readError={props.readError} subscriptionError={props.subscriptionError}
+            refreshing={props.refreshing} loading={loading} announcement={announcement}
+            resetStatusStale={resetStatusStale} collectError={collectError} onRefresh={props.onRefresh}
+          />
+        )}
+        {tab === "risk" && <RiskPage vm={vm} loading={loading} card={card} />}
+        {tab === "planner" && (
+          <PlannerPage
+            vm={vm} loading={loading} card={card}
+            hideNoCreditsDecision={hideNoCreditsDecision} showPlannerBlocks={showPlannerBlocks}
+            showPlannerDetail={showPlannerDetail} onToggleDetail={() => setShowPlannerDetail((v) => !v)}
+          />
+        )}
+        {tab === "data" && (
+          <DataPage
+            vm={vm} loading={loading} calibration={props.calibration} demo={demo}
+            resetStatusStale={resetStatusStale} refreshing={props.refreshing}
+            copied={copied} onRefresh={props.onRefresh} onCopy={copySummary}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════ 概览页 ══════════ */
+
+function OverviewPage({
+  vm, phase, readError, subscriptionError, refreshing, loading, announcement,
+  resetStatusStale, collectError, onRefresh,
+}: {
+  vm: DashboardViewModel | null;
+  phase: "initializing" | "ready" | "empty" | "read-error";
+  readError: string | null;
+  subscriptionError: boolean;
+  refreshing: boolean;
+  loading: boolean;
+  announcement: ScheduledResetAssessment | null;
+  resetStatusStale: boolean;
+  collectError: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <>
       {loading ? (
         <div className={styles.notices}>
-          <span className={`${styles.noticeCard} ${styles.skeleton} ${styles.skeletonBlock}`} />
-          <span className={`${styles.noticeCard} ${styles.skeleton} ${styles.skeletonBlock}`} />
+          <span className={`${styles.noticeCard} ${styles.skeleton}`} />
+          <span className={`${styles.noticeCard} ${styles.skeleton}`} />
         </div>
       ) : (
         <div className={styles.notices}>
@@ -140,7 +210,7 @@ export default function DashboardPanel(props: DashboardPanelProps) {
                 <span className={styles.noticeSub}>
                   来源：{announcement.announcement.source.type}
                   {announcement.announcement.source.author ? ` / ${announcement.announcement.source.author}` : ""} ·
-                  抓取 {beijingShort(vm.resetStatus?.fetchedAt) ?? "—"} · 尚未确认发生
+                  抓取 {beijingShort(vm!.resetStatus?.fetchedAt) ?? "—"} · 尚未确认发生
                 </span>
               </span>
             </div>
@@ -151,8 +221,8 @@ export default function DashboardPanel(props: DashboardPanelProps) {
                 <span className={styles.noticeTitle}>{resetStatusStale ? "公告来源已过期" : "暂无有效公告"}</span>
                 <span className={styles.noticeSub}>
                   {resetStatusStale
-                    ? `上次尝试 ${beijingFull(vm.resetStatus?.lastAttemptAt) ?? "—"}，未见新计划`
-                    : vm.resetStatus == null
+                    ? `上次尝试 ${beijingFull(vm!.resetStatus?.lastAttemptAt) ?? "—"}，未见新计划`
+                    : vm!.resetStatus == null
                       ? "运行时公告来源未接入"
                       : "上游当前无 scheduled 重置计划"}
                 </span>
@@ -165,15 +235,15 @@ export default function DashboardPanel(props: DashboardPanelProps) {
               <span className={styles.noticeTitle}>{collectError ? "采集失败" : resetStatusStale ? "采集状态：过期" : "采集状态：正常"}</span>
               <span className={styles.noticeSub}>
                 {collectError
-                  ? (phase === "read-error" ? props.readError ?? "读取失败" : vm.message ?? "额度来源返回错误")
-                  : `最近更新成功 · ${beijingShort(vm.observedAt) ?? "—"} 北京时间`}
+                  ? (phase === "read-error" ? readError ?? "读取失败" : vm!.message ?? "额度来源返回错误")
+                  : `最近更新成功 · ${beijingShort(vm!.observedAt) ?? "—"} 北京时间`}
               </span>
             </span>
           </div>
         </div>
       )}
 
-      {props.subscriptionError && (
+      {subscriptionError && (
         <div className={`${styles.stateBanner} ${styles.stateBannerWarn}`} role="status">
           <AlertIcon size={18} className={styles.stateIcon} />
           <span className={styles.stateBody}>
@@ -191,8 +261,8 @@ export default function DashboardPanel(props: DashboardPanelProps) {
             <span className={styles.stateSub}>未取得 Codex 额度快照（原因未知，不推断为未登录）。</span>
           </span>
           <span className={styles.stateAction}>
-            <button type="button" className={styles.primaryButton} onClick={props.onRefresh} disabled={props.refreshing}>
-              <RefreshIcon size={14} className={props.refreshing ? "rr-spin" : undefined} />
+            <button type="button" className={styles.primaryButton} onClick={onRefresh} disabled={refreshing}>
+              <RefreshIcon size={14} className={refreshing ? "rr-spin" : undefined} />
               刷新额度
             </button>
           </span>
@@ -204,22 +274,16 @@ export default function DashboardPanel(props: DashboardPanelProps) {
           <AlertIcon size={20} className={styles.stateIcon} />
           <span className={styles.stateBody}>
             <span className={styles.stateTitle}>读取失败</span>
-            <span className={styles.stateSub}>{props.readError ?? "无法获取 Codex 额度数据，请检查网络。"}</span>
+            <span className={styles.stateSub}>{readError ?? "无法获取 Codex 额度数据，请检查网络。"}</span>
           </span>
           <span className={styles.stateAction}>
-            <button type="button" className={styles.primaryButton} onClick={props.onRefresh} disabled={props.refreshing}>
-              <RefreshIcon size={14} className={props.refreshing ? "rr-spin" : undefined} />
+            <button type="button" className={styles.primaryButton} onClick={onRefresh} disabled={refreshing}>
+              <RefreshIcon size={14} className={refreshing ? "rr-spin" : undefined} />
               重试
             </button>
           </span>
         </div>
       )}
-
-      {/* ── 额度状态与今日建议 ── */}
-      <div className={styles.sectionHead}>
-        <span className={styles.sectionIcon}><CalendarIcon size={13} /></span>
-        <span className={styles.sectionTitle}>额度状态与今日建议</span>
-      </div>
 
       {loading ? (
         <div className={styles.quotaGrid}>
@@ -231,41 +295,52 @@ export default function DashboardPanel(props: DashboardPanelProps) {
         <>
           <div className={styles.quotaGrid}>
             <div className={styles.quotaCard}>
-              <ProgressRing value={vm.remainingPercent} size={54} className={styles.ringBlue} label="周额度剩余">
-                <span className={styles.ringCenter}>{percentWhole(vm.remainingPercent)}</span>
+              <ProgressRing value={vm!.remainingPercent} size={54} className={styles.ringBlue} label="周额度剩余">
+                <span className={styles.ringCenter}>{percentWhole(vm!.remainingPercent)}</span>
               </ProgressRing>
               <span className={styles.quotaText}>
                 <span className={styles.quotaLabel}>周额度剩余</span>
                 <span className={styles.quotaSub}>
-                  {vm.remainingPercent == null
+                  {vm!.remainingPercent == null
                     ? "周窗缺失 · 暂无数据"
-                    : `自然重置 ${beijingShort(vm.resetsAt) ?? "—"} 北京时间`}
+                    : `自然重置 ${beijingShort(vm!.resetsAt) ?? "—"} 北京时间`}
                 </span>
               </span>
             </div>
             <div className={styles.quotaCard}>
-              <ProgressRing value={vm.shortRemainingPercent} size={54} className={styles.ringGreen} label="短窗剩余">
-                <span className={styles.ringCenter}>{percentWhole(vm.shortRemainingPercent)}</span>
+              <ProgressRing value={vm!.shortRemainingPercent} size={54} className={styles.ringGreen} label="短窗剩余">
+                <span className={styles.ringCenter}>{percentWhole(vm!.shortRemainingPercent)}</span>
               </ProgressRing>
               <span className={styles.quotaText}>
                 <span className={styles.quotaLabel}>短窗剩余</span>
                 <span className={styles.quotaSub}>
-                  {vm.shortRemainingPercent == null ? "暂无数据" : "两窗口额度互不影响"}
+                  {vm!.shortRemainingPercent == null ? "暂无数据" : "两窗口额度互不影响"}
                 </span>
               </span>
             </div>
           </div>
-
-          <SuggestionBanner vm={vm} stale={resetStatusStale} />
+          <SuggestionBanner vm={vm!} stale={resetStatusStale} />
         </>
       )}
+    </>
+  );
+}
 
-      {/* ── 风险分析 ── */}
+/* ══════════ 风险页 ══════════ */
+
+function RiskPage({
+  vm, loading, card,
+}: {
+  vm: DashboardViewModel | null;
+  loading: boolean;
+  card: DashboardViewModel["cardPlan"];
+}) {
+  return (
+    <>
       <div className={styles.sectionHead}>
         <span className={styles.sectionIcon}><ShieldIcon size={13} /></span>
         <span className={styles.sectionTitle}>风险分析</span>
       </div>
-
       {loading ? (
         <span className={`${styles.riskCard} ${styles.skeleton} ${styles.skeletonBlock}`} />
       ) : (
@@ -275,9 +350,9 @@ export default function DashboardPanel(props: DashboardPanelProps) {
               <span className={styles.riskIconBox}><PulseIcon size={19} /></span>
               <span className={styles.riskText}>
                 <span className={styles.riskLabel}>未来24h 模型风险</span>
-                <span className={styles.riskValue}>{vm.risk == null ? "—" : percent1(vm.risk.score)}</span>
+                <span className={styles.riskValue}>{vm!.risk == null ? "—" : percent1(vm!.risk.score)}</span>
                 {(() => {
-                  const badge = riskBadge(vm.risk?.score ?? null);
+                  const badge = riskBadge(vm!.risk?.score ?? null);
                   return badge != null ? <span className={`${styles.riskBadge} ${badge.className}`}>{badge.label}</span> : null;
                 })()}
               </span>
@@ -296,25 +371,43 @@ export default function DashboardPanel(props: DashboardPanelProps) {
               </span>
             </div>
           </div>
-          <div className={styles.factorList}>
-            <FactorRows factors={vm.risk?.factors ?? []} emptyNote="无因子" />
+          <div className={styles.factorScroll}>
+            <FactorRows factors={vm!.risk?.factors ?? []} emptyNote="无因子" />
           </div>
           <p className={styles.mutedNote}>
             两个口径来自不同模型时段，分别命名展示，不能互相换算。因子正值提升风险、负值降低风险。
-            {vm.risk?.watchComparison != null && " watch 公开信号按 25% 权重融合（对比见数据与校准区）。"}
+            {vm!.risk?.watchComparison != null && " watch 公开信号按 25% 权重融合（对比见「数据」页）。"}
           </p>
         </>
       )}
+    </>
+  );
+}
 
-      {/* ── 重置规划与用卡决策 ── */}
+/* ══════════ 用卡页 ══════════ */
+
+function PlannerPage({
+  vm, loading, card, hideNoCreditsDecision, showPlannerBlocks, showPlannerDetail, onToggleDetail,
+}: {
+  vm: DashboardViewModel | null;
+  loading: boolean;
+  card: DashboardViewModel["cardPlan"];
+  hideNoCreditsDecision: boolean;
+  showPlannerBlocks: boolean;
+  showPlannerDetail: boolean;
+  onToggleDetail: () => void;
+}) {
+  return (
+    <>
       <div className={styles.sectionHead}>
         <span className={styles.sectionIcon}><CalendarIcon size={13} /></span>
         <span className={styles.sectionTitle}>重置规划与用卡决策</span>
-        <button type="button" className={styles.sectionLink} onClick={() => setShowPlannerDetail((v) => !v)}>
-          {showPlannerDetail ? "收起依据" : "规划依据"}
-        </button>
+        {showPlannerBlocks && (
+          <button type="button" className={styles.sectionLink} onClick={onToggleDetail}>
+            {showPlannerDetail ? "收起依据" : "规划依据"}
+          </button>
+        )}
       </div>
-
       {loading ? (
         <span className={`${styles.plannerCard} ${styles.skeleton} ${styles.skeletonBlock}`} />
       ) : (
@@ -324,10 +417,10 @@ export default function DashboardPanel(props: DashboardPanelProps) {
               <span className={styles.plannerCardBlueIcon}><CardStackIcon size={19} /></span>
               <span className={styles.plannerText}>
                 <span className={styles.plannerBig}>
-                  {vm.resetCredits == null ? "卡数未知" : vm.resetCredits === 0 ? "卡 ×0" : `重置卡 ×${vm.resetCredits}`}
+                  {vm!.resetCredits == null ? "卡数未知" : vm!.resetCredits === 0 ? "卡 ×0" : `重置卡 ×${vm!.resetCredits}`}
                 </span>
                 <span className={styles.plannerSub}>
-                  {vm.resetCredits == null ? "暂无法获取可用重置卡数量" : "当前可用重置卡数量"}
+                  {vm!.resetCredits == null ? "暂无法获取可用重置卡数量" : "当前可用重置卡数量"}
                 </span>
               </span>
             </div>
@@ -337,11 +430,15 @@ export default function DashboardPanel(props: DashboardPanelProps) {
                 <span className={styles.decisionText}>
                   <span className={styles.decisionTitle}>用卡决策</span>
                   <span className={styles.decisionMain}>{DECISION_LABELS[card.decision]}</span>
-                  <span className={styles.decisionSub}>{plannerDecisionSub(card, vm.resetCredits)}</span>
+                  <span className={styles.decisionSub}>{plannerDecisionSub(card, vm!.resetCredits)}</span>
                 </span>
               </div>
             )}
           </div>
+
+          {hideNoCreditsDecision && (
+            <p className={styles.mutedNote}>卡数未知，暂无法确认用卡建议；请评估风险后决策。</p>
+          )}
 
           {showPlannerBlocks && card != null && (
             <>
@@ -361,7 +458,7 @@ export default function DashboardPanel(props: DashboardPanelProps) {
                 <span className={styles.metricMini}>
                   <span className={styles.metricMiniLabel}>自然重置</span>
                   <span className={styles.metricMiniValue}>
-                    {beijingShort(vm.resetsAt) ?? "—"}（约 {daysLabel(card.daysUntilNaturalReset)}后）
+                    {beijingShort(vm!.resetsAt) ?? "—"}（约 {daysLabel(card.daysUntilNaturalReset)}后）
                   </span>
                 </span>
               </div>
@@ -372,7 +469,9 @@ export default function DashboardPanel(props: DashboardPanelProps) {
                 </span>
                 <OutlookChart bars={outlookBars(card)} unitLabel="候选日期收益图（周额度百分点）" />
                 <p className={styles.chartNote}>
-                  期望收益为周额度百分点，不构成“获得更多实际额度的承诺”；日需为模型假设，非个人实测用量。
+                  期望收益=用卡后到下次重置前<b>可实际消耗的增量</b>（按强制重置风险折价），
+                  不是补给规模——临近自然重置用卡，补得多但消耗不完的部分不计入，不会「越晚越赚」。
+                  日需为模型假设，非个人实测用量。
                 </p>
               </div>
             </>
@@ -389,65 +488,89 @@ export default function DashboardPanel(props: DashboardPanelProps) {
           )}
         </>
       )}
+    </>
+  );
+}
 
-      {/* ── 数据与校准 ── */}
-      <footer className={styles.footer}>
-        <div className={styles.dataLines}>
-          <span className={styles.dataLine}>
-            <span className={styles.dataLineKey}>额度观测</span>
-            <span className={`${styles.dataLineValue} ${resetStatusStale ? styles.dataLineStale : ""}`}>
-              {loading ? "…" : `${beijingFull(vm.observedAt) ?? "—"} 北京时间`}
-              {resetStatusStale ? "（上次观测，数据过期）" : ""}
-            </span>
+/* ══════════ 数据与校准页 ══════════ */
+
+function DataPage({
+  vm, loading, calibration, demo, resetStatusStale, refreshing, copied, onRefresh, onCopy,
+}: {
+  vm: DashboardViewModel | null;
+  loading: boolean;
+  calibration: CalibrationSummaryView;
+  demo: boolean;
+  resetStatusStale: boolean;
+  refreshing: boolean;
+  copied: "idle" | "ok" | "error";
+  onRefresh: () => void;
+  onCopy: () => void;
+}) {
+  return (
+    <>
+      <div className={styles.sectionHead}>
+        <span className={styles.sectionIcon}><DatabaseIcon size={13} /></span>
+        <span className={styles.sectionTitle}>数据来源与校准</span>
+      </div>
+      <div className={styles.dataLines}>
+        <span className={styles.dataLine}>
+          <span className={styles.dataLineKey}>额度观测</span>
+          <span className={`${styles.dataLineValue} ${resetStatusStale ? styles.dataLineStale : ""}`}>
+            {loading ? "…" : `${beijingFull(vm!.observedAt) ?? "—"} 北京时间`}
+            {resetStatusStale ? "（上次观测，数据过期）" : ""}
           </span>
-          <span className={styles.dataLine}>
-            <span className={styles.dataLineKey}>历史抓取</span>
-            <span className={styles.dataLineValue}>
-              {vm?.historySource == null
-                ? "—"
-                : `${beijingFull(vm.historySource.asOf) ?? "—"} 北京时间 · ${
-                    vm.historySource.state === "fresh"
-                      ? `新鲜（${vm.historySource.quotaResetEvents ?? "—"} 条额度重置）`
-                      : vm.historySource.state === "stale"
-                        ? "已过期（超过 7 天）"
-                        : "无效来源"
-                  }`}
-            </span>
+        </span>
+        <span className={styles.dataLine}>
+          <span className={styles.dataLineKey}>历史抓取</span>
+          <span className={styles.dataLineValue}>
+            {vm?.historySource == null
+              ? "—"
+              : `${beijingFull(vm.historySource.asOf) ?? "—"} 北京时间 · ${
+                  vm.historySource.state === "fresh"
+                    ? `新鲜（${vm.historySource.quotaResetEvents ?? "—"} 条额度重置）`
+                    : vm.historySource.state === "stale"
+                      ? "已过期（超过 7 天）"
+                      : "无效来源"
+                }`}
           </span>
-          <span className={styles.dataLine}>
-            <span className={styles.dataLineKey}>公告抓取</span>
-            <span className={styles.dataLineValue}>
-              {!loading && vm.resetStatus != null
-                ? `${beijingFull(vm.resetStatus.fetchedAt) ?? "—"} 北京时间 · ${
-                    vm.resetStatus.state === "ok" ? "新鲜" : vm.resetStatus.state === "stale" ? "已过期" : "失败"
-                  }`
-                : "—"}
-            </span>
+        </span>
+        <span className={styles.dataLine}>
+          <span className={styles.dataLineKey}>公告抓取</span>
+          <span className={styles.dataLineValue}>
+            {!loading && vm!.resetStatus != null
+              ? `${beijingFull(vm!.resetStatus.fetchedAt) ?? "—"} 北京时间 · ${
+                  vm!.resetStatus.state === "ok" ? "新鲜" : vm!.resetStatus.state === "stale" ? "已过期" : "失败"
+                }`
+              : "—"}
           </span>
-        </div>
-        <CalibrationLine calibration={props.calibration} />
-        <div className={styles.footerActions}>
-          <button type="button" className={styles.primaryButton} onClick={props.onRefresh} disabled={props.refreshing}>
-            <RefreshIcon size={14} className={props.refreshing ? "rr-spin" : undefined} />
-            {props.refreshing ? "刷新中…" : "刷新额度"}
-          </button>
-          <button type="button" className={styles.ghostButton} onClick={copySummary} disabled={vm == null}>
-            {copied === "ok" ? <CheckIcon size={14} className={styles.copied} /> : <CopyIcon size={14} />}
-            {copied === "ok" ? "已复制" : copied === "error" ? "复制失败" : "复制摘要"}
-          </button>
-          <button type="button" className={styles.ghostButton} onClick={() => setShowPacingDetail((v) => !v)}>
-            <SlidersIcon size={14} />
-            配速解释
-          </button>
-          {demo && <span className={styles.demoBadge}>演示数据 · 非本机实采</span>}
-        </div>
-        {showPacingDetail && vm?.dailyPlan != null && (
-          <div className={styles.factorList}>
-            <FactorRows factors={vm.dailyPlan.factors} emptyNote="无配速因子" />
+        </span>
+        <span className={styles.dataLine}>
+          <span className={styles.dataLineKey}>快照更新</span>
+          <span className={styles.dataLineValue}>{loading ? "…" : `${beijingFull(vm!.updatedAt) ?? "—"} 北京时间`}</span>
+        </span>
+      </div>
+      <CalibrationLine calibration={calibration} />
+      <div className={styles.footerActions}>
+        <button type="button" className={styles.primaryButton} onClick={onRefresh} disabled={refreshing}>
+          <RefreshIcon size={14} className={refreshing ? "rr-spin" : undefined} />
+          {refreshing ? "刷新中…" : "刷新额度"}
+        </button>
+        <button type="button" className={styles.ghostButton} onClick={onCopy} disabled={vm == null}>
+          {copied === "ok" ? <CheckIcon size={14} className={styles.copied} /> : <CopyIcon size={14} />}
+          {copied === "ok" ? "已复制" : copied === "error" ? "复制失败" : "复制摘要"}
+        </button>
+        {demo && <span className={styles.demoBadge}>演示数据 · 非本机实采</span>}
+      </div>
+      {!loading && vm?.dailyPlan != null && (
+        <div className={styles.factorScroll}>
+          <div className={styles.chartTitle}>
+            <SlidersIcon size={13} /> 配速解释（今日建议 +{vm.dailyPlan.suggested.toFixed(1)} 的构成）
           </div>
-        )}
-      </footer>
-    </div>
+          <FactorRows factors={vm.dailyPlan.factors} emptyNote="无配速因子" />
+        </div>
+      )}
+    </>
   );
 }
 
