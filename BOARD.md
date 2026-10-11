@@ -14,9 +14,9 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（阶段4全闭环：RR17→971be17 / RR28→c546b52 / RR27→a362c4e；RR12 第2轮REVIEW完成→立卡RR29/RR30 待领）**
+**当前阶段：WORK（阶段4全闭环：RR17→971be17 / RR28→c546b52 / RR27→a362c4e；RR12 第2轮REVIEW完成；RR31 用户反馈卡已合入 a89369c；图标交付归档 docs/design/icons-20261011/ → 待领 RR29/RR30/RR32）**
 （阶段4顺序全部完成：RR23公告/RR15日志/RR18历史/RR19 CI/RR16 watch/RR17回测/RR28摘要/RR27照图UI。RR24/RR25已由RR26覆盖；六图视觉已落地为src/ui三态。
-下一拍：RR29（UI可访问性收尾）/RR30（MSVC发行DPI取证，依赖用户CI首跑）；或用户直接发布（三步就绪，push/tag留用户）。
+下一拍：RR32（图标接入）/RR29（UI可访问性收尾）/RR30（MSVC发行DPI取证，依赖用户CI首跑）；或用户直接发布（三步就绪，push/tag留用户）。
 取材详单：docs/review-20261011-round2.md（最新）+ docs/review-20261011.md + RR27_done 排障遗产）
 
 ## 槽位（占用 = 下方在飞条目）
@@ -25,6 +25,9 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 - MERGE：×1（主仓合入互斥，同一时刻只有一人写主仓代码）
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
+
+### [2026-10-11 17:22:00] 图标设计交付归档 | 📦🟢件务完成（非卡） | S1011-1722（用户指令）
+- 生图AI返回包 reset-radar-design-20261011.zip 整包解压至 docs/design/icons-20261011/（40 文件 SHA256SUMS 全对；reference-ui 六图与 ref/ 现件字节一致，保留双份以维持包内 index.html 离线预览与校验单完整）；zip 已按用户指令删除。工程接入未做→立卡 RR32 🟠待领。
 
 ### [2026-10-11 16:08:00] RR31 | P1 | 🔧🟢已闭环 | ui | S1011-RR31（用户在线指定）
 - b0cb857→main a89369c，树恒等；主仓tsc/238TS/38Node复验绿；junction先拆worktree移除。用户三反馈全闭环：页签分模块无滚动条、顶栏实底无透出、收益图注澄清；算法疑问实算答复无缺陷（TRUTH §U）。

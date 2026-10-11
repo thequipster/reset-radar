@@ -57,3 +57,7 @@ CI与发布构建共用npm run test:node，递归包含顶层与预测日志嵌�
 ## RR16 watch接线
 
 有效watch通过纯核心校验后输入已有25%风险融合，adapter和CLI共用核心，规划沿风险同参；预测附带评估窗口与同次无watch基线。校准报告新增0%/25%同样本列，当前真实active_watch:null、paired n=0，空指标保留null。旧记录不补写，通用24h回测迁移仍交RR17。最终门禁与生产验证见RR16_done及docs/watch-calibration-20261011.md；下一RR17→RR28→RR27。
+
+## 图标交付归档（2026-10-11）
+
+用户生图AI返回雷达图标交付（推荐 01-precision「精密蓝」；四候选 SVG、10 尺寸 PNG、8 帧 ico、AI 探索板与 handoff 三件），整包归档 `docs/design/icons-20261011/`，SHA256SUMS 40/40 核验通过。包内 `reference-ui/` 六图与 `ref/` 现件字节一致，保留双份以维持包内 index.html 离线预览与校验单完整性。工程接入（ico→src-tauri/icons、exe/窗口图标实证、UI logo SVG）未实施，立卡 BACKLOG RR32。UI 参考图轮次已完结，无需再生成新 UI 图。

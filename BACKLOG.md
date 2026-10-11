@@ -390,3 +390,10 @@
 - 状态行：2026-10-11 16:05 🟠在飞（LIGHT，用户在线指定优先于 RR29/RR30）。
 - 2026-10-11 16:04:00 RR31 🟡待合入：b0cb857；分页模块化+顶栏实底+图注澄清；详见task_logs/RR31_done.md。
 - 2026-10-11 16:08:30 RR31 🟢已闭环 main a89369c。→RR29/RR30待领或用户发布。
+
+### RR32 | P3 | 🎣挖卡🟠待领 | ui+assets | 立卡 S1011-1722（用户件务：图标交付归档）
+- 现象：生图AI已交付 reset-radar 雷达图标全套（推荐「精密蓝」01-precision；四候选SVG/10尺寸PNG/8帧ico/探索板/handoff三件）；handoff 明示接入须在原工程完成，当前 src-tauri/icons/ 仍是 Tauri 默认图标。
+- 证据：docs/design/icons-20261011/（整包归档，SHA256SUMS 40/40 核验通过）；handoff/设计与接入说明.md（接入四步）；tauri.conf.json bundle.icon 现指默认五件（32x32.png/128x128.png/128x128@2x.png/icon.icns/icon.ico）。
+- 修向：按 handoff 接入——icons/reset-radar.ico 与对应 PNG 更换 src-tauri/icons/（icns 无交付，Windows 目标不受影响，保留现件并注明）；UI 内品牌 logo 可换 source/reset-radar-mark.svg 造型（浅色底用 02-glass 配色，勿将亮色透明标放白底）；重建后核 exe/任务栏/窗口图标与 100%–200% 缩放（shell 图标缓存可能延迟显示旧标）。
+- 验证口径：release 构建后 exe 内嵌图标实证（资源转储或截图）；识图子代理复核两主题下界面 logo 可见；check-release 门禁如涉及 README 图则同步过。
+- 状态行：2026-10-11 17:22 🟠待领（未领不占槽）。
