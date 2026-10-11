@@ -210,6 +210,36 @@
   （动 src-tauri 必跑）。
 - 状态行：2026-10-11 🟠待领
 
+### RR22 | P0 | 🧱建卡🟠待领 | core | 立卡 S1011-1043（用户线上实测反馈：公告已发 4h 内重置而模型无感知）2026-10-11
+- 现象：codex-resets.com 已公告 scheduled_reset（本会话实测 scheduled_for=2026-10-11T07:00Z
+  即北京 15:00，"Global reset by EOD"），用户观察 app 无任何反应——风险分数不涨、
+  planner 仍建议 5.1 保守配速。模型对确定性公告失聪。
+- 证据：GET /api/v1/status 实测（node fetch 200，B07 域名）：scheduled_reset{id,status:
+  scheduled,reset_type,announced_at,scheduled_for,text,source}；grep 全仓 scheduled/
+  active_watch 在 src/ 与 src-tauri/src/ **零消费者**（仅 scripts/fetch-history.mjs 注释
+  预言"RR04 要用"未兑现）；planner daysToReset 来自周窗 resetsAt 整天截断
+  （planner.ts:18,55），与全球公告是两个事件源。
+- 修向：src/lib 公告感知——①risk：scheduledReset 在 T 小时内→确定性覆盖（概率让位于
+  公告）+ active_watch.reset_chance_percent 作加权因子；②planner：临期清仓策略
+  （公告时刻前剩余额度可全用，配速公式改写）；③resetCard 同步。纯函数+注入测试，
+  core 零 IO。与 RR23 契约：核心层自定义输入类型（ScheduledReset 视图），data-layer 适配。
+- 验证口径：域测试（注入 scheduledReset{2h 后}→断言建议飙升/风险覆盖；无公告→与现状
+  golden 逐位一致=回归锚）+ 变异红验 + 四绿。
+- 状态行：2026-10-11 🟠待领
+
+### RR23 | P0 | 🧱建卡🟠待领 | data-layer | 立卡 S1011-1043（RR22 数据前置/姊妹卡）
+- 现象：app 运行时只握 codex app-server（额度权威），不拉 codex-resets.com /api/v1/
+  status——公告进不了快照；data/resets-history.json 静态（fetchedAt=10-10T17:20Z，
+  早于公告发布 10-10T22:16Z 差 5h 未赶上）。
+- 证据：同 RR22 实测；TRUTH §1/§2 B07（API schema 已登记；本机 curl(schannel) 对该域
+  偶发握手失败、node fetch 稳定——Rust reqwest 的 TLS 后端选择需实测）。
+- 修向：src-tauri 新增公告拉取（reqwest rustls 起步，失败再裁 native-tls）——运行时
+  定时（15min 量级）拉 /api/v1/status，scheduled_reset/active_watch 进快照契约
+  （RR08 契约扩展、字段可空向后兼容）；推荐 Rust 侧拉以规避前端 CSP connect-src 改动。
+  与 RR18 互补不重叠：RR23=运行时实时公告，RR18=REVIEW 离线夹具刷新。
+- 验证口径：cargo check --tests + 契约测试 + TLS 探活实测 + 四绿；真值回源 B07 schema。
+- 状态行：2026-10-11 🟠待领
+
 ## 状态流转区（追加行；格式 `- <日期> <状态> <sha/备注>`）
 
 - 2026-10-11 🟠待领 ×12（RR01–RR12 初始化批次，立卡会话 S1011-init）
@@ -248,3 +278,26 @@
 - 2026-10-11 11:22 RR14 🟡待合入（agent/RR14 @ ba11e47 单 commit 基于 main 6dd9ed6；四绿全过：tsc✅ 域 src/ui 11/11✅ 全量 89/89 0failed✅〔基线86→89只升〕 变异红验✅〔精确匹配→#mutant 红1/复原绿〕；hash 入口生效实证：CDP 两跳导航+PMv2 探针，DPI 192/客户区 920×1120，展开态三块面板齐全截图落盘+胶囊态连带更新无截字+README 图引用闭环；真值=RR09_done B09 机制②+WHATWG fragment 语义+CDP 实证；证据 task_logs/RR14_done.md；worktree 留 MERGE 班拆/junction 先 rmdir；排障遗产4条留 REVIEW——含展开态 460 窄窗排版差距候选修卡）
 - 2026-10-11 11:35 RR21 🟠待领（新立：ui 域真·悬浮窗改造，用户线上反馈"简陋"+D021 裁决选项A；吸收 RR14 遗产①②；证据=RR14 截图识图 0.6% 占比+codex-cockpit tauri.conf.json widget 配置逐字段；含 transparent gnu 兼容降级路径）
 - 2026-10-11 11:15 RR14 🟢已闭环（MERGE S1011-1113：ba11e47→main e569ce1，树恒等✅ 7路径diff 0字节；预审四过（worktree探活/单commit对账7文件+149行/patch在位229081B/交集空——基即main HEAD 6dd9ed6）；主仓复验 tsc✅ vitest 全量89/89 0failed✅〔基线86→89只升〕 cargo check --tests 2.00s✅；worktree/分支已拆（junction先拆cmd rmdir，主仓node_modules完好；顺手清RR09空壳，RR13仍句柄占用暂留）；ui 域 hash 状态入口闭环，阶段切 WORK（RR21 领先））
+- 2026-10-11 11:52 RR22/RR23 🟠待领 ×2（新立：公告感知全链路，用户线上实测反馈——codex-resets.com scheduled_reset 公告〔北京今日15:00 Global reset〕app 无感知仍建议5.1；断链三环节实锤：运行时不拉 /status、夹具静态晚5h、模型零消费者；RR22 core 纯函数先行→RR23 data-layer 接线；UI 公告横幅并入 RR21 设计）
+
+### RR24 | P1 | 🧱建卡🟠待领 | docs+发布 | 立卡 S1011-design（用户指定四阶段前端重设计：阶段1）
+- 现象：用户要求先自由发散并产出 docs/design/01-proposals.md，再停下审阅；RR21 正在占用 LIGHT/ui 槽，本轮不可并发实施或抢占。
+- 证据：本次用户总指挥任务（最高层级用户裁决）；ROADMAP.md；docs/review-20261011.md；docs/screenshots 三张落盘图；src/ui/adapters.ts DashboardViewModel 契约。
+- 修向：工位释放后建立 agent/RR24 worktree，将已审阅的独立候选稿落档 docs/design/01-proposals.md；当前草稿含42条提案（每条创意/解决问题/字段或新增能力依赖），需结合 RR21 最终交付刷新现状记录。仅阶段1，不提前写02/03或实施。阶段2用户过目后另卡推进。
+- 草稿：C:/Users/slsjz/.codex/visualizations/2026/10/11/01a128fd-c348-7371-baf0-05e1ac73d93e/01-proposals.md（Luna 资料整理与初稿，主会话语义/出处校对；不属仓内正式交付）。
+- 验证口径：10+提案且每条说明解决问题、字段回源、截图审查文字与出处齐；仓内正式交付仍按 RUNBOOK 门禁/证据要求执行，草稿不冒称四绿或已提交。
+- 状态行：2026-10-11 11:30:46 🟠待领（未领卡、不占槽；仓内落档待 RR21 释放）
+
+- 2026-10-11 11:30:46 RR24 🟠待领（用户四阶段重设计阶段1；42条独立审阅草稿完成，仓内落档待LIGHT释放；阶段1停审阅，未进入阶段2）
+
+### RR25 | P1 | 🧱建卡🟠待领 | docs+发布 | 立卡 S1011-design2（用户批准阶段1，指定阶段2+阶段4扩展）
+- 现象：用户已认可阶段1并要求收敛方案；新增授权：阶段4除前端，其他看板卡任务也由本设计总指挥执行。
+- 证据：本次用户消息原文“没问题，都按你的想法来，进入第二阶段。另外第四阶段加点东西，除了改前端，其他卡片的任务也由你来执行”；RR24候选稿、adapters/useSnapshots契约、BACKLOG RR15–RR23、ARCHITECTURE与RUNBOOK。
+- 修向：工位释放后用 agent/RR25 将独立审阅方案落档 docs/design/02-spec.md。方案选定石墨深色默认+浅色切换，悬浮/预览/展开三态，今日追加建议优先，公告与模型分层，CSS Modules+tokens，全状态与校准摘要。用户确认02后才进入阶段3，参考图到位后才开始阶段4业务卡和UI实施。
+- 草稿：C:/Users/slsjz/.codex/visualizations/2026/10/11/01a128fd-c348-7371-baf0-05e1ac73d93e/02-spec.md（可审阅方案；仓内未落档/未提交，代码门禁未执行，不冒称正式交付）。
+- 验证口径：做/不做/理由、三态线框、深浅tokens与文字对比度、字体/间距/圆角/阴影/动效、loading/empty/error/stale/partial-null、VM来源和新增契约、阶段4逐卡依赖/验收均明确；仓内交付仍遵守RUNBOOK证据要求。
+- 状态行：2026-10-11 11:40:25 🟠待领（未领卡，不占LIGHT；独立阶段2方案供用户确认）。
+
+- 2026-10-11 11:40:25 RR24 用户认可阶段1内容，仓内落档仍待领；RR25 新立阶段2方案落档卡，保留阶段确认停点。
+- 2026-10-11 11:40:25 阶段4授权补记：本设计总指挥执行除UI外其他看板任务，计划RR22→RR23→RR15→RR18→RR19→RR16→RR17→UI/契约补卡→RR12验收；RR21他人在飞勿抢，已闭环成果核验复用。执行前重读状态，逐卡分会话，不绕过槽位/门禁/STOP；发布动作仍留用户。
+- 2026-10-11 11:56 RR21 🟡待合入（agent/RR21 @ 2b10c27 单 commit 基于 main b518bcd；四绿全过：tsc✅ 域 src/ui 15/15✅ 全量 93/93 0failed✅〔基线89→93只升〕 变异红验✅〔胶囊高76→560病灶值→红2→复原绿〕 cargo check --tests 5.19s✅ check-release 13链接✅；实证：胶囊 920×152=2×(460×76) 悬浮条收紧/展开 920×1296 前端 LogicalSize 动态长高/DPI 192/屏幕DC实拍四角=桌面像素→gnu transparent 生效未走降级/EXSTYLE TOPMOST+NOACTIVATE/识图子代理两图 PASS；真值=codex-cockpit tauri.conf.json widget 逐字段+其 lib.rs:210-233+capabilities 三权限+DOM 实测定尺寸；证据 task_logs/RR21_done.md；worktree 留 MERGE 班拆/junction 先 rmdir；**注：本卡交付悬浮窗本体，公告横幅未含**——RR22/RR23 立卡时言明并入 RR21 设计，但公告数据链（core 纯函数+运行时 /status）尚未落地，横幅应随 RR22/RR23 消费卡实施；排障遗产4条留 REVIEW〔PrintWindow 透明伪象判别法/preview 端口占用/「校准」2字孤行小瑕疵/RR14 遗产①③ 随本卡闭环〕）

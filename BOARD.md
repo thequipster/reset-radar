@@ -14,12 +14,16 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（无 🟡；🟠可领 ×7：RR21 + RR15–RR19 + RR12 锚卡）**
-（下一班建议：领 **RR21**（真·悬浮窗改造：用户线上反馈驱动+D021 裁决，P1 优先于 REVIEW
-取材卡；对齐 codex-cockpit widget 配置，吸收 RR14 遗产①②——展开态窄窗排版差距已并入
-本卡修向⑤）。其后 RR15→RR18→RR19→RR16→RR17（RR17 依赖 RR15）。
+**当前阶段：MERGE（RR21 🟡唯一待合；🟠可领 ×8：RR22/RR23 新立 P0 + RR15–RR19 + RR12 锚卡）**
+（下一班建议：**先占 MERGE 槽合 RR21**（2b10c27 单 commit / 12 文件 / patch 在位 /
+基于 main b518bcd 干净；**拆 worktree 前先 rmdir node_modules junction**，B09）→
+合完回 WORK 按 S1011-design 优先序领 **RR22**（P0 公告感知 core——用户实测
+codex-resets.com 已公告今日 15:00 Global reset 而模型无感知，纯函数先行注入测试）→
+**RR23**（P0 data-layer 运行时拉 /status，reqwest TLS 实测）。其后 RR15→RR18→RR19→
+RR16→RR17（RR17 依赖 RR15）。RR24/RR25（用户指定重设计阶段1/2）按其卡面槽位约定
+不占 LIGHT，待领落档。
 取材详单：docs/review-20261011.md + RR20_done 注记（MSVC 发行路径 DPI 覆盖）+
-RR13_done 遗产①–③ + RR14_done 遗产①–④）
+RR13_done 遗产①–③ + RR14_done 遗产①–④ + RR21_done 遗产①–④）
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -27,6 +31,38 @@ RR13_done 遗产①–③ + RR14_done 遗产①–④）
 - MERGE：×1（主仓合入互斥，同一时刻只有一人写主仓代码）
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
+
+### [2026-10-11 11:40:25] RR25 | P1 | 🧱🟠待领 | docs+发布 | 用户指定重设计阶段2
+- 方案：独立审阅目录02-spec.md；石墨深色/浅色主题、三态线框、完整状态和字段边界；待用户确认后阶段3，参考图到位后阶段4。
+- 新授权：阶段4本设计总指挥逐卡执行其他看板任务；RR22/RR23公告主线优先，RR15–RR19按依赖收尾，详见BACKLOG及方案§8。
+- 槽位：未领卡不占LIGHT，RR21仍在飞勿抢；释放后在 agent/RR25 分支落档 docs/design/02-spec.md。RR24阶段1内容已获用户认可，仓内落档仍待领。
+- 协调注记：RUNBOOK是协议权威；STOP会停止所有会话，不能用“写STOP后本会话继续实施”协调。阶段4按卡与槽位互斥，保持STOP空才工作。
+
+
+### [2026-10-11 11:30:46] RR24 | P1 | 🧱🟠待领 | docs+发布 | 用户指定前端重设计阶段1
+- 已准备：独立审阅目录 01-proposals.md，42条未定稿提案（Luna底稿+主会话校对）；详见 BACKLOG RR24 草稿绝对路径。
+- 槽位：未领卡，不占LIGHT；遵循§4不抢RR21槽。释放后在agent/RR24落入docs/design/01-proposals.md并交付。
+- 阶段停点：只交阶段1候选供用户过目；02方案/03图prompt/参考图后实施按用户四阶段顺序推进。
+
+
+### [2026-10-11 11:17→11:56] RR21 | P1 | 🔧🟡待合入 | ui | 会话 S1011-1113 交付
+- 分支/commit：agent/RR21 @ **2b10c27**（单 commit，基于 main b518bcd；patch 备份
+  task_logs/RR21.patch 263893B）
+- 已落：真·悬浮窗——tauri.conf.json 对齐 codex-cockpit widget 字段（出处其
+  src-tauri/tauri.conf.json，done 有逐字段表）+ capabilities +3 窗口权限 +
+  src/ui/widgetWindow.ts 两态契约（胶囊 460×76/展开 460×648，浏览器 DOM 实测定值）+
+  App 拖动区/等待页样式化/透明底 + ExpandedCard 窄窗自适应（RR14 遗产① 消除）+
+  展开态 × 关闭钮（skipTaskbar 伴生）+ probe-transparent.ps1 透明实证探针 +
+  README 换新两态图（check-release 13 链接绿）
+- 实证（release 实跑 B01 路径）：胶囊 920×152=2×(460×76) 悬浮条收紧（0.6% 占比
+  病根拔除）；展开 920×1296=2×(460×648) 前端 LogicalSize 动态长高端到端生效；
+  DPI 192；**屏幕 DC 实拍四角=桌面像素→gnu transparent 生效，未走降级路径**；
+  EXSTYLE TOPMOST+NOACTIVATE 置位；识图子代理两图 PASS（五要素/三面板/无横滚/
+  无竖排字/收起+×可见/无白条——RR14 遗产①③ 消除）
+- 门禁：tsc✅ 域 src/ui **15/15**✅ 全量 **93/93 0failed**✅（基线 89→93 只升）
+  变异红验✅（胶囊高 76→560 病灶值→红2条→复原绿）cargo check --tests 5.19s✅
+- worktree **保留给 MERGE 班拆**（含 node_modules junction，拆前先 cmd //c rmdir，B09）
+- 证据件：task_logs/RR21_done.md（真值出处表+实证链+卡内裁决 3 条+排障遗产 4 条）
 
 ### [2026-10-11 10:53→11:22] RR14 | P1 | 🔧🟢已闭环 | ui | 会话 S1011-1043 交付 → S1011-1113 合入
 - 合入：agent/RR14 @ ba11e47（单 commit）→ main **e569ce1**（cherry-pick，树恒等✅
@@ -250,3 +286,6 @@ RR13_done 遗产①–③ + RR14_done 遗产①–④）
 3. RR09（UI，依赖 RR08）
 4. RR11（发布打磨，依赖 RR09 截图）
 5. RR12（循环锚——首批功能卡合入后执行首轮 REVIEW，之后永续滚动）
+
+
+
