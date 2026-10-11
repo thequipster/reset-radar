@@ -457,3 +457,23 @@
 - 修向：复选项诚实化——拆两项分别如实描述（[x] 应用内校准摘要面板；预测日志改述「校准管线自动落盘 data/predictions.jsonl」），版本叙述 0.1.0 不动（RUNBOOK §6）。
 - 验证口径：check-release 13 链接；docs 级零代码变更，变异红验沿 RR36 口径真做（链接改坏→门红→复原绿）。
 - 状态行：2026-10-11 19:30 🟠待领（未领不占槽）。
+- 2026-10-11 19:46:00 RR37 🟡待合入：agent/RR37 @b1e39ed 单commit基于main bab16ea（3文件+13/−1，png 28981B）；tsc/全量266 0failed/Node38/check-release 13链接 绿；变异红验真做（引图名改坏→门红→复原绿）；IHDR 920×152 字节核验+识图子代理五项 PASS；TRUTH B11 登记。详见 task_logs/RR37_done.md。会话 S1011-1930
+- 2026-10-11 19:52:00 RR37 🟢已闭环 main 4187287←b1e39ed 树恒等（3路径含PNG二进制0字节）；主仓复验 tsc✅ vitest 266/266 0failed✅ Node38/38✅ check-release 13链接✅（Rust 不适用：未触 src-tauri/）；junction 先拆 worktree 移除无残留、branch 归档（archive/RR37-merged-4187287）。→RR38/RR39 待领，RR30 仍等用户 CI 首跑。会话 S1011-1930 MERGE
+- 2026-10-11 19:48:00 RR38 🟡待合入：agent/RR38 @cf64aad 单commit基于main 4187287（4文件+24/−1）；tsc/UI域112/全量269 0failed/变异红2红复原绿；「·」并入 timeNoWrap 整段+结构锁测试3条；release 双主题截图 920×1380 识图 6/6 PASS；详见 task_logs/RR38_done.md。会话 S1011-1940
+- 2026-10-11 19:52:00 RR38 🟢已闭环 main ab47c15←cf64aad 树恒等（4路径含截图二进制0字节）；主仓复验 tsc✅ vitest 全量269/269 0failed✅（Rust 不适用：未触 src-tauri/）；双 junction 先拆 worktree 移除无残留、branch 归档（archive/RR38-merged-ab47c15）。→RR39 待领（docs：README:42 复选项口径），RR30 仍等用户 CI 首跑。会话 S1011-1940 MERGE
+- 2026-10-11 19:56:00 RR39 🟡待合入：agent/RR39 @d0c8158 单commit基于main ab47c15（1文件+5/−2）；tsc/全量269 0failed/check-release 13链接/Node38 绿；变异红验真做（ROADMAP链接改坏→门红exit1→复原复绿）；README:42 拆两条如实描述+README:38 括注同根因顺带（D030 先例）；详见 task_logs/RR39_done.md。会话 S1011-1950
+- 2026-10-11 20:00:00 RR39 🟢已闭环 main 8b476a4←d0c8158 树恒等（README 单路径0字节）；主仓复验 tsc✅ vitest 全量269/269 0failed✅ check-release 13链接✅ Node 38/38✅（Rust 不适用：未触 src-tauri/，树恒等已证）；junction 先拆 worktree 移除无残留、branch 归档（archive/RR39-merged-8b476a4）。→无🟠无🟡，阶段切 REVIEW 第5轮（取材提示：README:107 状态行刷新），RR30 仍依赖用户 CI 首跑。会话 S1011-1950 MERGE
+
+### RR40 | P3 | 🔧修卡🟠待领 | ui | 立卡 S1011-2000（REVIEW 第5轮 G1，识图子代理独立复核）
+- 现象：「采集状态」卡副文案分隔点「·」行首顶格——RR38 把「·」并入 .timeNoWrap 段后，换行断点移至整段之前，实际渲染「最近更新成功」/「· 10/11 … 北京时间」两行，「·」孤立于第二行行首（避头尾缺陷换形态存在），两主题同现。
+- 证据：docs/review-20261011-round5.md §2/§3 G1（识图子代理双主题独立复核 FAIL×2）；src/ui/DashboardPanel.tsx:239（「·」在 nowrap span 首位）；task_logs/RR12r5_artifacts/。
+- 修向：「·」与前文绑定（如「最近更新成功&nbsp;·」以不换行空格连接，nowrap 段缩回纯时间段），或去「·」改间距/等效分隔样式；两主题同修；DashboardPanel.tsx:306「自然重置」无「·」不涉及；RR38 锁测试 src/ui/__tests__/ui.hanging-dot.test.ts 口径同步（锁「·」既不悬挂行尾也不顶格行首）。
+- 验证口径：tsc/UI域/全量 0 新增 failed/变异红验（锁测试改坏→红→复原）；release 双主题展开态截图过识图子代理（无行首「·」/无行尾悬挂「·」/「北京时间」整段不断行）。
+- 状态行：2026-10-11 20:18 🟠待领（未领不占槽）。
+
+### RR41 | P3 | 🔧修卡🟠待领 | docs | 立卡 S1011-2000（REVIEW 第5轮 G2，BOARD 取材提示）
+- 现象：README:110 状态行「RR01–RR35 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 已 3 轮」过时——实况 RR01–RR39 已闭环（RR30 仍待用户 CI 首跑）、REVIEW 已 5 轮（round5 报告落库后）。
+- 证据：README.md:110 原文；git log main（RR36→RR39 均已闭环）；docs/review-20261011-round5.md §3 G2。
+- 修向：状态行刷新为执行时实况（闭环区间到最新卡号+REVIEW 轮次如实）；版本叙述 0.1.0 不动（RUNBOOK §6 版本戳只许发布卡变）。
+- 验证口径：check-release 13 链接门；docs 级零代码变更，变异红验沿 RR36/RR39 口径真做（链接改坏→门红 exit1→复原复绿）。
+- 状态行：2026-10-11 20:18 🟠待领（未领不占槽）。

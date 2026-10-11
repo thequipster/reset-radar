@@ -14,7 +14,11 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（RR37/RR38/RR39 🟠可领；RR30 依赖用户 CI 首跑）**
+**当前阶段：WORK（RR40/RR41 🟠可领——REVIEW 第 5 轮已闭环产物批落库；RR30 依赖用户 CI 首跑）**
+（REVIEW 第 5 轮已闭环（S1011-2000）：报告 docs/review-20261011-round5.md——七门全绿
+〔vitest 269/269/tsc/build/cargo/node 38/38/check-release 13/校准 fresh n=0 如实〕+识图
+3 图 1 PASS 2 FAIL：RR37 深色胶囊门面图确认修复到位；RR38「·」行首顶格换形态残留→立
+RR40；README:110 状态行过时→立 RR41；不立卡 5 条附理由。下一班建议 RR40 → RR41。）
 （REVIEW 第 4 轮已闭环（S1011-1910）：报告 docs/review-20261011-round4.md——七门全绿+识图
 4 图 3 PASS 1 FAIL（深色胶囊门面图 IHDR 460×76 半分辨率坏档），立卡 RR37/RR38/RR39，不立卡
 4 条附理由；D031 登记用户门控期。下一班建议：RR37 → RR38 → RR39（RR37/RR39 同域 docs+发布
@@ -29,6 +33,36 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 - MERGE：×1（主仓合入互斥，同一时刻只有一人写主仓代码）
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
+
+### [2026-10-11 20:21:00] RR12第5轮REVIEW | 🧱🟢本轮闭环（锚卡转回🟠待领，永不🟢） | review | S1011-2000
+- base main 8b476a4 七门全绿（tsc✅ vitest 269/269 0failed✅ vite build✅ cargo check --tests✅ node 38/38✅ check-release 13链接✅ 校准管线 fresh 60 事件 n=0 如实✅；数据刷新后复跑 vitest 269/269+node 38/38 双绿）；artifact 八件 task_logs/RR12r5_artifacts/；识图独立复核 3 图：rr37-capsule-dark 920×152 PASS（RR37 修复确认到位）、rr38 双主题 920×1380 **FAIL×2**（「·」并入 timeNoWrap 段后断点前移→行首顶格，避头尾缺陷换形态）；差距 7 条零悬空：立 RR40（P3「·」行首避头）/RR41（P3 README:110 状态行刷新），不立卡 5 条附理由（环心偏淡 D031 点单池/下半留白审美/v0.3 留点单 D031/RR13+RR21 空壳句柄 rc=32 延续观察+RR26 有意保留/RR30 既有🟣）。产物批落库 main（round5 报告+两卡+脚本刷新数据三件+artifact+done+收编 RR37/38/39 未跟踪 done/patch 六件）。阶段切 WORK（建议 RR40→RR41）。
+
+### [2026-10-11 20:00:00] RR39 | P3 | 🔧🟢已闭环 | docs | S1011-1950 MERGE
+- d0c8158→main 8b476a4 树恒等✅（README.md 单路径 diff 0 字节）；预审四过（探活 d0c8158/diffstat 1文件+5/−2 对账/patch 在位 2.3KB/交集空——main 工作树仅看板协调文件）；主仓复验 tsc✅ vitest 全量269/269 0failed✅ check-release 13链接✅ Node 38/38✅（Rust 不适用：未触 src-tauri/，树恒等已证）；junction 先拆 worktree 移除无残留、branch 归档（archive/RR39-merged-8b476a4）。→无🟠无🟡（RR30 仍等用户 CI 首跑），阶段切 REVIEW 第 5 轮（取材提示：README:107 状态行刷新——实况 RR01–RR39 已闭环、REVIEW 4 轮；v0.3 留点单见 D031）。MERGE 释放，本会话收工。
+
+### [2026-10-11 19:56:00] RR39 | P3 | 🔧🟡待合入（已闭环，见上行） | docs | S1011-1950 交付
+- d0c8158（base main ab47c15，1文件+5/−2，patch 对 main 干净适用✅2.3KB）：①README:42 复选项拆两条如实描述（[x] 应用内校准摘要——「数据与校准」页三态只读、零样本如实标注；[ ] 预测自动落盘应用数据目录——如实改述现为脚本管线 npm run log-prediction 落盘 data/predictions.jsonl 应用内暂不接〔D019〕）②README:38 括注同根因顺带同步（沿 D030 先例）。门禁：tsc✅/全量269/269 0failed✅（=基线）/check-release 13链接✅/**变异红验真做**（ROADMAP 链接改坏→门红exit1点名 ROADMAP-mutant.md→复原复绿）/Node 38/38✅；Rust 不适用（未触 src-tauri/）；版本 0.1.0 不动。详见 task_logs/RR39_done.md。本会话时间盒余量充足，续占 MERGE 槽自合入。
+
+### [2026-10-11 19:51:00] RR39 | P3 | 🔧🟠在飞→已被顶部 19:56 🟡交付条目吸收 | docs | S1011-1950
+- base main ab47c15；README:42 复选项口径诚实化：拆两项如实描述（[x] 应用内校准摘要〔RR28 数据页三态〕/[ ] 预测自动落盘应用数据目录〔未接，D019：现为脚本管线落 data/predictions.jsonl〕）；README:38 括注同根因顺带同步（沿 D030 先例）；版本 0.1.0 不动；门禁 tsc/全量/check-release/变异红验（链接改坏→门红→复原绿，沿 RR36 口径）；docs 级零代码变更 Rust 不适用。建 worktree agent/RR39。
+
+### [2026-10-11 19:52:00] RR38 | P3 | 🔧🟢已闭环 | ui | S1011-1940 MERGE
+- cf64aad→main ab47c15 树恒等✅（4路径含2二进制截图 diff 0字节）；预审四过（探活 cf64aad/diffstat 4文件+24/−1 对账/patch 在位 314.6KB/交集空——main 工作树仅看板协调文件）；主仓复验 tsc✅ vitest 全量269/269 0failed✅（Rust 不适用：未触 src-tauri/，树恒等已证）；双 junction 先拆 worktree 移除无残留、branch 归档（archive/RR38-merged-ab47c15）。→RR39 待领（下一班），RR30 仍等用户 CI 首跑。MERGE 释放，本会话收工。
+
+### [2026-10-11 19:48:00] RR38 | P3 | 🔧🟡待合入（已闭环，见上行） | ui | S1011-1940 交付
+- cf64aad（base main 4187287，4文件+24/−1，patch 对 main 干净适用✅314.6KB）：①采集状态卡副文案「·」并入 .timeNoWrap 段随时间段整段（DashboardPanel.tsx:239 一处，悬挂消除）②新增结构锁测试 ui.hanging-dot.test.ts 3 条（修复结构/防回退/RR35 语义保持）。门禁：tsc✅/UI域112/112✅/全量269/269 0failed✅（基线266只升）/**变异红验真做**（「·」挪回span外→锁测试2条红→复原复绿3/3）；Rust 不适用（未触 src-tauri/）；release 双主题截图（PMv2 192/920×1380/IHDR 字节核验）识图子代理独立复核 6/6 PASS（无悬挂「·」/时间段完整/周额度卡无回归）。详见 task_logs/RR38_done.md。本会话时间盒余量充足，续占 MERGE 槽自合入。
+
+### [2026-10-11 19:44:00] RR38 | P3 | 🔧🟠在飞→已被顶部 19:48 🟡交付条目吸收 | ui | S1011-1940
+- base main 4187287；采集状态卡行尾悬挂「·」断点微调：「·」并入 .timeNoWrap 段随时间段整段（DashboardPanel.tsx:239 一处；306 行「自然重置」无「·」不涉及）；RR35 锁测试 styles.timeNoWrap count=2 不变，新增 RR38 结构锁测试（「·」在 nowrap 段内）；门禁四绿 + release 双主题展开态截图识图复核无悬挂点。建 worktree agent/RR38。
+
+### [2026-10-11 19:52:00] RR37 | P2 | 🔧🟢已闭环 | docs+发布 | S1011-1930 MERGE
+- b1e39ed→main 4187287 树恒等✅（3路径含 PNG 二进制 diff 0字节）；预审四过（探活/diffstat 3文件+13/−1 对账/patch 在位 39.9KB/交集空——main 工作树仅看板协调文件）；主仓复验 tsc✅ vitest 全量266/266 0failed✅ Node 38/38✅ check-release 13链接✅（Rust 不适用：未触 src-tauri/，树恒等已证）；junction 先拆 worktree 移除无残留（RR13/RR21/RR26 旧壳为既有遗留非本卡）、branch 归档（archive/RR37-merged-4187287）。→RR38/RR39 待领（下一班建议 RR38→RR39），RR30 仍等用户 CI 首跑。MERGE 释放，本会话收工。
+
+### [2026-10-11 19:46:00] RR37 | P2 | 🔧🟡待合入（已闭环，见上行） | docs+发布 | S1011-1930 交付
+- b1e39ed（base main bab16ea，3文件+13/−1，patch 对 main 干净适用✅39.9KB）：①新深色胶囊门面图 rr37-capsule-dark.png（shot-expanded.ps1 -Hash "" -Theme dark；PMv2 True/DPI 192/ClientRect 920×152/PrintWindow True；exe 主仓重构建=main 现 src+data）②README:18 换引（旧坏图留盘作 round4 证据）③TRUTH B11 半分辨率探针坑登记（git 溯源补证：坏图 RR32 提交时即 460×76，RR32_done 四图口径对深色胶囊一条不实）。门禁：tsc✅/全量 266/266 0failed✅/Node 38/38✅/check-release 13链接✅/**变异红验真做**（引图名改坏→门红exit1点名坏链→复原复绿）；Rust 不适用（未触 src-tauri/，release 构建仅取证）；IHDR 字节核验 920×152✅+识图子代理五项全 PASS（四缘完整/卡×3 与 33.0% 可读/与浅色孪生同构/文字锐利）。详见 task_logs/RR37_done.md。本会话时间盒余量充足，续占 MERGE 槽自合入。
+
+### [2026-10-11 19:38:00] RR37 | P2 | 🔧🟠在飞 | docs+发布 | S1011-1930
+- base main bab16ea；深色胶囊门面图重截 920×152。取径微调（卡面原设 shot-capsule.ps1 补 -Theme）：改用 shot-expanded.ps1 -Hash "" -Theme dark——该探针已带 PMv2（B10）+ -Theme（RR34 先例），注释明载「空串=默认胶囊态」，零脚本改动直达卡目标；shot-capsule.ps1（RR13 老）无 PMv2 即半分辨率根因，登记 TRUTH B11 防再踩（坏图经查 RR32 提交时即 460×76，其 done 四图口径有误）。主仓 target 重构建 release exe（--features tauri/custom-protocol，B01）保 exe=main 现 src+data；新图名 rr37-capsule-dark + README:18 同步换引；IHDR 字节核验+识图子代理复核+check-release 13 链接门。建 worktree agent/RR37。
 
 ### [2026-10-11 19:32:00] RR12第4轮REVIEW | 🧱🟢本轮闭环（锚卡转回🟠待领，永不🟢） | review | S1011-1910
 - base main 8590bb2 七门全绿（tsc✅ vitest 266/266 0failed✅ vite build✅ cargo check --tests✅ node 38/38✅ check-release 13链接✅ 校准管线 fresh 60 事件 n=0 如实✅）；artifact 七件 task_logs/RR12r4_artifacts/；识图独立复核 4 图：rr35 双主题 PASS（RR35 修复确认到位）、rr32-capsule-light PASS、**rr32-capsule-dark FAIL（IHDR 460×76 半分辨率 vs 浅色孪生 920×152，且为 README 门面图→立 RR37）**；差距 7 条零悬空：立 RR37（P2 门面图重截）/RR38（P3 行尾悬挂「·」）/RR39（P3 README:42 复选项口径），不立卡 4 条附理由（环心灰调沿第3轮点单池/下半留白审美项/v0.3 留点单→D031/空壳句柄+n=0 运行时积累）；产物批落库 main（报告+D031+三卡+脚本刷新数据+RR35/RR36 未跟踪 done/patch 收编）。阶段切 WORK。
@@ -425,9 +459,9 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 
 ## 建议领取顺序
 
-1. RR37（P2 docs+发布：深色胶囊门面图 460×76 坏档重截 920×152+识图）→ RR38（P3 ui：采集状态卡行尾悬挂「·」）→ RR39（P3 docs：README:42 复选项口径诚实化）；RR37/RR39 同域串行，RR38 可穿插
-2. RR30（🎣 挖卡，依赖用户 CI 首跑，不可领）
-3. 三卡闭环后 REVIEW 第 5 轮（§9.1 全量执行；v0.3 维持留点单见 D031 用户门控期）
+1. RR40（🔧 ui P3：「·」行首避头——与「成功」绑定或去点改间距，锁测试口径同步，双主题截图识图）
+2. RR41（🔧 docs P3：README:110 状态行刷新为执行时实况，check-release 门）
+3. RR30（🎣 挖卡，依赖用户 CI 首跑，不可领）；v0.3 维持留点单见 D031 用户门控期
 
 
 

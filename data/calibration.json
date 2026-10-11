@@ -1,11 +1,11 @@
 {
   "schema": "reset-radar/calibration@1",
-  "generatedAt": "2026-10-11T11:15:03.386Z",
+  "generatedAt": "2026-10-11T12:05:57.057Z",
   "state": "fresh",
   "historySource": {
     "state": "fresh",
-    "fetchedAt": "2026-10-11T11:15:03.386Z",
-    "asOf": "2026-10-11T11:15:03.386Z",
+    "fetchedAt": "2026-10-11T12:05:57.057Z",
+    "asOf": "2026-10-11T12:05:57.057Z",
     "ageDays": 0,
     "totalEvents": 60,
     "quotaResetEvents": 54,

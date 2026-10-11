@@ -1,0 +1,42 @@
+From d0c81585ee9482830255fe728500e35e13abb0cd Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 19:53:30 +0800
+Subject: [PATCH] =?UTF-8?q?docs:=20split=20README=20feature-list=20checkbo?=
+ =?UTF-8?q?x=20into=20honest=20entries=20=E2=80=94=20in-app=20calibration?=
+ =?UTF-8?q?=20summary=20(RR28=20three-state=20read-only=20panel,=20shipped?=
+ =?UTF-8?q?)=20vs=20in-app=20prediction=20auto-persist=20(not=20wired;=20D?=
+ =?UTF-8?q?019=20keeps=20evidence=20pipeline=20in=20scripts=20writing=20da?=
+ =?UTF-8?q?ta/predictions.jsonl);=20sync=20adjacent=20calibrate-report=20r?=
+ =?UTF-8?q?oadmap=20parenthetical=20(RR39)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ README.md | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/README.md b/README.md
+index 6c28504..c470c43 100644
+--- a/README.md
++++ b/README.md
+@@ -35,11 +35,14 @@ reset-radar 的核心差异是**校准闭环**——每条风险预测都被落
+ - [x] 📝 **预测落盘**：每日评估幂等追加到 `data/predictions.jsonl`（同日只在风险漂移超阈值时
+   补行），只追加不修改——校准闭环的原料。
+ - [x] 🎯 **校准报告**：`npm run calibrate` 输出命中率、Brier 分数与逐周趋势
+-  （应用内校准面板在 [ROADMAP.md](ROADMAP.md) v0.2）。
++  （应用内校准摘要已入「数据与校准」页；深化面板见 [ROADMAP.md](ROADMAP.md) v0.2）。
+ - [x] ⚡ **秒开**：快照持久化 + 热启动，首屏先画上次数据再后台刷新。
+ - [x] 🔒 **本地优先**：无遥测、无账号；鉴权完全交给本机 `codex` CLI（app-server stdio），
+   本应用不经手任何密钥。
+-- [ ] 🖥️ 应用内校准面板 / 预测自动落盘到应用数据目录（[ROADMAP.md](ROADMAP.md) v0.2+）。
++- [x] 🖥️ **应用内校准摘要**：「数据与校准」页只读展示应用目录 `calibration.json` 摘要
++  （正常/缺失/无效三态，零样本如实标注"数据积累中"，RR28）。
++- [ ] 🗃️ 预测自动落盘到应用数据目录：现为脚本管线（`npm run log-prediction`）落盘
++  `data/predictions.jsonl`，应用内暂不接入（[ROADMAP.md](ROADMAP.md) v0.2+）。
+ 
+ ## 校准闭环怎么跑（差异化核心）
+ 
+-- 
+2.52.0.windows.1
+
