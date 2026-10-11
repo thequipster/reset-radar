@@ -1,85 +1,106 @@
-// 快照接线 hook（RR09）：Tauri invoke + 后台刷新事件监听；纯浏览器环境优雅降级 demo。
-import { useEffect, useState } from "react";
+// 快照接线 hook（RR09 → RR27 生命周期重做，02-spec §7.2）：初始化中/空返回/读取错误/
+// 手动刷新 in-flight 全部显式化；事件订阅失败独立横幅，不清空已有数据。
+// 浏览器环境优雅降级 demo（携带演示标识）。UI 层零业务规则：数字仍只来自 VM。
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { ProviderSnapshot } from "./types";
+import { demoSnapshot } from "./demoScenarios";
 
 /** Tauri v2 注入检测（浏览器 vite dev 下无此全局 → demo 降级）。 */
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-/**
- * 浏览器降级演示快照：数值取 RR08 冒烟实测落盘样本（plan=PLUS/周窗 29%/credits 3），
-  仅用于 `npm run dev` 无 Tauri 时的界面预览，不参与任何测试断言。
- */
-function demoSnapshot(): ProviderSnapshot {
-  const now = new Date();
-  const weeklyResetsAt = new Date(
-    Math.ceil((now.getTime() + 2 * 86_400_000) / 86_400_000) * 86_400_000,
-  ).toISOString();
-  return {
-    provider: "codex",
-    displayName: "CODEX",
-    plan: "PLUS",
-    weeklyWindow: {
-      remainingPercent: 29,
-      resetsAt: weeklyResetsAt,
-      windowSeconds: 604_800,
-    },
-    shortWindow: {
-      remainingPercent: 64,
-      resetsAt: null,
-      windowSeconds: 3600,
-    },
-    resetCredits: 3,
-    rateLimitSnapshot: {
-      source: "app-server",
-      usedPercent: 71,
-      windowDurationMins: 10_080,
-      resetsAt: weeklyResetsAt,
-      observedAt: now.toISOString(),
-    },
-    updatedAt: now.toISOString(),
-    status: "ok",
-    message: null,
-  };
-}
+export type SnapshotPhase = "initializing" | "ready" | "empty" | "read-error";
 
 export interface SnapshotsState {
   snapshots: ProviderSnapshot[];
-  /** true = Tauri 实数据；false = 浏览器 demo 降级。 */
+  /** true = Tauri 实数据；false = 浏览器 demo 降级（界面必须带演示标识）。 */
   live: boolean;
+  phase: SnapshotPhase;
+  /** 读取失败的可读原因（phase=read-error 时非空）。 */
+  readError: string | null;
+  /** 后台事件订阅失败（数据仍可显示，独立横幅“自动更新不可用”）。 */
+  subscriptionError: boolean;
+  /** 手动刷新 in-flight（只在此已知在飞时显示刷新标识，02-spec §5）。 */
+  refreshing: boolean;
+  refresh: () => void;
 }
 
-/** 拉取 get_snapshots 并订阅 background-snapshots-updated（RR08 契约，lib.rs:27）。 */
 export function useSnapshots(): SnapshotsState {
   const [state, setState] = useState<SnapshotsState>(() =>
     isTauri()
-      ? { snapshots: [], live: true }
-      : { snapshots: [demoSnapshot()], live: false },
+      ? {
+          snapshots: [], live: true, phase: "initializing", readError: null,
+          subscriptionError: false, refreshing: false, refresh: () => {},
+        }
+      : {
+          snapshots: [demoSnapshot()], live: false, phase: "ready", readError: null,
+          subscriptionError: false, refreshing: false, refresh: () => {},
+        },
   );
+  const refreshInFlight = useRef(false);
 
-  useEffect(() => {
-    if (!isTauri()) return; // 浏览器环境保持 demo，不触发会失败的调用
-    let disposed = false;
-    const apply = (values: ProviderSnapshot[]) => {
-      if (!disposed && Array.isArray(values) && values.length > 0) {
-        setState({ snapshots: values, live: true });
-      }
-    };
-    invoke<ProviderSnapshot[]>("get_snapshots").then(apply).catch(() => {
-      /* 采集失败保留空态：UI 展示 unavailable 占位，不崩溃 */
-    });
-    const unlisten = listen<ProviderSnapshot[]>(
-      "background-snapshots-updated",
-      (event) => apply(event.payload),
-    );
-    return () => {
-      disposed = true;
-      unlisten.then((fn) => fn()).catch(() => {});
-    };
+  const apply = useCallback((values: ProviderSnapshot[]) => {
+    setState((prev) => ({
+      ...prev,
+      snapshots: Array.isArray(values) ? values : prev.snapshots,
+      phase: Array.isArray(values) && values.length > 0 ? "ready" : "empty",
+      readError: null,
+    }));
   }, []);
 
-  return state;
+  const refresh = useCallback(() => {
+    if (!isTauri() || refreshInFlight.current) return; // in-flight 防连点（02-spec §2）
+    refreshInFlight.current = true;
+    setState((prev) => ({ ...prev, refreshing: true }));
+    invoke<ProviderSnapshot[]>("refresh_snapshots")
+      .then((values) => {
+        apply(values);
+        setState((prev) => ({ ...prev, refreshing: false }));
+      })
+      .catch((error: unknown) => {
+        // 手动刷新失败：保留旧值并给出可读原因（02-spec §6「后续读取失败、有旧快照」）。
+        setState((prev) => ({
+          ...prev,
+          refreshing: false,
+          phase: prev.snapshots.length > 0 ? prev.phase : "read-error",
+          readError: String((error as { message?: string })?.message ?? error),
+        }));
+      })
+      .finally(() => {
+        refreshInFlight.current = false;
+      });
+  }, [apply]);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let disposed = false;
+    invoke<ProviderSnapshot[]>("get_snapshots")
+      .then((values) => {
+        if (!disposed) apply(values);
+      })
+      .catch((error: unknown) => {
+        if (disposed) return;
+        setState((prev) => ({
+          ...prev,
+          phase: "read-error",
+          readError: String((error as { message?: string })?.message ?? error),
+        }));
+      });
+    listen<ProviderSnapshot[]>("background-snapshots-updated", (event) => apply(event.payload))
+      .then((unlisten) => {
+        if (disposed) unlisten();
+      })
+      .catch(() => {
+        // 订阅失败但读取已有结果：数据保留，横幅提示（02-spec §6）。
+        if (!disposed) setState((prev) => ({ ...prev, subscriptionError: true }));
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [apply]);
+
+  return { ...state, refresh };
 }

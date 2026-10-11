@@ -1,0 +1,3 @@
+expanded ClientH: 1380 (期望 1380=2x690)
+after-Escape ClientH: 152 (期望 152=2x76)
+ESCAPE_OK

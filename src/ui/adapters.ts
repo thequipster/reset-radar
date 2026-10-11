@@ -16,7 +16,6 @@ import {
   type ResetStatusEvaluation,
   assessHistorySource,
   type HistorySourceAssessment,
-  parseCalibrationSummary,
   type CalibrationSummaryView,
 } from "../lib";
 import type { ProviderSnapshot } from "./types";
@@ -61,7 +60,7 @@ export function buildDashboard(
   history: readonly string[],
   now: Date = new Date(),
   historyDocument?: unknown,
-  calibrationSummaryContent?: string | null,
+  calibrationSummary?: CalibrationSummaryView,
 ): DashboardViewModel {
   const observedAt =
     snapshot.rateLimitSnapshot?.observedAt ?? snapshot.updatedAt;
@@ -140,7 +139,7 @@ export function buildDashboard(
     resetStatus: status != null && statusEvaluation != null ? { ...status, ...statusEvaluation } : null,
     riskEvaluatedAt: modelAsOf.toISOString(),
     historySource: historyDocument === undefined ? null : assessHistorySource(historyDocument, now),
-    calibrationSummary: parseCalibrationSummary(calibrationSummaryContent),
+    calibrationSummary: calibrationSummary ?? { status: "missing" },
     prediction: buildPredictionRecord({ risk, evaluatedAt: modelAsOf.toISOString(), recordedAt: now,
       quotaStatus: snapshot.status, resetSourceState: statusEvaluation?.state ?? null }),
   };

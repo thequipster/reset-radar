@@ -1,0 +1,1039 @@
+/* RR27 展开面板（图3 暗色霓虹主参考 + 图4 浅色对应 + 图5 状态六宫格）：
+   通知行 → 额度状态与今日建议 → 风险分析 → 重置规划与用卡决策 → 数据与校准底栏。 */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-panel);
+  color: var(--text-primary);
+  font-size: 12px;
+  height: calc(100% - 16px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  animation: rr-fade-in 180ms ease-out;
+}
+
+/* ── 顶栏（常驻，不在滚动区外） ─────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+  z-index: 2;
+}
+
+.headerDrag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.logo {
+  color: var(--accent-blue);
+  filter: drop-shadow(0 0 6px rgba(46, 124, 246, 0.55));
+  flex: 0 0 auto;
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.titleMain {
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.titleSub {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.iconButton {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
+}
+
+.iconButton:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.iconButton:active {
+  transform: translateY(1px);
+}
+
+.themeToggle {
+  display: inline-flex;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 2px;
+  gap: 2px;
+  background: var(--bg-inset);
+}
+
+.themeOption {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.themeOptionActive {
+  background: var(--accent-blue);
+  color: #fff;
+}
+
+/* ── 通知行（公告琥珀卡 + 采集状态卡） ─────────────────── */
+.notices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.noticeCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  min-width: 0;
+}
+
+.noticeCardAnnouncement {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+  background: var(--warn-dim);
+  color: var(--warn-text);
+}
+
+.noticeCardError {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  background: var(--danger-dim);
+  color: var(--danger-text);
+}
+
+.noticeCardOk {
+  color: var(--success);
+}
+
+.noticeIcon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.noticeBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.noticeTitle {
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.noticeSub {
+  font-size: 10px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* ── 区块标题 ──────────────────────────────────────────── */
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+}
+
+.sectionIcon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  color: var(--accent-blue-bright);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sectionLink {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--accent-blue-bright);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+
+.sectionLink:hover {
+  background: var(--bg-card-hover);
+}
+
+/* ── 双圆环余额卡 ──────────────────────────────────────── */
+.quotaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.quotaCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  min-width: 0;
+}
+
+.ringBlue {
+  color: var(--ring-track);
+}
+
+.ringBlue :global(.ring-value) {
+  color: var(--accent-blue-bright);
+}
+
+.ringGreen {
+  color: var(--ring-track);
+}
+
+.ringGreen :global(.ring-value) {
+  color: var(--success);
+}
+
+.ringCenter {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.quotaText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.quotaLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.quotaSub {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+/* ── 紫色建议横幅（图6 权威样例） ──────────────────────── */
+.suggestionBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--purple-banner-a), var(--purple-banner-b) 55%, var(--purple-banner-c));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: var(--glow-purple);
+  color: #fff;
+  min-width: 0;
+}
+
+.suggestionBannerPlain {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: none;
+  color: var(--text-primary);
+}
+
+.suggestionIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.suggestionIconPlain {
+  background: var(--warn-dim);
+  color: var(--warn-text);
+}
+
+.suggestionIconError {
+  background: var(--danger-dim);
+  color: var(--danger-text);
+}
+
+.suggestionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.suggestionLabel {
+  font-size: 12px;
+  opacity: 0.92;
+}
+
+.suggestionLabelPlain {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.suggestionNumber {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--suggestion-number);
+  overflow-wrap: anywhere;
+}
+
+.suggestionNumberSuffix {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.suggestionSub {
+  font-size: 11px;
+  color: rgba(196, 181, 253, 0.85);
+}
+
+.suggestionSubPlain {
+  color: var(--text-secondary);
+}
+
+.suggestionTail {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.suggestionTailPlain {
+  color: var(--text-tertiary);
+}
+
+/* ── 配速四行（均匀/前拉/软上限/最终） ─────────────────── */
+.pacingRows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pacingRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid transparent;
+  min-width: 0;
+}
+
+.pacingRowFinal {
+  border-color: color-mix(in srgb, var(--accent-purple) 60%, transparent);
+}
+
+.pacingIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: var(--bg-inset);
+}
+
+.pacingIconCyan { color: var(--accent-cyan); }
+.pacingIconWarn { color: var(--warn-text); background: var(--warn-dim); }
+.pacingIconDanger { color: var(--danger-text); background: var(--danger-dim); }
+.pacingIconPurple { color: var(--accent-purple-text); }
+
+.pacingBody {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.pacingLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pacingNote {
+  font-size: 10px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.pacingValue {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.pacingValueCyan { color: var(--accent-cyan); }
+.pacingValueWarn { color: var(--warn-text); }
+.pacingValueDanger { color: var(--danger-text); }
+.pacingValuePurple { color: var(--accent-purple-text); }
+
+/* ── 风险双卡 ──────────────────────────────────────────── */
+.riskGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.riskCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  min-width: 0;
+}
+
+.riskIconBox {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--danger-dim);
+  color: var(--danger-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.riskText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.riskLabel {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.riskValue {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.riskValueDanger { color: var(--danger-text); }
+
+.riskBadge {
+  display: inline-flex;
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+}
+
+.riskBadgeMid { color: var(--warn-text); background: var(--warn-dim); }
+.riskBadgeHigh { color: var(--danger-text); background: var(--danger-dim); }
+.riskBadgeLow { color: var(--success); background: var(--success-dim); }
+
+/* ── 因子贡献列表（含风险与规划因子） ──────────────────── */
+.factorList {
+  display: flex;
+  flex-direction: column;
+}
+
+.factorRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+.factorRow:last-child {
+  border-bottom: none;
+}
+
+.factorIcon {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.factorLabel {
+  font-size: 12px;
+  flex: 0 1 auto;
+  min-width: 72px;
+  overflow-wrap: anywhere;
+}
+
+.factorNote {
+  font-size: 10px;
+  color: var(--text-secondary);
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.factorDelta {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.factorDeltaPositive { color: var(--danger-text); }
+.factorDeltaNegative { color: var(--accent-cyan); }
+
+.factorDisclosure {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  color: var(--accent-blue-bright);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.factorDisclosure:hover {
+  background: var(--bg-card-hover);
+}
+
+/* ── 用卡规划区 ────────────────────────────────────────── */
+.plannerGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.plannerCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  min-width: 0;
+}
+
+.plannerCardBlueIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-blue-deep));
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.plannerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.plannerBig {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.plannerSub {
+  font-size: 10px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.decisionCard {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--success) 45%, transparent);
+  background: var(--success-dim);
+  min-width: 0;
+}
+
+.decisionIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.15);
+  color: #facc15;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.decisionText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.decisionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.decisionMain {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.decisionSub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.metricMini {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  min-width: 0;
+}
+
+.metricMiniLabel {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.metricMiniValue {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ── 候选日柱状图 ──────────────────────────────────────── */
+.chartCard {
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+}
+
+.chartTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.chartNote {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-top: 6px;
+}
+
+:global(.outlook-chart) {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 110px;
+}
+
+:global(.outlook-col) {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  height: 100%;
+}
+
+:global(.outlook-value) {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+:global(.outlook-value.best) {
+  color: var(--success);
+  font-weight: 700;
+}
+
+:global(.outlook-bar-track) {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 30px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-radius: 4px 4px 0 0;
+}
+
+:global(.outlook-bar) {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, var(--accent-blue-bright), var(--accent-blue-deep));
+}
+
+:global(.outlook-bar.best) {
+  background: linear-gradient(180deg, #34d399, var(--success-deep));
+}
+
+:global(.outlook-axis) {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  text-align: center;
+  white-space: nowrap;
+}
+
+:global(.outlook-axis.best) {
+  color: var(--success);
+  font-weight: 600;
+}
+
+/* ── 底栏：数据与校准 ──────────────────────────────────── */
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 2px;
+}
+
+.dataLines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dataLine {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+.dataLineKey {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.dataLineValue {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dataLineStale {
+  color: var(--warn-text);
+}
+
+.calibrationLine {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  min-width: 0;
+}
+
+.calibrationKey {
+  color: var(--text-secondary);
+  flex: 0 0 auto;
+}
+
+.calibrationValue {
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.calibrationZero {
+  color: var(--text-secondary);
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--accent-blue);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--glow-blue);
+  transition: filter 120ms ease, transform 120ms ease;
+}
+
+.primaryButton:hover {
+  filter: brightness(1.1);
+}
+
+.primaryButton:active {
+  transform: translateY(1px);
+}
+
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ghostButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.ghostButton:hover {
+  background: var(--bg-card-hover);
+}
+
+.copied {
+  color: var(--success);
+}
+
+.demoBadge {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--warn-text);
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* ── 骨架/空/加载（图5） ───────────────────────────────── */
+.skeleton {
+  border-radius: 6px;
+  background: var(--bg-skeleton);
+  color: transparent;
+  min-height: 12px;
+}
+
+.skeletonBlock {
+  height: 84px;
+  border-radius: 12px;
+}
+
+.loadingBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-card);
+}
+
+.loadingSpinner {
+  color: var(--accent-blue);
+  flex: 0 0 auto;
+}
+
+.loadingText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.loadingTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-blue-bright);
+}
+
+.loadingSub {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.stateBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.stateBannerError {
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  background: var(--danger-dim);
+  color: var(--danger-text);
+}
+
+.stateBannerWarn {
+  border: 1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  background: var(--warn-dim);
+  color: var(--warn-text);
+}
+
+.stateBannerEmpty {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.stateIcon {
+  flex: 0 0 auto;
+}
+
+.stateBody {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.stateTitle {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stateSub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.stateAction {
+  flex: 0 0 auto;
+}
+
+.mutedNote {
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.hidden {
+  display: none;
+}
+
+.titleSubPlan {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-weight: 600;
+}

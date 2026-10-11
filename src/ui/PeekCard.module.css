@@ -1,0 +1,93 @@
+/* RR27 迷你预览（图2 语言）：悬浮条下方气泡面板；顶部小三角连回条体。 */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 8px 8px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-panel);
+  color: var(--text-primary);
+  font-size: 12px;
+  animation: rr-fade-in 180ms ease-out;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+
+.rowLabel {
+  color: var(--text-secondary);
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.rowValue {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rowValueAccent {
+  color: var(--accent-purple-text);
+}
+
+.rowValueWarn {
+  color: var(--warn-text);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+}
+
+.observed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.observedIcon {
+  color: var(--text-tertiary);
+  flex: 0 0 auto;
+}
+
+.openButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--accent-blue-bright);
+  font-size: 12px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: background 120ms ease;
+}
+
+.openButton:hover {
+  background: var(--bg-card-hover);
+}
+
+.demoBadge {
+  font-size: 9px;
+  color: var(--warn-text);
+}

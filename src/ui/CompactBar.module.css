@@ -1,0 +1,200 @@
+/* RR27 悬浮条（图1 语言；02-spec §3.2 六件线框）：深色玻璃胶囊、发光描边、
+   2×3 拖动把手、品牌+状态点、周余/风险/卡数、展开钮（≥44 命中）。
+   防叠字纪律：文本列 min-width:0 + nowrap + ellipsis，flex 收缩时截断不重叠。 */
+
+.shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 8px;
+  margin: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-panel), var(--glow-blue);
+  color: var(--text-primary);
+  font-size: 13px;
+  user-select: none;
+  position: relative;
+  min-width: 0;
+}
+
+.dragHandle {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-tertiary);
+  cursor: grab;
+  padding: 4px 0;
+  flex: 0 0 auto;
+}
+
+.dragHandle svg {
+  pointer-events: none; /* 让事件落在把手容器上（Tauri 拖动区判定看 e.target） */
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.logo {
+  color: var(--accent-blue);
+  filter: drop-shadow(0 0 6px rgba(46, 124, 246, 0.55));
+  flex: 0 0 auto;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.brandName {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.brandSub {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.dotOk {
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(46, 230, 166, 0.7);
+}
+
+.dotWarn {
+  background: var(--warn);
+}
+
+.dotError {
+  background: var(--danger);
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.metricText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.12;
+  min-width: 0;
+}
+
+.metricValue {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metricLabel {
+  font-size: 9px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metricLabelRisk {
+  color: var(--danger-text);
+}
+
+.riskIconBox {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--danger-dim);
+  color: var(--danger-text);
+  flex: 0 0 auto;
+}
+
+.cardIconBox {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-blue-deep));
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+.spacer {
+  flex: 1 1 8px;
+  min-width: 4px;
+}
+
+.expandButton {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-inset);
+  color: var(--accent-blue-bright);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.expandButton:hover {
+  background: var(--bg-card-hover);
+}
+
+.expandButton:active {
+  transform: translateY(1px);
+}
+
+.skeleton {
+  border-radius: 6px;
+  background: var(--bg-skeleton);
+  color: transparent;
+}
+
+.demoBadge {
+  font-size: 9px;
+  color: var(--warn-text);
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  padding: 1px 5px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}

@@ -12,7 +12,9 @@ param(
   [Parameter(Mandatory)][string]$OutPng,
   [int]$Port = 9333,
   # 目标 hash：默认 #expanded（起始展开）；空串=默认胶囊态（两跳重载后仍回胶囊）
-  [string]$Hash = "#expanded"
+  [string]$Hash = "#expanded",
+  # RR27：截图前把展开面板滚到底（底栏按钮/校准行在折叠线下方，需滚动佐证可达）
+  [switch]$ScrollBottom
 )
 
 Add-Type -AssemblyName System.Drawing
@@ -84,6 +86,11 @@ Recv-Until 1 | Out-Null
 Send-Cdp 2 "Page.navigate" ('{"url":"' + $base + $Hash + '"}')
 $nav = Recv-Until 2
 "Navigate: $nav"
+if ($ScrollBottom) {
+  Start-Sleep -Seconds 3   # 等 React 挂载完成（导航响应早于渲染）
+  Send-Cdp 3 "Runtime.evaluate" '{"expression":"document.querySelector(''[role=main]'').scrollTop = 1e6; ''scrolled''","returnByValue":true}'
+  "Scroll: $(Recv-Until 3)"
+}
 $ws.Dispose()
 
 Start-Sleep -Seconds 3   # 等整页加载+快照渲染
