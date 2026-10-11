@@ -14,10 +14,11 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：MERGE（RR09 🟡待合入；RR10–RR12 🟠可领）**
-（下一班建议：占 MERGE 槽合入 RR09（单 commit 12d8380，patch task_logs/RR09.patch 对 main
-干净适用；拆 worktree 前先拆 node_modules junction 见 done →下轮3）→ 阶段切 WORK 领 RR10
-（预测落盘）。RR09 遗留小项：展开态截图（done →下轮1，两条路径）+ 胶囊溢出 420px 窗宽立修卡）
+**当前阶段：WORK（RR11/RR12 🟠可领）**
+（下一班建议：领 RR11（docs+发布域：README 真实截图与功能清单勾选/版本 0.1.0 两处同步/
+release workflow/LICENSE+TRUTH 致谢检查；RR09 胶囊态截图 docs/screenshots/ 已有、展开态
+截图缺失可在卡内注明留 REVIEW）。RR12 首轮 REVIEW 待 RR11 合入后执行，取材：app 内自动
+落盘路径汇流（D019③）/展开态截图/胶囊溢出 420px/ROADMAP 扫描）
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -26,7 +27,34 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
-### [2026-10-11 07:21→08:05] RR09 | P1 | 🧱🟡待合入 | ui | 会话 S1011-0713
+### [2026-10-11 07:56→08:00] RR10 | P1 | 🧱🟢已闭环 | core+data-layer | 会话 S1011-0743 交付 → S1011-0813 合入
+- 合入：agent/RR10 @ d35bc8b（2 commits c78e462+d35bc8b）→ main **8ec7d6b**
+  （cherry-pick，树恒等✅ 涉及 7 路径 diff 0 字节；worktree/分支已拆——junction 先拆
+  cmd rmdir 一步干净，主仓 node_modules 完好）
+- 主仓复验：tsc✅ vitest 全量 86/86 0failed✅（基线 73→86 只升；Rust 门不适用——本卡
+  未动 src-tauri/）
+- 分支/commit：agent/RR10 @ **d35bc8b**（2 commits；基于 main 0bbd62c；patch 备份
+  task_logs/RR10.patch 对 main 干净适用✅）
+- 已落：src/lib/predictions.ts 幂等追加单一源（同日首评必落/漂移>0.5 补行/否则抑制/
+  坏行保留）+ scripts/log-prediction.mjs 落盘器薄壳（calibrate.mjs 点名期待）+
+  data/predictions.jsonl 首行（落盘器生成，24.5=RR04 golden 同源交叉验证）+ D019 决策
+- 四绿：tsc✅ 域 13/13✅ 全量 86/86 0failed✅（基线 73→86 只升）变异红验两轮✅
+  （阈值比较符>=红1 / 日键换源UTC红1）+ 落盘器冒烟两跑幂等实证✅（第2跑 suppressed）
+- 设计裁决 D019：阈值 0.5=score 一位小数显示精度下界；app 内落盘不接（%APPDATA% 与
+  校准读取断链，留 REVIEW）
+- 遗留（REVIEW 取材）：app 内自动落盘路径汇流（D019③）+ RR09 两遗留（展开态截图/
+  胶囊溢出立修卡）
+
+### [2026-10-11 07:21→07:55] RR09 | P1 | 🧱🟢已闭环 | ui | 会话 S1011-0713 交付 → S1011-0743 合入
+- 合入：agent/RR09 @ 12d8380（单 commit）→ main **0bbd62c**（cherry-pick，树恒等✅；
+  worktree/分支已拆——junction 先拆，RR09 空壳目录被句柄占用暂留磁盘，git 状态已清）
+- 主仓复验：tsc✅ vitest 全量 73/73 0failed✅（基线 65→73 只升）cargo check --tests 1.27s✅
+- 交付详情：task_logs/RR09_done.md（src/ui/ 六件+App 两态+窗高 560；数字全部来自
+  src/lib；胶囊态截图真实数据 29% 端到端）
+- 遗留（REVIEW 取材）：①展开态截图（done 有两条路径）②胶囊溢出 420px 立修卡
+- 解锁：RR10 可领（data-layer 预测落盘）；RR11 待展开态截图
+
+### [2026-10-11 07:21→08:05] RR09 交付记录（S1011-0713，已由上行合入闭环吸收）
 - 分支/commit：agent/RR09 @ **12d8380**（单 commit；基于 main 42d443c；patch 备份
   task_logs/RR09.patch 对 main 干净适用）
 - 已落：src/ui/ 六件（types 契约/adapters 纯映射/useSnapshots 事件接线+浏览器降级 D018/

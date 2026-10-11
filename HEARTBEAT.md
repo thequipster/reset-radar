@@ -60,3 +60,11 @@
 | 2026-10-11T07:16+08 | S1011-0713 | 收工 | RR08 | — | MERGE 闭环：a1f802a(2 commits)→main 42d443c 树恒等✅；预审四过（探活 a1f802a 一致/对账7文件+923行/patch干净适用/交集空）；主仓复验 tsc✅ vitest 全量65/65 0failed✅ cargo check --tests 12.9s✅；worktree/分支已拆；BOARD 转🟢、阶段切 WORK；MERGE 槽释放，本会话转 WORK 领 RR09 |
 | 2026-10-11T07:21+08 | S1011-0713 | 领卡 | RR09 | LIGHT | WORK 阶段按建议顺序领 RR09（ui 域：悬浮胶囊+展开卡三块，数据 invoke get_snapshots+listen 事件）；建 worktree agent/RR09 开工 |
 | 2026-10-11T08:05+08 | S1011-0713 | 收工 | RR09 | — | 交付完毕：12d8380 四绿全过+变异两轮+cargo check 复验；release app（B01 路径，tauri dev 本机 cdylib 死路 B09）实跑 PrintWindow 截图胶囊态真实数据 29% 端到端✅；展开态截图因 agent 无前台权留→下轮（done 有两条路径）；TRUTH B09/D018 已记；BOARD 转🟡、阶段切 MERGE；本会话 MERGE 一张（RR08→main 42d443c）+完卡一张（RR09），槽位释放 |
+| 2026-10-11T07:43+08 | S1011-0743 | 开工 | — | — | 工位会话：STOP 区空，读五件套完毕，判定 MERGE（RR09 🟡唯一待合，上心跳 08:05 收工无他人在飞；按 BOARD 建议占 MERGE 槽合入 RR09 后转 WORK 领 RR10） |
+| 2026-10-11T07:45+08 | S1011-0743 | 领卡 | RR09 | MERGE | 占 MERGE 槽合入 RR09：开始预审（worktree 探活/diffstat 对账/patch 备份核对/路径交集） |
+| 2026-10-11T07:55+08 | S1011-0743 | 收工 | RR09 | — | MERGE 闭环：12d8380→main 0bbd62c 树恒等✅；预审四过；主仓复验 tsc✅ vitest 73/73 0failed✅ cargo check --tests 1.27s✅；worktree/分支已拆（junction 先拆；空壳目录句柄占用暂留，git 已清）；BOARD 转🟢、阶段切 WORK；MERGE 槽释放，本会话转 WORK 领 RR10 |
+| 2026-10-11T07:56+08 | S1011-0743 | 领卡 | RR10 | LIGHT | WORK 阶段按建议顺序领 RR10（core+data-layer：predictions.jsonl 预测落盘幂等追加——校准闭环原料）；建 worktree agent/RR10 开工 |
+| 2026-10-11T08:00+08 | S1011-0743 | 收工 | RR10 | — | 交付完毕：d35bc8b 四绿全过（tsc✅ 域13/13✅ 全量86/86 0failed✅ 变异两轮：阈值>=红1/日键UTC红1）+落盘器冒烟幂等两跑✅；predictions.jsonl 首行 24.5=RR04 golden 交叉验证；D019 已记（阈值0.5+落盘器走脚本）；BOARD 转🟡、阶段切 MERGE；本会话时间盒内 MERGE 一张（RR09→main 0bbd62c 树恒等✅ 73/73✅）+完卡一张（RR10），槽位释放 |
+| 2026-10-11T08:13+08 | S1011-0813 | 开工 | — | — | 工位会话：STOP 区空，读五件套完毕，判定 MERGE（RR10 🟡唯一待合，上心跳 08:00 收工无他人在飞；按 BOARD 建议占 MERGE 槽合入 RR10 后转 WORK 领 RR11） |
+| 2026-10-11T08:15+08 | S1011-0813 | 领卡 | RR10 | MERGE | 占 MERGE 槽合入 RR10：开始预审（worktree 探活/diffstat 对账/patch 备份核对/路径交集） |
+| 2026-10-11T08:18+08 | S1011-0813 | 收工 | RR10 | — | MERGE 闭环：d35bc8b(2 commits)→main 8ec7d6b 树恒等✅（7路径diff 0字节）；预审四过；主仓复验 tsc✅ vitest 86/86 0failed✅；worktree/分支已拆（junction 先拆，无残留）；BOARD 转🟢、阶段切 WORK；MERGE 槽释放，本会话转 WORK 领 RR11 |

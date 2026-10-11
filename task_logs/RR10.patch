@@ -1,0 +1,405 @@
+From c78e46212fc606dd99e8f49193a57f7204161b8e Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 07:50:51 +0800
+Subject: [PATCH 1/2] feat(core+data): idempotent daily prediction log appended
+ to data/predictions.jsonl (RR10)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- src/lib/predictions.ts: appendPredictionLog 纯函数（同日首评必落/漂移>0.5 补行/
+  否则抑制；坏行保留不参与判断）+ digestFactors 因子摘要 + predictionDateKey
+  北京日键（D004）+ PREDICTION_RISK_CHANGE_THRESHOLD=0.5（D019）
+- scripts/log-prediction.mjs: 落盘器薄壳零算法（calibrate.mjs 点名期待，先例 D016
+  node 直载 .ts）；as_of=夹具 fetchedAt 与 calibrate 同口径
+- data/predictions.jsonl: 首行由落盘器生成（24.5=RR04 golden 同源交叉验证）
+- npm run log-prediction 接线；index.ts 导出 predictions 模块
+- 域测试 13 条：幂等口径/坏行防御/纯函数/摘要稳定/北京日键跨 UTC 边界
+---
+ data/predictions.jsonl                     |   1 +
+ package.json                               |   1 +
+ scripts/log-prediction.mjs                 |  61 ++++++++++
+ src/lib/__tests__/predictions.core.test.ts | 127 +++++++++++++++++++++
+ src/lib/index.ts                           |   3 +-
+ src/lib/predictions.ts                     |  96 ++++++++++++++++
+ 6 files changed, 288 insertions(+), 1 deletion(-)
+ create mode 100644 data/predictions.jsonl
+ create mode 100644 scripts/log-prediction.mjs
+ create mode 100644 src/lib/__tests__/predictions.core.test.ts
+ create mode 100644 src/lib/predictions.ts
+
+diff --git a/data/predictions.jsonl b/data/predictions.jsonl
+new file mode 100644
+index 0000000..0c67bca
+--- /dev/null
++++ b/data/predictions.jsonl
+@@ -0,0 +1 @@
++{"date":"2026-10-11","predictedRisk":24.5,"factorsDigest":"base=10,interval-hazard=3.8,recent-regime=12,weekday-empirical=-1.2","fetchedAt":"2026-10-10T23:49:40.729Z"}
+diff --git a/package.json b/package.json
+index 03c2395..2d00913 100644
+--- a/package.json
++++ b/package.json
+@@ -8,6 +8,7 @@
+     "build": "tsc && vite build",
+     "test": "vitest run",
+     "calibrate": "node scripts/calibrate.mjs",
++    "log-prediction": "node scripts/log-prediction.mjs",
+     "tauri": "tauri"
+   },
+   "dependencies": {
+diff --git a/scripts/log-prediction.mjs b/scripts/log-prediction.mjs
+new file mode 100644
+index 0000000..ac67c6c
+--- /dev/null
++++ b/scripts/log-prediction.mjs
+@@ -0,0 +1,61 @@
++#!/usr/bin/env node
++// scripts/log-prediction.mjs —— RR10：每日评估落盘器（幂等追加 data/predictions.jsonl）。
++// 用法：node scripts/log-prediction.mjs（建议先 node scripts/fetch-history.mjs 刷新夹具）。
++// 算法单一源 src/lib（RUNBOOK §1.4）：风险=assessResetRisk、幂等=appendPredictionLog——
++// 本脚本零算法，只做读夹具/调核心/追加写（先例 calibrate.mjs，D016 node ≥22.18 原生
++// type-stripping 直载 .ts）。
++// as_of = 历史夹具 fetchedAt（数据新鲜度时刻，与 calibrate.mjs 同口径）：date=as_of 北京日键
++// ——夹具滞后时评估的是「数据新鲜度所在日」（诚实语义），所以先刷新夹具再落盘。
++// 数据锁（RUNBOOK §1.5）：本脚本是 predictions.jsonl 的唯一写者，只追加、绝不修改既有行。
++
++import { appendFileSync, readFileSync } from "node:fs";
++import { fileURLToPath } from "node:url";
++
++import { appendPredictionLog, digestFactors, predictionDateKey } from "../src/lib/predictions.ts";
++import { assessResetRisk } from "../src/lib/risk.ts";
++
++const root = fileURLToPath(new URL("../", import.meta.url));
++const logPath = `${root}data/predictions.jsonl`;
++
++const history = JSON.parse(readFileSync(`${root}data/resets-history.json`, "utf8"));
++const announcedAt = history.events
++  .map((e) => e?.announcedAt)
++  .filter((v) => typeof v === "string");
++const fetchedAtMs = Date.parse(history.fetchedAt ?? "");
++if (!Number.isFinite(fetchedAtMs)) {
++  console.error("[log-prediction] 夹具 fetchedAt 缺失/非法：先跑 node scripts/fetch-history.mjs");
++  process.exit(1);
++}
++const asOf = new Date(fetchedAtMs);
++
++const risk = assessResetRisk(announcedAt, asOf);
++const candidate = {
++  date: predictionDateKey(asOf),
++  predictedRisk: risk.score,
++  factorsDigest: digestFactors(risk.factors),
++  fetchedAt: new Date().toISOString(),
++};
++
++let existing = [];
++try {
++  existing = readFileSync(logPath, "utf8")
++    .split(/\r?\n/)
++    .filter((line) => line.trim());
++} catch (err) {
++  if (err?.code !== "ENOENT") throw err; // 首次落盘：文件尚不存在
++}
++
++const outcome = appendPredictionLog(existing, candidate);
++if (outcome.appended) {
++  // 新行一律取自 appendPredictionLog 的序列化结果（单一序列化源）
++  appendFileSync(logPath, outcome.lines[outcome.lines.length - 1] + "\n");
++}
++
++console.log(
++  `[log-prediction] date=${candidate.date} predictedRisk=${candidate.predictedRisk}` +
++    ` → ${outcome.appended ? `追加（${outcome.reason}）` : `不追加（${outcome.reason}）`}` +
++    `；日志现有 ${outcome.lines.length} 行`,
++);
++if (outcome.appended) {
++  console.log(`[log-prediction] factorsDigest=${candidate.factorsDigest}`);
++}
+diff --git a/src/lib/__tests__/predictions.core.test.ts b/src/lib/__tests__/predictions.core.test.ts
+new file mode 100644
+index 0000000..227acb0
+--- /dev/null
++++ b/src/lib/__tests__/predictions.core.test.ts
+@@ -0,0 +1,127 @@
++// RR10 域测试：预测日志幂等追加（卡面验证口径：同日重复调用不重复追加/仅变化超阈值补行）。
++import { describe, expect, it } from "vitest";
++
++import {
++  PREDICTION_RISK_CHANGE_THRESHOLD,
++  appendPredictionLog,
++  digestFactors,
++  predictionDateKey,
++  type PredictionRecord,
++} from "../predictions.ts";
++
++const rec = (over: Partial<PredictionRecord> = {}): PredictionRecord => ({
++  date: "2026-10-11",
++  predictedRisk: 30,
++  factorsDigest: "weekday=+20",
++  fetchedAt: "2026-10-11T01:00:00.000Z",
++  ...over,
++});
++
++describe("appendPredictionLog 幂等（卡面口径）", () => {
++  it("空日志首评 → 追加一行，reason=first-of-day，字段序=卡面 schema", () => {
++    const out = appendPredictionLog([], rec());
++    expect(out.appended).toBe(true);
++    expect(out.reason).toBe("first-of-day");
++    expect(out.lines).toHaveLength(1);
++    const row = JSON.parse(out.lines[0]!);
++    expect(Object.keys(row)).toEqual([
++      "date",
++      "predictedRisk",
++      "factorsDigest",
++      "fetchedAt",
++    ]);
++    expect(row).toEqual(rec());
++  });
++
++  it("同日重复同值 → 不追加（suppressed-noise），行数不变", () => {
++    const base = [JSON.stringify(rec())];
++    const out = appendPredictionLog(base, rec({ fetchedAt: "2026-10-11T05:00:00.000Z" }));
++    expect(out.appended).toBe(false);
++    expect(out.reason).toBe("suppressed-noise");
++    expect(out.lines).toEqual(base);
++  });
++
++  it("同日漂移 0.6 > 阈值 0.5 → 补行（risk-drift）", () => {
++    const base = [JSON.stringify(rec({ predictedRisk: 30 }))];
++    const out = appendPredictionLog(base, rec({ predictedRisk: 30.6 }));
++    expect(out.appended).toBe(true);
++    expect(out.reason).toBe("risk-drift");
++    expect(out.lines).toHaveLength(2);
++  });
++
++  it("同日漂移 0.4 ≤ 阈值 → 抑制（suppressed-noise）", () => {
++    const base = [JSON.stringify(rec({ predictedRisk: 30 }))];
++    const out = appendPredictionLog(base, rec({ predictedRisk: 30.4 }));
++    expect(out.appended).toBe(false);
++    expect(out.lines).toHaveLength(1);
++  });
++
++  it("边界：同日漂移恰等阈值 0.5 → 抑制（严格大于才补行）", () => {
++    const base = [JSON.stringify(rec({ predictedRisk: 30 }))];
++    const out = appendPredictionLog(base, rec({ predictedRisk: 30.5 }));
++    expect(out.appended).toBe(false);
++  });
++
++  it("跨日 → 追加（每日首次评估口径）", () => {
++    const base = [JSON.stringify(rec({ date: "2026-10-10" }))];
++    const out = appendPredictionLog(base, rec({ date: "2026-10-11" }));
++    expect(out.appended).toBe(true);
++    expect(out.reason).toBe("first-of-day");
++  });
++
++  it("同日多行时与最后一行比较（30 → 30.6 后，30.3 距末行 0.3 → 抑制）", () => {
++    const base = [
++      JSON.stringify(rec({ predictedRisk: 30 })),
++      JSON.stringify(rec({ predictedRisk: 30.6 })),
++    ];
++    const out = appendPredictionLog(base, rec({ predictedRisk: 30.3 }));
++    expect(out.appended).toBe(false);
++  });
++
++  it("坏行原样保留、不参与同日判断", () => {
++    const base = ["not-json", JSON.stringify(rec({ date: "2026-10-10" }))];
++    const out = appendPredictionLog(base, rec());
++    expect(out.lines[0]).toBe("not-json");
++    expect(out.appended).toBe(true); // 坏行不算 10-11 的既有行
++  });
++
++  it("纯函数：不修改输入数组", () => {
++    const base = [JSON.stringify(rec())];
++    const frozen = [...base];
++    appendPredictionLog(base, rec({ predictedRisk: 31 }));
++    expect(base).toEqual(frozen);
++  });
++
++  it("阈值可显式覆盖（默认导出口径受上述用例覆盖）", () => {
++    expect(PREDICTION_RISK_CHANGE_THRESHOLD).toBe(0.5);
++    const base = [JSON.stringify(rec({ predictedRisk: 30 }))];
++    expect(appendPredictionLog(base, rec({ predictedRisk: 30.4 }), 0.2).appended).toBe(true);
++  });
++});
++
++describe("digestFactors 因子摘要", () => {
++  it("id=delta 逗号连接，delta 取 1 位小数", () => {
++    const factors = [
++      { id: "weekday", label: "星期", delta: 12.34, note: "" },
++      { id: "consecutive", label: "连续", delta: -6.26, note: "" },
++    ];
++    expect(digestFactors(factors)).toBe("weekday=12.3,consecutive=-6.3");
++  });
++
++  it("空因子 → 空串；顺序敏感（数组序即摘要序）", () => {
++    expect(digestFactors([])).toBe("");
++    const a = [
++      { id: "x", label: "", delta: 1, note: "" },
++      { id: "y", label: "", delta: 2, note: "" },
++    ];
++    const b = [a[1]!, a[0]!];
++    expect(digestFactors(a)).not.toBe(digestFactors(b));
++  });
++});
++
++describe("predictionDateKey 北京日键（D004）", () => {
++  it("UTC 15:30 → 当日；UTC 17:30（北京次日 01:30）→ 次日", () => {
++    expect(predictionDateKey(new Date("2026-10-11T15:30:00Z"))).toBe("2026-10-11");
++    expect(predictionDateKey(new Date("2026-10-11T17:30:00Z"))).toBe("2026-10-12");
++  });
++});
+diff --git a/src/lib/index.ts b/src/lib/index.ts
+index 9ea70b4..079ec15 100644
+--- a/src/lib/index.ts
++++ b/src/lib/index.ts
+@@ -1,7 +1,8 @@
+ // 核心层入口：纯 TS、零 React / 零 Tauri 依赖（ARCHITECTURE §2 硬约束）。
+-// risk / planner / card / calibration 四模块齐备（calibration 自 RR07 起）。
++// risk / planner / card / calibration / predictions 五模块齐备（predictions 自 RR10 起）。
+ export * from "./meta";
+ export * from "./risk";
+ export * from "./planner";
+ export * from "./resetCard";
+ export * from "./calibration";
++export * from "./predictions";
+diff --git a/src/lib/predictions.ts b/src/lib/predictions.ts
+new file mode 100644
+index 0000000..e42e3e0
+--- /dev/null
++++ b/src/lib/predictions.ts
+@@ -0,0 +1,96 @@
++// 预测日志（RR10）：把「每日评估」幂等追加进 data/predictions.jsonl——校准闭环的原料
++// （消费端：scripts/calibrate.mjs → src/lib/calibration.ts 对答案；参考项目最大遗憾
++// 「收集了数据却从不对答案」即本卡要堵的洞，BACKLOG RR10 现象）。
++// 本模块纯函数：不读文件、不读钟、不发网络；IO 薄壳在 scripts/log-prediction.mjs
++// （先例 calibrate.mjs，D016 node 直载 .ts）。
++// 行 schema（卡面四字段，序列化顺序即此）：{date, predictedRisk, factorsDigest, fetchedAt}；
++// date=北京日历键（D004 唯一日边界，复用 resetCard.beijingCalendarDateKey）。
++// 数据锁（RUNBOOK §1.5）：predictions.jsonl 只追加不修改，唯一写者=落盘器脚本。
++
++import { beijingCalendarDateKey } from "./resetCard.ts";
++import type { RiskFactor } from "./risk.ts";
++
++/** 同日补行阈值（0-100 分制）。依据：risk.score 输出固定 1 位小数（risk.ts round1），
++ *  0.5=显示精度下界——漂移超 0.5 才是可感知变化，≤0.5 视为噪声不补行。AI 裁决 D019。 */
++export const PREDICTION_RISK_CHANGE_THRESHOLD = 0.5;
++
++/** 预测日志行（BACKLOG RR10 卡面四字段）。 */
++export interface PredictionRecord {
++  date: string; // 北京日历键（评估 as_of 所在日）
++  predictedRisk: number; // 0-100，assessResetRisk().score 直传
++  factorsDigest: string; // 因子摘要（digestFactors 生成），人可读对账留痕
++  fetchedAt: string; // ISO 串，评估执行时刻（溯源）
++}
++
++/** 幂等追加结果：lines=追加后完整日志（输入不被修改）；reason 供脚本输出与人读。 */
++export interface AppendOutcome {
++  lines: string[];
++  appended: boolean;
++  reason: "first-of-day" | "risk-drift" | "suppressed-noise";
++}
++
++const round1 = (v: number) => Math.round(v * 10) / 10;
++
++/** 因子摘要：`id=delta` 逗号连接（顺序=factors 数组序；delta 取 1 位小数，与 UI 展示
++ *  口径一致——risk.ts RiskFactor 注释）。用途=留痕对账，非判等。 */
++export function digestFactors(factors: readonly RiskFactor[]): string {
++  return factors.map((f) => `${f.id}=${round1(f.delta)}`).join(",");
++}
++
++/** 评估 as_of 时刻 → 预测行 date（北京日历键，D004）。 */
++export function predictionDateKey(asOf: Date): string {
++  return beijingCalendarDateKey(asOf.getTime());
++}
++
++/** 日志行 → 记录；坏行（非法 JSON / 缺 date / predictedRisk 非Finite）返回 null。
++ *  容错口径与 calibrate.mjs readPredictionRows 同源：跳过不修。 */
++function parseRow(line: string): PredictionRecord | null {
++  try {
++    const obj = JSON.parse(line);
++    if (typeof obj?.date === "string" && Number.isFinite(obj?.predictedRisk)) {
++      return {
++        date: obj.date,
++        predictedRisk: obj.predictedRisk,
++        factorsDigest: typeof obj.factorsDigest === "string" ? obj.factorsDigest : "",
++        fetchedAt: typeof obj.fetchedAt === "string" ? obj.fetchedAt : "",
++      };
++    }
++  } catch {
++    // 坏行：跳过（不修不删，数据锁）
++  }
++  return null;
++}
++
++/**
++ * 幂等追加一条评估进预测日志（纯函数，卡面规则）：
++ * - 同日无行 → 追加（reason=first-of-day，每日首次评估）；
++ * - 同日已有行 → 仅 |candidate − 同日最后一行| > threshold 时补行（risk-drift），
++ *   否则抑制（suppressed-noise）；
++ * - 坏行原样保留在输出中，不参与同日判断。
++ */
++export function appendPredictionLog(
++  existing: readonly string[],
++  candidate: PredictionRecord,
++  threshold: number = PREDICTION_RISK_CHANGE_THRESHOLD,
++): AppendOutcome {
++  let lastOfDay: PredictionRecord | null = null;
++  for (const line of existing) {
++    const row = parseRow(line);
++    if (row && row.date === candidate.date) lastOfDay = row;
++  }
++  if (!lastOfDay) {
++    return {
++      lines: [...existing, JSON.stringify(candidate)],
++      appended: true,
++      reason: "first-of-day",
++    };
++  }
++  if (Math.abs(candidate.predictedRisk - lastOfDay.predictedRisk) > threshold) {
++    return {
++      lines: [...existing, JSON.stringify(candidate)],
++      appended: true,
++      reason: "risk-drift",
++    };
++  }
++  return { lines: [...existing], appended: false, reason: "suppressed-noise" };
++}
+-- 
+2.52.0.windows.1
+
+
+From d35bc8b890e9b86b7bfadbfdf4b06160e818b193 Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 07:51:37 +0800
+Subject: [PATCH 2/2] docs: D019 prediction log design decision (RR10)
+
+---
+ docs/DECISIONS.md | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/docs/DECISIONS.md b/docs/DECISIONS.md
+index 3e02b21..8df1b36 100644
+--- a/docs/DECISIONS.md
++++ b/docs/DECISIONS.md
+@@ -157,3 +157,19 @@
+   界面显示「demo 数据」标记；demo 快照不参与任何测试断言（adapters 测试全部自构造夹具）。
+ - 依据：RUNBOOK §4 域互斥本义（防并行撞路径，非禁配置归属）；ARCHITECTURE §2
+   （降级壳不含业务规则）；RR08 冒烟落盘实测值复用（TRUTH §1 证据链内）。
++
++## D019 RR10 预测落盘：幂等单一源在 src/lib、落盘器走脚本而非 app（2026-10-11，会话 S1011-0743）
++
++- 现象：① 卡面「同日只在风险值变化超阈值时补行」未给阈值；② 卡域标 core+data-layer，
++  落盘执行者可选 app 内（Rust command 写文件）或脚本（node 调 src/lib）。
++- 决定：① `PREDICTION_RISK_CHANGE_THRESHOLD = 0.5`（0-100 分制）——risk.score 固定输出
++  1 位小数（risk.ts round1），0.5 即显示精度下界：漂移 >0.5 才是可感知变化，≤0.5 视为噪声；
++  严格大于才补行（恰等抑制，域测试有边界锚）。② 幂等逻辑单一源 = src/lib/predictions.ts
++  纯函数 `appendPredictionLog`；落盘器 = scripts/log-prediction.mjs 薄壳（零算法，先例
++  calibrate.mjs D016 node 直载 .ts），as_of=历史夹具 fetchedAt（与 calibrate.mjs 同口径），
++  date=as_of 北京日键（D004）。app 内落盘不接：运行时 app 只拿得到 %APPDATA% 路径，与
++  校准脚本读取的仓库内 data/predictions.jsonl 断链；证据层归档（版本化、可回测）归脚本，
++  RUNBOOK §1.5 数据锁「只由脚本追加」同向。app 内每日评估自动落盘若日后需要，由 REVIEW
++  立卡统一裁决路径汇流（如 app 写 %APPDATA% + 脚本合并归档），本卡不预铺。
++- 依据：calibrate.mjs 占位文案点名「RR10 落盘器」；ARCHITECTURE §4 数据流（落盘→校准
++  回测同一条证据链）；§2 分层（算法只在核心层，IO 是薄壳）；RUNBOOK §1.4 单一实现源。
+-- 
+2.52.0.windows.1
+
