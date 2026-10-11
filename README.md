@@ -15,15 +15,15 @@ reset-radar 的核心差异是**校准闭环**——每条风险预测都被落�
 
 悬浮胶囊常驻显示当前重置风险（真实数据截图）：
 
-![胶囊态：周窗重置风险](docs/screenshots/20261011-rr21-capsule.png)
+![胶囊态：周窗重置风险](docs/screenshots/20261011-rr32-capsule-dark.png)
 
-点击胶囊展开三块面板：**风险雷达**（分数 + 可解释因子逐条列出）/ **今日建议**（配速数字与依据）/
-**用卡规划**（决策 + 期望收益 + 24h/48h 碰撞概率）：
+点击胶囊展开分页面板，四页签切换：**概览**（公告 / 余额 / 今日建议）/ **风险**（分数 + 可解释因子逐条列出）/
+**用卡**（决策 + 期望收益 + 24h/48h 碰撞概率）/ **数据**（采集状态与校准摘要）：
 
-![展开态：三块面板](docs/screenshots/20261011-rr21-expanded.png)
+![展开态：分页面板（深色主题）](docs/screenshots/20261011-rr35-expanded-dark.png)
 
-> 展开态在 460 窄窗下右侧列溢出需横向滚动（排版优化排期见 [ROADMAP.md](ROADMAP.md)）；
-> 验收/截图可用 `#expanded` hash 入口复现（`pwsh scripts/shot-expanded.ps1`）。
+> 深浅双主题随时切换（默认深色）。验收/截图可用 hash 入口直达指定页签复现
+> （如 `#expanded&tab=risk`；`pwsh scripts/shot-expanded.ps1` 支持 `-Theme light` 等参数）。
 
 ## 功能清单（v0.1.0）
 
@@ -104,4 +104,4 @@ tag 名会与版本做一致性校验，不一致构建即失败。CI/release �
 
 ---
 
-*Status: v0.1.0 发布就绪（RR01–RR11 已闭环）。此仓库由 AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议自主推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*
+*Status: v0.1.0 发布就绪（RR01–RR35 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 已 3 轮）。此仓库由 AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议自主推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*
