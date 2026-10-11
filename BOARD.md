@@ -14,10 +14,10 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（阶段4全闭环；RR33→8aa944d；RR32 🟡待合入〔S1011-1735，3237e5b〕→ 待领 RR29/RR30。下一班建议：先占 MERGE 合 RR32，再领 RR29；RR30 依赖用户 CI 首跑）**
-（阶段4顺序全部完成：RR23公告/RR15日志/RR18历史/RR19 CI/RR16 watch/RR17回测/RR28摘要/RR27照图UI。RR24/RR25已由RR26覆盖；六图视觉已落地为src/ui三态。
-下一拍：RR32 在飞（图标接入，S1011-1735）；其后 RR29（UI可访问性收尾）/RR30（MSVC发行DPI取证，依赖用户CI首跑）；或用户直接发布（三步就绪，push/tag留用户）。
-取材详单：docs/review-20261011-round2.md（最新）+ docs/review-20261011.md + RR27_done 排障遗产）
+**当前阶段：WORK（RR32→7e5dffa 已合入；待领 RR29〔UI可访问性收尾，下一班建议〕/RR30〔依赖用户 CI 首跑，跑前不可领〕；无其他🟡）**
+（阶段4+图标+License 全闭环：RR23公告/RR15日志/RR18历史/RR19 CI/RR16 watch/RR17回测/RR28摘要/RR27照图UI/RR31分页/RR32图标/RR33声明。
+下一拍：RR29 → 之后无🟠无🟡 → REVIEW 第3轮；或用户直接发布（三步就绪，push/tag留用户）。
+取材详单：docs/review-20261011-round2.md + RR32_done 排障遗产〔浅色横幅对比度→RR29 面已覆盖〕）
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -26,7 +26,10 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
-### [2026-10-11 18:05:00] RR32 | P3 | 🎣🟡待合入 | ui+assets | S1011-1735 交付
+### [2026-10-11 18:08:00] RR32 | P3 | 🎣🟢已闭环 | ui+assets | S1011-1755 MERGE
+- 3237e5b→main 7e5dffa 树恒等✅（22路径 diff 0字节含4二进制资产）；预审四过（探活/对账/patch对main干净适用/交集空）；主仓复验 tsc✅ vitest 全量248/248 0failed✅ cargo check --tests✅ check-release✅（14链接）；junction先拆（node_modules+src-tauri/target双链接）worktree移除无残留、branch归档；RR29/RR30 待领（RR30 依赖用户 CI 首跑）。MERGE 释放。
+
+### [2026-10-11 18:05:00] RR32 | P3 | 🎣🟡待合入（已闭环，见上行） | ui+assets | S1011-1735 交付
 - 3237e5b（base 77c8e0c，对现 main 8aa944d 路径无交集 patch 干净适用），22文件+238/−12；src-tauri/icons 换交付 ico(8帧)+三PNG（icns 无交付保留现件）、RadarLogo 按正稿 mark 几何逐值重绘+双主题 token（dark=精密蓝/light=02-glass）；tsc/UI域91/全量248/cargo check/check-release 绿；变异红验两组（ico 回旧件→指纹红/logo 硬编码→token 断言红）；release 实证 exe 内嵌=交付 ico 8 帧字节逐帧命中（exe-icon-bytes.txt）+识图 6 图 PASS（两主题 logo 可见/exe 图标非默认）；done/patch 齐；worktree 留 MERGE 班拆（node_modules+src-tauri/target 双 junction 先拆，B09）；LIGHT 释放。识图两条非阻断观察归 done（浅色横幅副文案对比度→RR29 面已覆盖）。
 
 ### [2026-10-11 17:56:00] RR33 | P2 | 🧱🟢已闭环 | license+docs | S1011-RR33（用户在线裁决：如实声明）
