@@ -221,3 +221,4 @@
 - 2026-10-11 09:16 RR12 首轮 artifact 批 🟢已闭环（MERGE S1011-0913：f15baad→main 6360778，树恒等✅ 5路径 diff 0字节；预审四过（worktree探活/diffstat对账5文件+190行/patch在位/交集空）；主仓复验 tsc✅ vitest 全量86/86 0failed✅；worktree/分支已拆（无junction直接remove）；锚卡 RR12 本体保持🟠待领永不🟢，REVIEW 第2轮滚动）
 - 2026-10-11 09:55 RR20 🟠待领（新立：data-layer manifest 补 dpiAware，RR13 排障转立，TRUTH B10/D020）
 - 2026-10-11 09:55 RR13 🟠在飞→🟠待领（留证续作，会话 S1011-0913 时间盒到点：460 复验被识图否决，根因=DPI 无感知（B10）；WIP=agent/RR13 @ 1482ca9，门禁前三绿；续作前置=RR20 合入，指引在 task_logs/RR13_wip.md；转待领避免 LIGHT 槽死锁——D020 决定③的执行细化）
+- 2026-10-11 10:03 RR20 🟡待合入（agent/RR20 @ 8963fd3；四绿全过：tsc✅ 域 cargo test --lib 12/12✅ 全量 vitest 86/86 0failed✅ cargo check --tests✅ 变异红验（PerMonitorV2→MUTANT 红哨兵1条）✅；实证：exe manifest 含 dpiAware、GetDpiForWindow 192、物理客户区 840×1120=2×逻辑、识图复验右缘截断消除；真值=B10/D020+tauri-build/tao 源码核实；证据 task_logs/RR20_done.md；会话 S1011-0944）

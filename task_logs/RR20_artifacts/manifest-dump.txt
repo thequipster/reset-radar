@@ -1,0 +1,38 @@
+RR20 证据档案：exe 内嵌 manifest 与 DPI 探针（2026-10-11 会话 S1011-0944）
+
+## 1. exe 全量搜索（python 逐字节，release/custom-protocol 构建 8963fd3）
+
+count <assembly  : 5
+count dpiAware   : 4
+count asmv3      : 10
+count PerMonitorV2: 1
+
+物理并存两份 manifest（ld 对 bin 的 ".rsrc merge failure: multiple non-default
+manifests" 警告下两份字节均在文件内）：
+- 偏移 13609377：tauri-build 2.7.1 默认 manifest（仅 Common-Controls v6，无 asmv3）
+- 偏移 13609712：本卡 GNU_APP_MANIFEST（asmv3 windowsSettings dpiAware=true/PM +
+  dpiAwareness=PerMonitorV2,PerMonitor + Common-Controls v6），UTF-8 原文带换行
+
+注意：naive「文件内第一个 <assembly」dump 会先命中 tauri-build 那份（无 dpiAware），
+RR13 排障期（B10）的 dump 同法。**加载器实际读哪份以运行时行为为准**，见 §2：
+GetDpiForWindow=192 只有读到含 dpiAware 的 manifest 才可能成立（修复前同二进制
+代码路径下 tao 运行时调用未生效，RR13 两轮截图实证无感知）。
+
+## 2. 运行时探针（task_logs/RR20_artifacts/shot-rr20.ps1，本机 200% 缩放）
+
+ProbePMv2: True                      # 探针进程自身 PerMonitorV2（防坐标虚拟化）
+HWND: 15010504  PID: 28816
+GetDpiForWindow: 192                 # ✅ 修复生效（96=B10 病灶；192=PerMonitor 感知）
+WindowRect(物理): W=866 H=1191
+ClientRect(物理): W=840 H=1120       # ✅ =2×逻辑 420×560（修复前病灶=420×560 物理，
+                                     #    CSS 视口=210/230，B10 两轮截图逐字符吻合）
+PrintWindow(3): True
+Saved: rr20-after-420.png size=840x1120
+
+## 3. 识图复验（Explore 只读子代理，逐字转录）
+
+胶囊完整：CODEX | 29% 周额度/剩余 | ●重置风险 24.7% | 卡×3 —— 右端最后元素「×3」
+完整可读，右端余量约 40–45 物理px，无半切汉字/字符缺失/元素戛然而止；
+文字锐利无拉伸模糊（200% 下无半尺寸视口迹象）。
+结论：右缘截断已消除。
+（观察项：胶囊下方空白+滚动条=RR09 胶囊态既有设计，非本卡范围。）

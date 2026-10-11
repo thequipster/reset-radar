@@ -1,0 +1,151 @@
+From 8963fd3e6063c308323090f28aee39635c365d90 Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 09:59:46 +0800
+Subject: [PATCH] =?UTF-8?q?RR20:=20gnu=20manifest=20=E8=A1=A5=20dpiAware?=
+ =?UTF-8?q?=20PerMonitorV2=EF=BC=88TRUTH=20B10=20=E6=A0=B9=E6=B2=BB?=
+ =?UTF-8?q?=EF=BC=89+=20lib=20=E5=9B=9E=E5=BD=92=E5=93=A8=E5=85=B5?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- build.rs：GNU_APP_MANIFEST 在 Common-Controls v6（B08）之上补 asmv3 windowsSettings
+  （dpiAware=true/PM + dpiAwareness=PerMonitorV2,PerMonitor）；xml/rc 无条件落盘
+  （MSVC/CI 可编译哨兵测试），embed_resource 仍仅 windows-gnu
+- lib.rs：build_manifest 哨兵测试×2（CC v6 依赖 + PerMonitorV2 声明），include_str!
+  读 OUT_DIR/app-manifest.xml
+- 实证（200% DPI）：GetDpiForWindow 96→192；物理客户区 420×560→840×1120=2×逻辑；
+  识图复验胶囊右端「卡×3」完整，右缘截断消除
+---
+ src-tauri/build.rs   | 65 +++++++++++++++++++++++++++-----------------
+ src-tauri/src/lib.rs | 29 ++++++++++++++++++++
+ 2 files changed, 69 insertions(+), 25 deletions(-)
+
+diff --git a/src-tauri/build.rs b/src-tauri/build.rs
+index 8fc2b11..605470e 100644
+--- a/src-tauri/build.rs
++++ b/src-tauri/build.rs
+@@ -1,44 +1,59 @@
+ fn main() {
+     tauri_build::build();
+-    patch_test_manifest();
++    patch_gnu_manifest();
+ }
+ 
+-/// B08 正规化：windows-gnu 下 test exe 缺 Common-Controls 依赖的根治补法。
+-/// 机制链（TRUTH §2 B08）：tauri-build 的资源经 embed-resource 走
+-/// `cargo:rustc-link-arg-bins` 只进正式 bin；test exe 只剩 gcc spec
+-/// `%{!shared:%:if-exists(default-manifest.o%s)}` 链入的默认 manifest
+-/// （longPathAware/asInvoker，无 Common-Controls）→ tao/wry 静态导入的
+-/// TaskDialogIndirect 等符号只存在于 comctl32 v6 → 启动即 0xC0000139。
+-/// 这里给 test target 单独编一份与 bin 同源的 manifest（内容照抄
+-/// tauri-build 2.7.1 src/windows-app-manifest.xml，TRUTH §1 来源 3 同栈参考）。
+-/// MSVC 构建不进本分支（CI/官方工具链的 rc.exe 产物不受 gnu 默认 manifest 影响）。
+-fn patch_test_manifest() {
++/// B08 正规化 + B10 根治：windows-gnu 下给 bin/test 补齐 manifest。
++/// 机制链（TRUTH §2）：
++/// - B08：tauri-build 的资源经 embed-resource 走 `cargo:rustc-link-arg-bins` 只进正式
++///   bin；test exe 只剩 gcc spec `%{!shared:%:if-exists(default-manifest.o%s)}` 链入的
++///   默认 manifest（longPathAware/asInvoker，无 Common-Controls）→ tao/wry 静态导入的
++///   TaskDialogIndirect 等符号只存在于 comctl32 v6 → 启动即 0xC0000139。
++/// - B10：tauri-build 2.7.1 的 windows-app-manifest.xml 本身不含任何 dpiAware（registry
++///   源码核实，crate 内零命中）；官方 Tauri v2 靠 tao 运行时调
++///   SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)（tao-0.37.1
++///   event_loop.rs:185 → dpi.rs:20 become_dpi_aware），本机 gnu exe 实测未生效 →
++///   进程 DPI 无感知，200% 缩放下 CSS 视口=窗宽/2。manifest 显式声明 DPI 感知由加载器
++///   在进程创建时生效，不依赖运行时调用，是为根治。
++/// xml/rc 无条件落盘（lib 的回归哨兵测试 include_str! 要读，MSVC/CI 也能编译）；
++/// embed_resource 仅 windows-gnu（MSVC 走 tauri-build 自有 rc.exe 路径，不进本分支）。
++fn patch_gnu_manifest() {
++    let out_dir =
++        std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR is set by cargo"));
++    std::fs::write(out_dir.join("app-manifest.xml"), GNU_APP_MANIFEST)
++        .expect("write app manifest xml");
++    std::fs::write(
++        out_dir.join("app-manifest.rc"),
++        "#define RT_MANIFEST 24\n1 RT_MANIFEST \"app-manifest.xml\"\n",
++    )
++    .expect("write app manifest rc");
+     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+     let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+     if target_os != "windows" || target_env != "gnu" {
+         return;
+     }
+-    let out_dir =
+-        std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR is set by cargo"));
+-    std::fs::write(out_dir.join("test-app-manifest.xml"), TEST_APP_MANIFEST)
+-        .expect("write gnu test manifest xml");
+-    std::fs::write(
+-        out_dir.join("test-manifest.rc"),
+-        "#define RT_MANIFEST 24\n1 RT_MANIFEST \"test-app-manifest.xml\"\n",
+-    )
+-    .expect("write gnu test manifest rc");
+-    let rc = out_dir.join("test-manifest.rc");
++    let rc = out_dir.join("app-manifest.rc");
+     // compile_for_everything：通用 cargo:rustc-link-arg 覆盖 #[test] unit test
+     // binary（compile_for_tests 的 rustc-link-arg-tests 只认 [[test]] target，
+     // 本包测试全在 lib 内会被 cargo 拒指令）。bin 会与 tauri-build 的资源
+-    // 重复一份同内容 manifest（都含 Common-Controls，加载器取任一都正确）。
++    // 重复一份 manifest（ld 报 .rsrc merge failure 取任一份；两份内容均含
++    // Common-Controls + dpiAware，加载器取任一都正确，见 B08 勘正）。
+     embed_resource::compile_for_everything(&rc, embed_resource::NONE)
+         .manifest_required()
+-        .expect("compile gnu test manifest resource");
++        .expect("compile gnu app manifest resource");
+ }
+ 
+-/// 与 tauri-build 2.7.1 windows-app-manifest.xml 逐字一致（Common-Controls v6 依赖）。
+-const TEST_APP_MANIFEST: &str = r#"<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
++/// gnu 全产物 manifest：Common-Controls v6 依赖（B08，逐字沿 tauri-build 2.7.1
++/// windows-app-manifest.xml）+ asmv3 windowsSettings 的 DPI 感知声明（B10 补）。
++/// dpiAware=true/PM（Win8.1+ legacy 写法）与 dpiAwareness=PerMonitorV2,PerMonitor
++/// （Win10 1703+ 主选，逗号列表为回退序）并存时，新系统只认 dpiAwareness。
++const GNU_APP_MANIFEST: &str = r#"<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0" xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
++  <asmv3:application>
++    <asmv3:windowsSettings>
++      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/PM</dpiAware>
++      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2,PerMonitor</dpiAwareness>
++    </asmv3:windowsSettings>
++  </asmv3:application>
+   <dependency>
+     <dependentAssembly>
+       <assemblyIdentity
+diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+index 2be802e..959c64c 100644
+--- a/src-tauri/src/lib.rs
++++ b/src-tauri/src/lib.rs
+@@ -178,3 +178,32 @@ async fn refresh_snapshots(
+     let _ = app.emit(BACKGROUND_SNAPSHOTS_UPDATED_EVENT, &values);
+     Ok(values)
+ }
++
++/// B08/B10 回归哨兵：gnu 全产物 manifest 必须同时保留 Common-Controls v6 依赖
++/// （B08：丢了 test exe 启动即 0xC0000139）与 PerMonitorV2 DPI 声明
++/// （B10：丢了 200% 缩放下 CSS 视口=窗宽/2）。build.rs 无条件落盘该 xml
++/// （embed 仅 gnu），MSVC/CI 编译本测试同样可读。
++#[cfg(test)]
++mod build_manifest {
++    const APP_MANIFEST: &str = include_str!(concat!(env!("OUT_DIR"), "/app-manifest.xml"));
++
++    #[test]
++    fn manifest_keeps_common_controls_v6_dependency() {
++        assert!(
++            APP_MANIFEST.contains(r#"name="Microsoft.Windows.Common-Controls""#),
++            "B08 回归：manifest 丢了 Common-Controls v6 依赖"
++        );
++    }
++
++    #[test]
++    fn manifest_declares_per_monitor_dpi_awareness() {
++        assert!(
++            APP_MANIFEST.contains(">PerMonitorV2,PerMonitor<"),
++            "B10 回归：manifest 丢了 dpiAwareness PerMonitorV2"
++        );
++        assert!(
++            APP_MANIFEST.contains("<dpiAware "),
++            "B10 回归：manifest 丢了 legacy dpiAware（true/PM）声明"
++        );
++    }
++}
+-- 
+2.52.0.windows.1
+
