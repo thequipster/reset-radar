@@ -92,9 +92,12 @@ tag 名会与版本做一致性校验，不一致构建即失败。CI/release �
 
 ## 致谢与许可
 
-- [codex-cockpit](https://github.com/HouSiyuan2001/codex-cockpit)（MIT，v0.3.0-beta.5）：
+- [codex-cockpit](https://github.com/HouSiyuan2001/codex-cockpit)（MIT，v0.3.0-beta.5，
+  Copyright (c) 2026 Quota Float contributors）：
   风险因子、配速公式、重置卡规划器与 app-server 握手的算法思路来源，逐文件出处见
-  [TRUTH.md](TRUTH.md) §1 与各卡 `task_logs/*_done.md`。
+  [TRUTH.md](TRUTH.md) §1 与各卡 `task_logs/*_done.md`；
+  部分代码为注明出处的逐行移植，复用清单与其 MIT 许可全文见
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 - [codex-resets.com](https://codex-resets.com) 的公开数据与接口。
 
 本项目基于 [MIT License](LICENSE) 开源。

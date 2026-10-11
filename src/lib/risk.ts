@@ -1,6 +1,7 @@
 // 重置风险评估（RR04）：估计「未来 24 小时内发生强制重置」的概率（0-100 百分比）。
 // 算法思路借鉴 MIT 项目 codex-cockpit 的 reset_forecast.rs::calibrated_risk
 // （出处：TRUTH §1 来源 3；下文「rs:NNN」均指该文件行号），重写为纯 TS，常量逐一注明。
+// 思路重写非逐字复用；版权声明与全仓复用清单见 THIRD_PARTY_NOTICES.md。
 // 星期判定全项目唯一边界 = 北京零点（D004）：一律 +8h 后取星期，绝不用本地时区。
 // 输入契约：history 为已清洗的 announcedAt ISO 串（RR03 夹具口径，scripts/fetch-history.mjs
 // 已做去重/未来过滤）；本函数仍保留解析容错与未来容差防御（与 rs:110-114 同源）。

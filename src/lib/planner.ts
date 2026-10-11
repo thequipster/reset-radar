@@ -1,6 +1,8 @@
 // 每日配速建议（RR05）：把「剩余额度 / 距重置天数 / 重置风险」折成今日建议用量。
 // 公式借鉴 MIT 项目 codex-cockpit 的 dynamicQuota.ts::planCalibratedRiskQuota
 // （出处：TRUTH §1 来源 3；下文「dq:NNN」均指该文件行号），
+// 原文件版权（MIT）：Copyright (c) 2026 Quota Float contributors（codex-cockpit）；
+// 完整许可文本与复用清单见 THIRD_PARTY_NOTICES.md。
 // dashboard 版三段式：均匀配速 + 风险平方前拉 + 疲劳软上限，取三者最小。
 // 周末判定沿用 RR04 的 beijingWeekday（D004 北京零点唯一边界）。
 // 本函数为纯函数：不查网络、不读钟（now 仅用于推导周末，可显式传 isWeekend 覆盖）。

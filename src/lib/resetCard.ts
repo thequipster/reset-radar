@@ -1,5 +1,7 @@
 // 重置卡规划器（RR06）：整文件移植自 MIT 项目 codex-cockpit 的 src/lib/resetCard.ts
 // （出处：TRUTH §1 来源 3；下文「rc:NNN」均指该文件行号），逐函数对应移植。
+// 原文件版权（MIT）：Copyright (c) 2026 Quota Float contributors（codex-cockpit）；
+// 完整许可文本与复用清单见 THIRD_PARTY_NOTICES.md。
 // 本项目适配三处（详见 docs/DECISIONS.md D015）：
 //   ① 历史消耗日键：参考实现用 usageDateKey（04:00 记账日，B06 双日边界陷阱），
 //      本项目统一为北京日历键 beijingCalendarDateKey（D004 全项目唯一日边界）；

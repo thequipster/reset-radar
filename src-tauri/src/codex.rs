@@ -2,6 +2,8 @@
 //! 读 rateLimits + rateLimitResetCredits（卡面：单次 read 同时拿两者，无 HTTP fallback）。
 //! 握手序列与解析移植自参考实现 codex-cockpit src-tauri/src/codex.rs（MIT，TRUTH §1 来源 3），
 //! 逐函数注明参考行号。
+//! 原文件版权（MIT）：Copyright (c) 2026 Quota Float contributors（codex-cockpit）；
+//! 完整许可文本与复用清单见 THIRD_PARTY_NOTICES.md。
 
 use std::path::PathBuf;
 use std::process::Stdio;
