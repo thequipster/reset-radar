@@ -14,9 +14,14 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（RR35/RR36 🟠可领；RR30 依赖用户 CI 首跑）**
+**当前阶段：WORK（RR37/RR38/RR39 🟠可领；RR30 依赖用户 CI 首跑）**
+（REVIEW 第 4 轮已闭环（S1011-1910）：报告 docs/review-20261011-round4.md——七门全绿+识图
+4 图 3 PASS 1 FAIL（深色胶囊门面图 IHDR 460×76 半分辨率坏档），立卡 RR37/RR38/RR39，不立卡
+4 条附理由；D031 登记用户门控期。下一班建议：RR37 → RR38 → RR39（RR37/RR39 同域 docs+发布
+串行，RR38 ui 可穿插）。RR30 仍等用户 CI 首跑。）
 （REVIEW 第 3 轮已闭环（S1011-1836）：报告 docs/review-20261011-round3.md，立卡 RR35/RR36。
-下一班建议：按建议顺序领 RR35（ui 打磨）→ RR36（docs）；RR30 仍等用户 CI 首跑。
+RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议：领 RR36（docs：README
+状态行刷新）；RR30 仍等用户 CI 首跑。
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -24,6 +29,24 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 - MERGE：×1（主仓合入互斥，同一时刻只有一人写主仓代码）
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
+
+### [2026-10-11 19:32:00] RR12第4轮REVIEW | 🧱🟢本轮闭环（锚卡转回🟠待领，永不🟢） | review | S1011-1910
+- base main 8590bb2 七门全绿（tsc✅ vitest 266/266 0failed✅ vite build✅ cargo check --tests✅ node 38/38✅ check-release 13链接✅ 校准管线 fresh 60 事件 n=0 如实✅）；artifact 七件 task_logs/RR12r4_artifacts/；识图独立复核 4 图：rr35 双主题 PASS（RR35 修复确认到位）、rr32-capsule-light PASS、**rr32-capsule-dark FAIL（IHDR 460×76 半分辨率 vs 浅色孪生 920×152，且为 README 门面图→立 RR37）**；差距 7 条零悬空：立 RR37（P2 门面图重截）/RR38（P3 行尾悬挂「·」）/RR39（P3 README:42 复选项口径），不立卡 4 条附理由（环心灰调沿第3轮点单池/下半留白审美项/v0.3 留点单→D031/空壳句柄+n=0 运行时积累）；产物批落库 main（报告+D031+三卡+脚本刷新数据+RR35/RR36 未跟踪 done/patch 收编）。阶段切 WORK。
+
+### [2026-10-11 20:20:00] RR36 | P3 | 🔧🟢已闭环 | docs | S1011-1904 MERGE
+- ad72bd0→main 8590bb2 树恒等✅（2路径 diff 0字节）；预审四过（探活 ad72bd0/diffstat 2文件+19/−7/patch 在位 4.6KB/交集空——main 工作树仅看板协调文件）；主仓复验 tsc✅ vitest 全量266/266 0failed✅ check-release 13链接✅（Rust 不适用：未触 src-tauri/，树恒等已证）；junction 先拆 worktree 移除无残留（RR13/RR21 旧壳为既有遗留非本卡）、branch 归档（archive/RR36-merged-8590bb2）。MERGE 释放，本会话收工。
+
+### [2026-10-11 20:10:00] RR36 | P3 | 🔧🟡待合入（已闭环，见上行） | docs | S1011-1904 交付
+- ad72bd0（base main a9f244c，2文件+19/−7，patch 对 main 干净适用✅4.6KB）：①状态行 RR01–RR11 → RR01–RR35 除 RR30 待用户 CI 首跑外全部闭环+REVIEW 已 3 轮（版本 0.1.0 不动）②D030 扩界：「界面」节同根因顺带修（四页签文案源 panelTabs.ts:5-10、引图换 rr32-capsule-dark/rr35-expanded-dark 实证图、删已被 RR21+RR31 消除的横滚注记、hash 入口参数补强）。门禁：tsc✅/全量 266/266 0failed✅/check-release 13链接✅/**变异红验真做**（状态行 RUNBOOK 链接改坏→check-release exit1→复原复绿）/Node 38/38✅；Rust 不适用。worktree 留 MERGE 班拆（node_modules junction 先拆 B09）。
+
+### [2026-10-11 19:52:00] RR35 | P3 | 🔧🟢已闭环 | ui | S1011-1849 MERGE
+- fdef9a8→main a9f244c 树恒等✅（9路径含2二进制截图 diff 0字节）；预审四过（探活/patch 对 main 干净适用/在位 324KB/交集空）；主仓复验 tsc✅ vitest 全量266/266 0failed✅（Rust 不适用：未触 src-tauri/，树恒等已证）；双 junction 先拆 worktree 移除无残留、branch 归档（archive/RR35-merged-a9f244c）。MERGE 释放，本会话收工。
+
+### [2026-10-11 19:42:00] RR35 | P3 | 🔧🟡待合入（已闭环，见上行） | ui | S1011-1849 交付
+- fdef9a8（base main ba7d0e8，9文件+70/−7，patch 对 main 干净适用✅324KB）：①横幅尾箭头 22px/700 + 不透明度 0.65→0.9 且 token 化 --banner-tail（沿 RR34 --banner-sub 先例，对齐测试锁定）②采集状态卡副文案 .timeNoWrap 整段不断行（断点落「·」后）③顺带修周额度剩余卡同类拆行（识图复核挖出，D029 卡内裁决：同根因同修法避免单开 2 行小卡）④contrastPairs 登记 token 化+a11y 报告同步（数值快照 5.38 不变——RR29 口径 alpha 不入亮度，本轮属视觉权重修复非数值修复）+新测试 ui.banner-polish（4条：CSS 规则锁定+tsx 结构 count=2）。门禁：tsc/域109/全量266 0failed/变异红四组（字号红1/nowrap红1/token对齐红1/结构count红1）复原绿；Rust 不适用（未触 src-tauri/）。release 双主题截图（920×1380/PMv2 192）识图独立复核两轮全 PASS（箭头醒目同量级/两卡时间整段/RR34 无回归）。worktree 留 MERGE 班拆（双 junction 先拆 B09）。
+
+### [2026-10-11 19:16:00] RR35 | P3 | 🔧🟠在飞→已被顶部 19:42 🟡交付条目吸收 | ui | S1011-1849
+- base main ba7d0e8；两主题共性打磨：①「今日建议」横幅尾部箭头「›」视觉权重弱（尺寸差距，对比度已达标不越界）②「采集状态」卡副文案「北京时间」孤字换行；两主题同修；快照/报告如涉及同步+release 双主题截图识图。建 worktree agent/RR35。
 
 ### [2026-10-11 19:08:00] RR12第3轮REVIEW | 🧱🟢本轮闭环 | review | S1011-1836
 - 主仓 ba7d0e8 全绿：tsc✅ vitest 262/262 0failed✅ Node 38/38✅ vite build✅ cargo check --tests✅ check-release（版本同步+14链接）✅ 校准管线 fresh✅（artifact 六件 task_logs/RR12r3_artifacts/）；RR34 双主题截图派 Explore 识图子代理**独立复核**（非复用交付结论）：RR34 修复确认到位，挖出跨主题共性 2 处（横幅尾部箭头视觉权重弱+「北京时间」孤字换行→立 RR35）+README 状态行过时（→立 RR36）；不立卡 4 条附理由（环心数字=浅色语义色列用户点单池实证注脚/ROADMAP v0.3 留点单/RR13+RR21 空壳仍 busy/校准 n=0 运行时积累）；报告 docs/review-20261011-round3.md。阶段切 WORK。
@@ -402,11 +425,9 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 
 ## 建议领取顺序
 
-1. RR04 → RR05 → RR06 → RR07（core 域串行；RR07 依赖 RR03 的数据夹具——已合入可直接消费）
-2. RR08 → RR10（数据层串行）
-3. RR09（UI，依赖 RR08）
-4. RR11（发布打磨，依赖 RR09 截图）
-5. RR12（循环锚——首批功能卡合入后执行首轮 REVIEW，之后永续滚动）
+1. RR37（P2 docs+发布：深色胶囊门面图 460×76 坏档重截 920×152+识图）→ RR38（P3 ui：采集状态卡行尾悬挂「·」）→ RR39（P3 docs：README:42 复选项口径诚实化）；RR37/RR39 同域串行，RR38 可穿插
+2. RR30（🎣 挖卡，依赖用户 CI 首跑，不可领）
+3. 三卡闭环后 REVIEW 第 5 轮（§9.1 全量执行；v0.3 维持留点单见 D031 用户门控期）
 
 
 

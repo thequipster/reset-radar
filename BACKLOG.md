@@ -432,3 +432,28 @@
 - 修向：状态行刷新为当前实况（闭环卡号区间+REVIEW 轮次）；如涉及版本叙述保持 0.1.0 不动（版本戳只许发布卡变，RUNBOOK §6）。
 - 验证口径：check-release（README 链接门 14 条咬合）；docs 级零可执行代码变更，变异红验不适用（理由记 done，沿 RR33 口径）。
 - 状态行：2026-10-11 19:06 🟠待领（未领不占槽）。
+- 2026-10-11 19:42:00 RR35 🟡待合入：agent/RR35 @fdef9a8 单commit基于main ba7d0e8（9文件+70/−7）；tsc/域109/全量266/变异红四组复原绿；横幅尾箭头 22px/700+--banner-tail token 化+两卡副文案 timeNoWrap（含 D029 顺带修周额度卡同类拆行）；双主题截图识图两轮全 PASS；详见 task_logs/RR35_done.md。会话 S1011-1849
+- 2026-10-11 19:52:00 RR35 🟢已闭环 main a9f244c←fdef9a8 树恒等（9路径0字节含截图二进制）；主仓复验 tsc✅ 266/266 0failed✅（Rust 不适用：未触 src-tauri/）；双 junction 先拆 worktree 移除无残留、branch 归档（archive/RR35-merged-a9f244c）；D029 顺带修已随卡入档。→RR36 待领（README 状态行），RR30 仍依赖用户 CI 首跑。会话 S1011-1849 MERGE
+- 2026-10-11 20:10:00 RR36 🟡待合入：agent/RR36 @ad72bd0 单commit基于main a9f244c（2文件+19/−7）；tsc/全量266/check-release 13链接/Node38 绿；变异红验真做（链接改坏→check-release红→复原复绿）；D030 扩界入档（「界面」节同根因顺带修）；详见 task_logs/RR36_done.md。会话 S1011-1904
+- 2026-10-11 20:20:00 RR36 🟢已闭环 main 8590bb2←ad72bd0 树恒等（2路径0字节）；主仓复验 tsc✅ vitest 全量266/266 0failed✅ check-release 13链接✅（Rust 不适用：未触 src-tauri/）；junction 先拆 worktree 移除无残留、branch 归档（archive/RR36-merged-8590bb2）。→无🟠无🟡，阶段切 REVIEW 第4轮（RR30 仍依赖用户 CI 首跑）。会话 S1011-1904 MERGE
+
+### RR37 | P2 | 🔧修卡🟠待领 | docs+发布 | 立卡 S1011-1910（REVIEW 第4轮 G1）
+- 现象：README「界面」节门面引图 20261011-rr32-capsule-dark.png 为半分辨率坏档（IHDR 实测 460×76；浅色孪生 920×152=2×(460×76)），识图独立复核 FAIL（内容比例异常、右端「33.0% 风险」「卡×3」不可见、右缘元素硬切、左下拖拽点被裁半）——深色胶囊态无法据此验收，且该图自 RR36 起为用户发布门面图。
+- 证据：docs/review-20261011-round4.md §2（子代理 4 图复核+字节级 IHDR 核验）；README 引用行；RR20 DPI 192 口径（920×152 规格）。
+- 修向：探针重截深色胶囊（shot-capsule.ps1；若缺 -Theme 参数先补，参照 RR34 给 shot-expanded.ps1 加 -Theme 先例），产出 920×152 规格件替换坏图（同名覆盖或换名+README 同步）；构建走 release --features tauri/custom-protocol（B01 白屏坑）。
+- 验证口径：新图 IHDR=920×152 证据落 task_logs；识图子代理复核（右端卡×3 完整/无裁切/与浅色版同构）；check-release 13 链接门（README 若换图名）；docs+资产级零逻辑代码变更，变异红验沿 RR33/RR36 口径真做（门禁咬合证）。
+- 状态行：2026-10-11 19:30 🟠待领（未领不占槽）。
+
+### RR38 | P3 | 🔧修卡🟠待领 | ui | 立卡 S1011-1910（REVIEW 第4轮 G2）
+- 现象：「采集状态」卡副文案第一行行尾悬挂分隔点「·」（「最近更新成功 ·」后换行，「10/11 19:01 北京时间」时间段已由 RR35 整段保护未拆断），两主题同现——RR35 修复的余留微瑕。
+- 证据：docs/review-20261011-round4.md §2（识图子代理双主题展开态复核）；src/ui/DashboardPanel.module.css .timeNoWrap 现行实现（RR35 引入）。
+- 修向：断点微调——将「·」并入下行随时间段整段（nowrap 扩界至「· 时间段」），或等效最小 CSS 改动；两主题同修。
+- 验证口径：tsc/UI域/全量 0 新增 failed/变异红验（如涉 CSS 锁测试同步）；release 双主题截图识图复核无悬挂点。
+- 状态行：2026-10-11 19:30 🟠待领（未领不占槽）。
+
+### RR39 | P3 | 🔧修卡🟠待领 | docs | 立卡 S1011-1910（REVIEW 第4轮 G3，RR36_done 取材提示）
+- 现象：README:42 复选项「应用内校准面板 / 预测自动落盘到应用数据目录」半真半假——校准摘要已入 app（RR28 数据页），预测自动落盘应用内未接（D019 明确不接，现为脚本管线落 data/predictions.jsonl）。
+- 证据：README:42 原文；RR28（校准摘要入 app）+ D019（应用内落盘不接）+ task_logs/RR36_done.md 取材提示。
+- 修向：复选项诚实化——拆两项分别如实描述（[x] 应用内校准摘要面板；预测日志改述「校准管线自动落盘 data/predictions.jsonl」），版本叙述 0.1.0 不动（RUNBOOK §6）。
+- 验证口径：check-release 13 链接；docs 级零代码变更，变异红验沿 RR36 口径真做（链接改坏→门红→复原绿）。
+- 状态行：2026-10-11 19:30 🟠待领（未领不占槽）。

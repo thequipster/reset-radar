@@ -1,0 +1,4 @@
+[fetch-history] 拉取 https://codex-resets.com/api/v1/resets?limit=100&order=desc
+[fetch-history] 拉取 https://codex-resets.com/api/v1/status
+[fetch-history] 写入 C:\Users\slsjz\Desktop\reset-radar\data\resets-history.json
+[fetch-history] 事件 60 条，跨度 2025-09-17T04:02:52.000Z → 2026-10-11T04:01:09.000Z；北京星期分布 Mon:4 Tue:10 Wed:12 Thu:8 Fri:7 Sat:9 Sun:10

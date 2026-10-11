@@ -1,9 +1,9 @@
 # 校准报告（calibration-latest）
 
-> 生成：2026-10-11T10:40:50.391Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
+> 生成：2026-10-11T11:15:03.386Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
 
-- 重置历史：data/resets-history.json —— 60 条原始事件 / 54 条额度重置（仅regular；排除 6 条）（fetchedAt 2026-10-11T10:40:50.391Z）
-- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-11T10:40:50.391Z
+- 重置历史：data/resets-history.json —— 60 条原始事件 / 54 条额度重置（仅regular；排除 6 条）（fetchedAt 2026-10-11T11:15:03.386Z）
+- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-11T11:15:03.386Z
 
 ## Watch同样本比较（前瞻24h窗口）
 
