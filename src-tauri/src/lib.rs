@@ -178,3 +178,32 @@ async fn refresh_snapshots(
     let _ = app.emit(BACKGROUND_SNAPSHOTS_UPDATED_EVENT, &values);
     Ok(values)
 }
+
+/// B08/B10 回归哨兵：gnu 全产物 manifest 必须同时保留 Common-Controls v6 依赖
+/// （B08：丢了 test exe 启动即 0xC0000139）与 PerMonitorV2 DPI 声明
+/// （B10：丢了 200% 缩放下 CSS 视口=窗宽/2）。build.rs 无条件落盘该 xml
+/// （embed 仅 gnu），MSVC/CI 编译本测试同样可读。
+#[cfg(test)]
+mod build_manifest {
+    const APP_MANIFEST: &str = include_str!(concat!(env!("OUT_DIR"), "/app-manifest.xml"));
+
+    #[test]
+    fn manifest_keeps_common_controls_v6_dependency() {
+        assert!(
+            APP_MANIFEST.contains(r#"name="Microsoft.Windows.Common-Controls""#),
+            "B08 回归：manifest 丢了 Common-Controls v6 依赖"
+        );
+    }
+
+    #[test]
+    fn manifest_declares_per_monitor_dpi_awareness() {
+        assert!(
+            APP_MANIFEST.contains(">PerMonitorV2,PerMonitor<"),
+            "B10 回归：manifest 丢了 dpiAwareness PerMonitorV2"
+        );
+        assert!(
+            APP_MANIFEST.contains("<dpiAware "),
+            "B10 回归：manifest 丢了 legacy dpiAware（true/PM）声明"
+        );
+    }
+}
