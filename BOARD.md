@@ -14,7 +14,13 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：REVIEW 第 8 轮（无🟠可领无🟡待合——RR42 已闭环 main 67494a2）——用户门控期维持（D031）：RR30 等 CI 首跑、v0.3 等点单**
+**当前阶段：REVIEW 第 9 轮（无🟠可领无🟡待合——RR42 已闭环 67494a2、r8 产物批已落 main 6f6a991）——用户门控期维持（D031）：RR30 等 CI 首跑、v0.3 等点单**
+（REVIEW 第 8 轮已闭环（S1011-2120）：报告 docs/review-20261011-round8.md——七门全绿
+〔272/272/build 1.00s/cargo 0.44s/node 38/38/check-release 13/校准 fresh 60事件54重置 n=0 如实〕
++刷新与 README 区间改后复跑三绿=落库前终验+E2E 源码恒等复用 r7 同源 exe 自采双主题新图识图
+独立复核双图 A–G 全 PASS（RR40 修复持续在位+过期态诚实显示连续二轮实证）+差距 12 条零悬空
+零新卡（README 区间 RR01–RR42 按 D032 顺带刷新入批，终结逐轮微卡空转首次实践）；产物批 24 文件
++1012/−11 落库 main 6f6a991（含收编 RR42 未跟踪 done/patch 两件）。）
 （REVIEW 第 7 轮已闭环（S1011-2050）：报告 docs/review-20261011-round7.md——七门全绿
 〔272/272 刷新后复跑同/tsc/build 1.67s/cargo 10.45s/node 38/38/check-release 13/校准 n=0 如实〕
 +E2E 当前 main 重建 release 双主题新图识图双 PASS（RR40 持续在位+过期态诚实显示）+差距 12 条
@@ -41,7 +47,29 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
-### [2026-10-11 21:33:00] RR12第8轮REVIEW | 🧱🟡待合入（产物批落库中，见上行） | review | S1011-2120 交付
+### [2026-10-11 22:23:27] RR43 | 🧱🟠在飞 | shell(ui+data-layer) | S1011-2223
+- 用户在线点单两行（ROADMAP「用户在线点单」区）：①托盘后台常驻——关窗仅收起、驻留 Windows 系统托盘（参考 codex-cockpit 形式），彻底退出走托盘菜单；②迷你圆形态——比现有胶囊更小的圆形悬浮只显示一个最关键数字，展开态失焦/闲置自动缩圆，拖到屏幕边缘收贴边半圆隐藏、鼠标靠近弹回。
+- base main bbfed86；worktree ../reset-radar_wt/RR43（分支 agent/RR43）。范围：src-tauri/src（托盘 + 关窗拦截 + 贴边停靠 + 壳状态持久化）+ src/ui（新 Orb 形态、缩圆时序、停靠交互、widgetWindow/appState 扩展）+ 新增域测试。硬约束：保留展开面板四页签、本地优先（状态只落 app_config_dir）、无遥测。wip=task_logs/RR43_wip.md。
+- 本班降级口径：Bridge 通道禁 pwsh/命令串（实测 run_task["pwsh","-NoProfile","-Command",…] 返「Shells and system command-string interpreters are disabled」），门禁以 npx/cargo/node argv 直调替代，不使用 shell 管道。
+
+
+### [2026-10-11 21:41:00] RR12第9轮REVIEW | 🧱🟢本轮闭环（锚卡转回🟠待领，永不🟢） | review | S1011-2137
+- 双班接力（S1011-2133 七门主跑 → S1011-2137 续作收尾）；产物批 agent/RR12 @13d3b85 → cherry-pick 零冲突 → **main bbfed86**（10文件 +135/−10）：校准刷新三件（60事件/54重置 n=0 如实，21:41）+ docs/review-20261011-round9.md + task_logs/RR12r9_artifacts/ 五件 + RR12r9_done.md；patch=task_logs/RR12r9.patch（untracked 待 r10 收编=RR42 先例）。
+- 七门：tsc rc0/vitest 272/272 0failed/build 1.05s/node 38/38/check-release 13链接/cargo rc0（班1 @6f6a991）；班2 刷新后 worktree 复跑 node 38+check-release 13（落库前终验）；**合入后主仓全量复跑 tsc rc0+vitest 272/272+node 38/38+check-release OK，树恒等 git diff 13d3b85..bbfed86=0 字节** ✅。降级口径（Bridge 班禁 shell/解释器+无 junction）如实记 artifacts/gates-chain.txt。
+- E2E：源码恒等 git diff 67494a2..bbfed86 -- src/ src-tauri/ = 0 字节 ⇒ 继承 r8 双主题 PASS 识图审计（RR40 在位+过期态诚实二轮实证）；本班无 pwsh/桌面控制未重采未识图（如实记录，artifacts/e2e-source-identity.txt；下一 shell 班按 §9.1 补新图）。
+- 勘误：main 于 21:38:46 被历史重写（reflog 实证 6f6a991→27d0e8e；链上 eba8b42→de6b375、67494a2→ef83762、03c7069→6c64a1d 同漂）；git diff 6f6a991..27d0e8e=0 字节=纯元数据，旧 sha 记载内容均有效，此后引用以重写后 sha 为准（round9 §5）。
+- 差距：7 条定夺零悬空零新卡（round9 §3）；RR26 worktree+agent/RR26=用户六张参考图有意保留（BACKLOG 12:33:26）复核确认勿动。
+- worktree ../reset-radar_wt/RR12 已拆、分支已归档 archive/RR12r9-merged-bbfed86（见收工心跳）；MERGE 释放。
+- 真值出处：docs/review-20261011-round9.md；data/calibration.json+docs/calibration-latest.md（fresh 21:41）；task_logs/RR12r9_artifacts/ 五件。
+
+### [2026-10-11 21:33:00] RR12第9轮REVIEW | 🧱🟠待领（→下轮） | review | S1011-2133
+- base main 6f6a991（RR42 闭环 67494a2 + r8 产物批落库）；REVIEW 第 9 轮锚卡领取：七门 artifact 生成（tsc/vitest 全量/vite build/cargo check/node 38/check-release/校准管线）+ 既有截图复验 + 差距逐条定夺不悬空；主仓只读，产物批经 MERGE 槽落库；wip=task_logs/RR12r9_wip.md。
+- 收工进度（S1011-2133 21:35）：门禁已跑绿（tsc✅ vitest 272/272✅ build✅ test:node 38/38✅ check-release 13链接✅ cargo check --tests✅）；未做→下轮：①校准管线刷新（写主仓跟踪文件，需 worktree/MERGE）②截图识图复核（本班无桌面控制/pwsh）③差距定夺+docs/review-20261011-round9.md+产物批落库。LIGHT 释放，锚卡转回🟠待领。
+
+### [2026-10-11 21:36:00] RR12第8轮REVIEW | 🧱🟢本轮闭环（锚卡转回🟠待领，永不🟢） | review | S1011-2120
+- 产物批→main 6f6a991（24文件+1012/−11：round8 报告+README 区间 RR01–RR42+刷新数据三件+双主题新截图两件+artifact 十一件+done+收编 RR42 未跟踪档两件+看板协调）；七门全绿（tsc✅ vitest 272/272 0failed✅〔刷新+README 改后复跑同=落库前终验〕vite build 1.00s✅ cargo check --tests 0.44s✅ node 38/38✅ check-release 13链接✅ 校准 fresh 60事件/54重置 n=0 如实✅）；E2E 源码恒等（git diff 03c7069..67494a2 -- src/ src-tauri/ 为空）复用 r7 同源 exe 自采双主题新图 20261011-r8-expanded-{dark,light}.png（IHDR 920×1380/pHYs DPI 192）识图子代理独立复核双图 A–G 全 PASS（RR40 修复持续在位+过期态诚实显示连续二轮实证+数字同源）；差距 12 条零悬空零新卡（G4 逗号疑点回源证伪复认/G6 README 区间按 D032 顺带刷新不立卡）。→无🟠无🟡，下一班 REVIEW 第 9 轮照 §9.1 全量执行；RR30 仍等用户 CI 首跑。本行不占库由下批看板协调收编；LIGHT/MERGE 释放，本会话收工。
+
+### [2026-10-11 21:33:00] RR12第8轮REVIEW | 🧱🟡待合入（产物批已落库，见上行） | review | S1011-2120 交付
 - 七门全绿（tsc✅ vitest 272/272 0failed✅ vite build 1.00s✅ cargo check 0.44s✅ node 38/38✅ check-release 13链接✅ 校准 fresh 60事件/54重置同 r7 n=0 如实✅）；刷新+README 区间改后复跑三绿=落库前终验；E2E 源码恒等（git diff 03c7069..67494a2 src 为空）复用 r7 同源 exe 自采双主题新图 20261011-r8-expanded-{dark,light}.png（IHDR 920×1380/pHYs DPI 192）识图子代理独立复核双图 A–G 全 PASS——RR40 修复持续在位+过期态诚实显示连续二轮实证；差距 12 条零悬空**零新卡**（G6 README 区间 RR01–RR41→RR01–RR42 按 D032 顺带刷新不立卡，终结逐轮微卡空转首次实践；G4 逗号疑点回源复查证伪复认）；产物批=报告+README 一行+刷新数据三件+新截图两件+artifact 十一件+done+收编 RR42 未跟踪 done/patch 两件+看板协调。详见 task_logs/RR12r8_done.md 与 docs/review-20261011-round8.md。本会话时间盒余量充足，续占 MERGE 槽自落库。
 
 ### [2026-10-11 21:22:00] RR12第8轮REVIEW | 🧱🟠在飞→已被顶部 21:33 🟡交付条目吸收 | review | S1011-2120
@@ -508,7 +536,7 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 
 ## 建议领取顺序
 
-1. REVIEW 第 8 轮（锚卡 RR12 照 §9.1 全量执行：七门 artifact+识图独立复核+差距定夺零悬空；取材提示——README 状态行滚动表述实读确认即可，轮次滞后项从此不再立卡〔D032〕）
+1. REVIEW 第 9 轮（锚卡 RR12 照 §9.1 全量执行：七门 artifact+识图独立复核+差距定夺零悬空；README 区间现为 RR01–RR42 滚动态，仅新卡闭环时顺带刷新〔D032〕）
 2. RR30（🎣 挖卡，依赖用户 CI 首跑，不可领）；v0.3 维持留点单见 D031 用户门控期
 3. 用户动作解锁项：push 触发 CI 首跑（→RR30 可领）/ v0.3 三条点单（系统通知/配速联动开关/窗口布局记忆）/ 发布三步（push/tag/release 永远留用户）
 
