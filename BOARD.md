@@ -14,10 +14,9 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（RR32→7e5dffa 已合入；待领 RR29〔UI可访问性收尾，下一班建议〕/RR30〔依赖用户 CI 首跑，跑前不可领〕；无其他🟡）**
-（阶段4+图标+License 全闭环：RR23公告/RR15日志/RR18历史/RR19 CI/RR16 watch/RR17回测/RR28摘要/RR27照图UI/RR31分页/RR32图标/RR33声明。
-下一拍：RR29 → 之后无🟠无🟡 → REVIEW 第3轮；或用户直接发布（三步就绪，push/tag留用户）。
-取材详单：docs/review-20261011-round2.md + RR32_done 排障遗产〔浅色横幅对比度→RR29 面已覆盖〕）
+**当前阶段：MERGE（RR29 🟡唯一待合〔S1011-1755，d1c3b07〕；RR34 🟠待领〔浅色横幅对比度，RR29 挖出〕；RR30 依赖用户 CI 首跑）**
+（RR29=G1 三口径全闭环：84 组对比度数值+Tab 键序三态实测+credits-zero 决策卡视口（含 demo 夹具缺陷修复）。
+下一班建议：占 MERGE 槽合 RR29 → 转 WORK 领 RR34。
 
 ## 槽位（占用 = 下方在飞条目）
 
@@ -25,6 +24,12 @@ artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/�
 - MERGE：×1（主仓合入互斥，同一时刻只有一人写主仓代码）
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
+
+### [2026-10-11 18:30:00] RR29 | P3 | 🔧🟡待合入 | ui | S1011-1755 交付
+- d1c3b07（base 791b89c，16文件+804/−8，patch 对 main 干净适用）：①对比度核验 84 组（42对×2主题，WCAG 核心 contrast.ts+配对登记 contrastPairs.ts+13 域测试快照锁定+docs/a11y-contrast-20261011.md；深色33/浅色20达标，浅色横幅 1.23–1.51 实锤缺陷→立 RR34）②Tab 键序探针 probe-tab-order.ps1 三态实测（胶囊1控件/展开9控件/页内+3，全可达全循环，四份记录在 task_logs/RR29_artifacts/）③credits-zero 决策卡视口（-ClickTab 参数+demo 夹具缺陷修复 healthyWeeklyWindow+重建重拍，识图四轮全过）。门禁：tsc/域105/全量262 0failed/变异红4复原绿；Rust 不适用（仅取证构建）。worktree 留 MERGE 班拆（node_modules junction 在，target 已拆）。
+
+### [2026-10-11 18:12:00] RR29 | P3 | 🔧🟠在飞→已被顶部 18:30 🟡交付条目吸收 | ui | S1011-1755
+- base 791b89c；UI 可访问性收尾取证：①对比度报告（widget.css token 实值逐前景/背景组合 WCAG 4.5:1 计算留档，含 RR32 遗产浅色横幅副文案面）②Tab 键序探针遍历三态控件（NOACTIVATE 点击激活后）③credits-zero 决策卡视口补拍；新截图过识图子代理。建 worktree agent/RR29。
 
 ### [2026-10-11 18:08:00] RR32 | P3 | 🎣🟢已闭环 | ui+assets | S1011-1755 MERGE
 - 3237e5b→main 7e5dffa 树恒等✅（22路径 diff 0字节含4二进制资产）；预审四过（探活/对账/patch对main干净适用/交集空）；主仓复验 tsc✅ vitest 全量248/248 0failed✅ cargo check --tests✅ check-release✅（14链接）；junction先拆（node_modules+src-tauri/target双链接）worktree移除无残留、branch归档；RR29/RR30 待领（RR30 依赖用户 CI 首跑）。MERGE 释放。

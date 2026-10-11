@@ -407,3 +407,11 @@
 - 2026-10-11 17:49:59 RR33 🟢已闭环 main 8aa944d；主仓复验绿（tsc/238/check-release/cargo check）。重叠度定档与声明全文见 done 与 THIRD_PARTY_NOTICES.md。
 - 2026-10-11 18:05:00 RR32 🟡待合入（agent/RR32 @3237e5b 基于 77c8e0c；22文件+238/−12；tsc/域91/全量248/Rust check/check-release 绿；变异红验两组；release exe 内嵌=交付 ico 8 帧字节逐帧命中+识图 6 图 PASS；详见 task_logs/RR32_done.md。会话 S1011-1735）
 - 2026-10-11 18:08:00 RR32 🟢已闭环 main 7e5dffa←3237e5b 树恒等（22路径0字节）；主仓复验 tsc/248全量/cargo check/check-release 绿；双 junction 先拆 worktree 移除、branch 归档。→RR29 待领（RR30 依赖用户 CI 首跑）。
+
+### RR34 | P2 | 🔧修卡🟠待领 | ui | 立卡 S1011-1755（RR29 核验挖出）
+- 现象：浅色主题「今日建议」紫渐变横幅白字压浅紫 1.23–1.51（主标题/副文案/箭头），识图实证箭头几乎不可见、副文案发虚边缘；深色同横幅副文案 sub-on-banner-a 2.14（淡紫压亮紫）同族。另浅色 decision-icon #facc15 压淡黄 1.30、深色 dot-warn 2.99 贴线为轻缺陷可顺带。
+- 证据：docs/a11y-contrast-20261011.md（84 组数值，域测试快照锁定）；识图子代理对 rr32 双主题横幅复核（RR29_done 转录）；DashboardPanel.module.css .suggestionBanner 系无主题切换（598 行分支两主题共用）。
+- 修向：候选①浅色横幅 token 改深紫渐变+白字（保持横幅的紫语义）；候选②浅色下复用 suggestionBannerPlain 系（bg-card+text-primary）；深色 sub 副文案换更亮 token。改后同步 contrastPairs 快照与报告（域测试会咬合）。
+- 验证口径：tsc/UI域/全量/变异（改 token→快照红）；release 双主题截图过识图子代理（横幅四要素清晰）；对比度报告再生成达标数只升。
+- 状态行：2026-10-11 18:20 🟠待领（未领不占槽）。
+- 2026-10-11 18:30:00 RR29 🟡待合入：agent/RR29 @d1c3b07 单commit基于main791b89c（16文件+804/−8）；tsc/域105/全量262/变异红4复原绿；84组对比度+Tab键序三态+credits-zero决策卡视口（含demo夹具修复）全闭环；识图四轮全过；立卡RR34（浅色横幅1.23–1.51缺陷）；done/patch齐；会话 S1011-1755。
