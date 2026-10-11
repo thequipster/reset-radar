@@ -16,7 +16,7 @@ const EMPTY = (state: WatchSignalState): WatchSignalAssessment => ({
 });
 
 /** 仅接收带时区的完整 ISO 日期时间，且拒绝 Date.parse 会宽松归一化的非法日期。 */
-function parseIsoWithZone(value: unknown): { timestamp: number; normalized: string } | null {
+export function parseIsoWithZone(value: unknown): { timestamp: number; normalized: string } | null {
   if (typeof value !== "string") return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(value);
   if (!match) return null;

@@ -1,0 +1,73 @@
+{
+  "schema": "reset-radar/calibration@1",
+  "generatedAt": "2026-10-11T06:30:53.872Z",
+  "state": "fresh",
+  "historySource": {
+    "state": "fresh",
+    "fetchedAt": "2026-10-11T06:30:53.872Z",
+    "asOf": "2026-10-11T06:30:53.872Z",
+    "ageDays": 0,
+    "totalEvents": 60,
+    "quotaResetEvents": 54,
+    "excludedEvents": 6
+  },
+  "coverageStart": null,
+  "excluded": {
+    "legacy": 3,
+    "invalid": 0,
+    "late": 0,
+    "pending": 0,
+    "outside-history": 0,
+    "duplicate": 0
+  },
+  "score": {
+    "n": 0,
+    "brier": null,
+    "hitRate": null,
+    "thresholdPercent": 50,
+    "baseRate": null,
+    "byWeek": [],
+    "reliability": []
+  },
+  "watchComparison": {
+    "weight": 0.25,
+    "pairedSamples": 0,
+    "withoutWatch": {
+      "n": 0,
+      "brier": null,
+      "hitRate": null,
+      "thresholdPercent": 50,
+      "baseRate": null,
+      "byWeek": [],
+      "reliability": []
+    },
+    "withWatch": {
+      "n": 0,
+      "brier": null,
+      "hitRate": null,
+      "thresholdPercent": 50,
+      "baseRate": null,
+      "byWeek": [],
+      "reliability": []
+    }
+  },
+  "outcomes": [],
+  "predictionSources": {
+    "read": 3,
+    "skipped": 0,
+    "files": [
+      {
+        "path": "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR17\\data\\predictions.jsonl",
+        "label": "仓内归档",
+        "missing": false,
+        "rows": 1
+      },
+      {
+        "path": "C:\\Users\\slsjz\\AppData\\Roaming\\app.resetradar.desktop\\predictions.jsonl",
+        "label": "应用日志",
+        "missing": false,
+        "rows": 2
+      }
+    ]
+  }
+}

@@ -12,6 +12,7 @@
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { refreshCalibration } from './refresh-calibration.mjs';
 
 const RESETS_URL = 'https://codex-resets.com/api/v1/resets?limit=100&order=desc';
 const STATUS_URL = 'https://codex-resets.com/api/v1/status';
@@ -166,6 +167,7 @@ async function main() {
   const tmpPath = outPath + '.tmp';
   await writeFile(tmpPath, JSON.stringify(doc, null, 2) + '\n', 'utf8');
   await rename(tmpPath, outPath);
+  await refreshCalibration({ root: join(dirname(fileURLToPath(import.meta.url)), '..'), generatedAt: new Date(fetchedAtIso) });
   const s = doc.summary;
   console.log(`[fetch-history] 写入 ${outPath}`);
   console.log(

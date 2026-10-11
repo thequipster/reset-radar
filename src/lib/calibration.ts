@@ -5,10 +5,10 @@
 //   命中率 = 阈值化命中占比：p ≥ 阈值 判「会重置」，与 y 一致即命中。
 // 日期唯一边界 = 北京日历键（D004），复用 resetCard.beijingCalendarDateKey（§1.4 单一实现源）。
 // 接口契约见 docs/DECISIONS.md D016：全项目 0-100 刻度；同日多行取首行（ex-ante）；
-// 未完结北京日不计分；byWeek 分组键=该周周一北京日历键；n=0 时 brier/hitRate=null。
+// 仅已被历史覆盖的完整24h窗口计分（RR17修正旧同日对账）；byWeek 分组键=该周周一北京日历键；n=0 时 brier/hitRate=null。
 // 本模块为纯函数：不查网络、不读文件、不读钟（now 一律显式传入）。
 
-import { beijingCalendarDateKey } from "./resetCard.ts";
+import { selectCompletedPredictionWindows } from "./calibrationWindows.ts";
 
 /** 卡面口径：50% 二分阈（p≥50% 判「会重置」）。 */
 export const CALIBRATION_DEFAULT_THRESHOLD_PERCENT = 50;
@@ -18,11 +18,11 @@ export const CALIBRATION_BIN_COUNT = 10;
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/; // 北京日历键形状（ YYYY-MM-DD ）
 const DAY_MS = 86_400_000;
 
-/** 一条已对账的预测：某北京日给出过的预测概率 vs 该日实际是否发生强制重置。 */
+/** 一条已对账的预测：某北京日首条预测的未来24h概率 vs 窗口内是否发生强制重置。 */
 export interface PredictionOutcome {
   dateKey: string; // 北京日历键 YYYY-MM-DD（预测目标日）
-  predictedPercent: number; // 0-100：该日发生强制重置的预测概率
-  realized: boolean; // 该北京日内是否实际发生强制重置
+  predictedPercent: number; // 0-100：窗口内发生强制重置的预测概率
+  realized: boolean; // 该预测窗口内是否实际发生强制重置
 }
 
 /** data/predictions.jsonl 单行（RR10 写入口径，本卡先行定义契约）。 */
@@ -30,6 +30,8 @@ export interface PredictionLogRow {
   date: string; // 北京日历键（评估当日）
   predictedRisk: number; // 0-100（assessResetRisk().score 直传）
   fetchedAt?: string; // ISO 串，溯源用（排序语义=文件追加顺序，见 join）
+  windowStart?: string;
+  windowEnd?: string;
 }
 
 export interface WeekCalibration {
@@ -47,11 +49,11 @@ export interface ReliabilityBin {
 }
 
 export interface CalibrationScore {
-  n: number; // 计分样本数（=已完结北京日数）
+  n: number; // 计分样本数（=已完成预测窗口数）
   brier: number | null; // 0-1；n=0 时 null（返回 0 会误读为完美预测）
   hitRate: number | null; // 0-1；同上
   thresholdPercent: number; // 本报告采用的二分阈
-  baseRate: number | null; // 实际重置日占比（0-1）：预测技能的参照基线（全猜"不重置"的命中率）
+  baseRate: number | null; // 窗口实际重置占比（0-1）：预测技能的参照基线（全猜"不重置"的命中率）
   byWeek: WeekCalibration[]; // 按周聚合，weekKey 升序；仅含有样本的周
   reliability: ReliabilityBin[]; // 十分桶；仅列有样本的桶
 }
@@ -170,40 +172,11 @@ function binLabel(i: number): string {
   return `${i * 10}-${(i + 1) * 10}`;
 }
 
-/**
- * 预测日志 × 重置历史 → 可打分的已对账记录（计分前的诚实性过滤都在这一步）。
- * ① realized：announcedAt（RR03 夹具口径 ISO 串）折北京日历键，键相等即该日实现；
- * ② 同日多行只取首行（ex-ante：当日后续补行已含当日部分信息，不算事前预测，D016）；
- *    行序=数组序（RR10 追加写，文件序即时间序）；
- * ③ 未完结日剔除：dateKey ≥ as_of（now）的北京日键不参与计分——
- *    与 risk.ts 的 as_of 数据新鲜度语义同源：夹具滞后时不把未覆盖日误判为 realized=false。
- */
+/** 统一前瞻24h对账：旧行不倒填，同日首条合法窗口，历史覆盖完成后计分。 */
 export function joinPredictionsWithResets(
-  rows: readonly PredictionLogRow[],
-  announcedAt: readonly string[],
-  now: Date,
+  rows: readonly PredictionLogRow[], announcedAt: readonly string[], now: Date,
 ): PredictionOutcome[] {
-  const resetDayKeys = new Set(
-    announcedAt
-      .map((v) => Date.parse(v))
-      .filter((ts) => Number.isFinite(ts))
-      .map((ts) => beijingCalendarDateKey(ts)),
+  return selectCompletedPredictionWindows(rows, announcedAt, now).windows.map(
+    ({ dateKey, predictedPercent, realized }) => ({ dateKey, predictedPercent, realized }),
   );
-
-  const asOfKey = beijingCalendarDateKey(now.getTime());
-  const firstRowPerDay = new Map<string, PredictionLogRow>();
-  for (const row of rows) {
-    if (typeof row?.date !== "string" || !DATE_KEY_RE.test(row.date)) continue;
-    if (!Number.isFinite(row.predictedRisk)) continue;
-    if (row.date >= asOfKey) continue; // 未完结北京日：当日/未来一律不计分
-    if (!firstRowPerDay.has(row.date)) firstRowPerDay.set(row.date, row); // 首行=事前预测
-  }
-
-  return [...firstRowPerDay.entries()]
-    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-    .map(([dateKey, row]) => ({
-      dateKey,
-      predictedPercent: row.predictedRisk,
-      realized: resetDayKeys.has(dateKey),
-    }));
 }

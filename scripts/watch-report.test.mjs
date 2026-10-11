@@ -11,7 +11,7 @@ const base = { date: "2026-10-08", predictedRisk: 27.5, fetchedAt: "2026-10-08T0
   windowStart: "2026-10-08T05:00:00Z", windowEnd: "2026-10-09T05:00:00Z",
   watchComparison: { weight: 0.25, watchPercent: 80, baselineRisk: 10 } };
 const output = (rows) => generateCalibrationReport({
-  history: { fetchedAt: "2026-10-11T05:00:00Z", events: [{ resetType: "regular", announcedAt: "2026-10-08T06:00:00Z" }] },
+  history: { fetchedAt: "2026-10-11T05:00:00Z", upstream: { pagination: { has_more: false } }, events: [{ resetType: "regular", announcedAt: "2026-10-08T06:00:00Z" }] },
   predictions: { rows, files: [{ path: "test-only.jsonl", label: "测试", missing: false, rows: rows.length }], skipped: 0 },
   generatedAt: "2026-10-11T06:00:00Z",
 });

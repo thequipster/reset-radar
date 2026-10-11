@@ -10,4 +10,7 @@ export * from "./scheduledReset";
 export * from "./resetStatus";
 export * from "./watchSignal";
 export * from "./watchCalibration";
+export * from "./calibrationWindows";
+export * from "./calibrationSnapshot";
+export * from "./historyPrediction";
 export * from "./history";

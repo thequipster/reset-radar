@@ -5,18 +5,16 @@
 // 算法单一源 src/lib（RUNBOOK §1.4）：风险=assessResetRisk、幂等=appendPredictionLog——
 // 本脚本零算法，只做读夹具/调核心/追加写（先例 calibrate.mjs，D016 node ≥22.18 原生
 // type-stripping 直载 .ts）。
-// as_of = 历史夹具 fetchedAt（数据新鲜度时刻，与 calibrate.mjs 同口径）：date=as_of 北京日键
-// ——夹具滞后时评估的是「数据新鲜度所在日」（诚实语义），所以先刷新夹具再落盘。
+// RR17评估/窗口起点=本次捕获时刻；历史fetchedAt独立验证新鲜度，不倒签旧预测。
+// stale/invalid来源不能写入当前预测；先刷新历史再落盘。
 // 数据锁（RUNBOOK §1.5）：脚本与app共用核心判重，只追加、绝不修改既有行。
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { appendPredictionLog, buildPredictionRecord } from "../src/lib/predictions.ts";
-import { assessWatchSignal } from "../src/lib/watchSignal.ts";
-import { assessResetRisk } from "../src/lib/risk.ts";
-import { assessHistorySource, selectQuotaResetHistory } from "../src/lib/history.ts";
+import { appendPredictionLog } from "../src/lib/predictions.ts";
+import { buildHistoryPrediction } from "../src/lib/historyPrediction.ts";
 import { appendPredictionFile, canonicalPredictionPath, parsePredictionPathArg } from "./prediction-files.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -24,20 +22,13 @@ const override = parsePredictionPathArg(process.argv.slice(2));
 const logPath = override ?? canonicalPredictionPath();
 
 const history = JSON.parse(readFileSync(`${root}data/resets-history.json`, "utf8"));
-const source = assessHistorySource(history, new Date());
-if (source.state === "invalid") {
-  console.error("[log-prediction] 夹具 fetchedAt 缺失/非法：先跑 node scripts/fetch-history.mjs");
+// 同一逻辑评估时刻留存在窗口起点与fetchedAt；旧历史只作输入，不倒签预测时间。
+const evaluatedAt = new Date();
+const candidate = buildHistoryPrediction(history, evaluatedAt);
+if (!candidate) {
+  console.error("[log-prediction] 历史缺失/非法/过期：先刷新历史，不生成当前预测。");
   process.exit(1);
 }
-if (source.state === "stale") console.error("[log-prediction] 历史已过期：本次只评估历史fetchedAt所在日，请先刷新历史。");
-const announcedAt = selectQuotaResetHistory(history.events);
-const asOf = new Date(source.asOf);
-
-const watch = assessWatchSignal(history.status?.active_watch, new Date(), source.state === "fresh");
-const risk = assessResetRisk(announcedAt, asOf, watch.percent ?? undefined);
-const candidate = buildPredictionRecord({ risk, evaluatedAt: asOf.toISOString(), recordedAt: new Date(),
-  quotaStatus: "ok", resetSourceState: null });
-if (!candidate) throw new Error("预测候选无效");
 
 const outcome = appendPredictionFile(logPath, (existing) => appendPredictionLog(existing, candidate));
 

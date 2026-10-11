@@ -153,28 +153,42 @@ describe("reliability 可靠性曲线（十分桶）", () => {
 
 describe("joinPredictionsWithResets 预测×历史对账", () => {
   const NOW = new Date("2026-10-12T02:00:00Z"); // 北京 10-12 10:00 → 当日键 2026-10-12
-
-  it("realized 按北京日历键对账（B06 反锚定：漏 +8h 必红）", () => {
-    // 2026-10-08T17:30Z = 北京 10-09 01:30 → 事件落键 2026-10-09（UTC 键会误判为 10-08）
-    const out = joinPredictionsWithResets(
-      [
-        { date: "2026-10-08", predictedRisk: 10 },
-        { date: "2026-10-09", predictedRisk: 40 },
-      ],
-      ["2026-10-08T17:30:00Z"],
-      NOW,
-    );
-    expect(out).toEqual([
-      { dateKey: "2026-10-08", predictedPercent: 10, realized: false },
-      { dateKey: "2026-10-09", predictedPercent: 40, realized: true },
-    ]);
+  const row = (date: string, predictedRisk: number, start: string, fetchedAt = start) => ({
+    date, predictedRisk, windowStart: start,
+    windowEnd: new Date(Date.parse(start) + 86_400_000).toISOString(), fetchedAt,
   });
 
-  it("同日多行取首行（ex-ante 事前预测）", () => {
+  it("只接纳窗口起点对应的北京目标日，并按 (start,end] 事件窗口对账", () => {
+    // 10-08T16Z→10-09T16Z 是北京 10-09 完整日；两事件都给时 realized=true 不区分边界，
+    // 必须用单事件分别钉死：恰在 start 的事件不算（属上窗），恰在 end 的事件算（本窗闭合）。
+    const both = joinPredictionsWithResets(
+      [row("2026-10-09", 40, "2026-10-08T16:00:00.000Z")],
+      ["2026-10-08T16:00:00.000Z", "2026-10-09T16:00:00.000Z"],
+      NOW,
+    );
+    expect(both).toEqual([
+      { dateKey: "2026-10-09", predictedPercent: 40, realized: true },
+    ]);
+    const atStartOnly = joinPredictionsWithResets(
+      [row("2026-10-09", 40, "2026-10-08T16:00:00.000Z")],
+      ["2026-10-08T16:00:00.000Z"],
+      NOW,
+    );
+    expect(atStartOnly[0].realized).toBe(false);
+    const atEndOnly = joinPredictionsWithResets(
+      [row("2026-10-09", 40, "2026-10-08T16:00:00.000Z")],
+      ["2026-10-09T16:00:00.000Z"],
+      NOW,
+    );
+    expect(atEndOnly[0].realized).toBe(true);
+  });
+
+  it("同北京目标日取最早合法 fetchedAt 行，且补行的 date 也须匹配目标日", () => {
     const out = joinPredictionsWithResets(
       [
-        { date: "2026-10-09", predictedRisk: 40, fetchedAt: "2026-10-09T01:00:00Z" },
-        { date: "2026-10-09", predictedRisk: 70, fetchedAt: "2026-10-09T20:00:00Z" },
+        row("2026-10-09", 70, "2026-10-08T16:00:00.000Z", "2026-10-08T15:00:00.000Z"),
+        row("2026-10-09", 40, "2026-10-08T16:00:00.000Z", "2026-10-08T14:00:00.000Z"),
+        row("2026-10-08", 99, "2026-10-08T16:00:00.000Z", "2026-10-08T13:00:00.000Z"),
       ],
       [],
       NOW,
@@ -183,12 +197,12 @@ describe("joinPredictionsWithResets 预测×历史对账", () => {
     expect(out[0].predictedPercent).toBe(40);
   });
 
-  it("未完结北京日剔除：as_of 当日与未来行不计分", () => {
+  it("窗口未结束时剔除，即使 date 是过去的北京日", () => {
     const out = joinPredictionsWithResets(
       [
-        { date: "2026-10-11", predictedRisk: 30 },
-        { date: "2026-10-12", predictedRisk: 50 },
-        { date: "2026-10-13", predictedRisk: 60 },
+        row("2026-10-11", 30, "2026-10-10T16:00:00.000Z"),
+        row("2026-10-12", 50, "2026-10-11T16:00:00.000Z"),
+        row("2026-10-13", 60, "2026-10-12T16:00:00.000Z"),
       ],
       [],
       NOW,
@@ -196,30 +210,41 @@ describe("joinPredictionsWithResets 预测×历史对账", () => {
     expect(out.map((r) => r.dateKey)).toEqual(["2026-10-11"]);
   });
 
-  it("防御：非法行/非法 announcedAt 跳过，输出按日期升序", () => {
+  it("拒绝旧格式、晚取样、未来窗口及非法日历边界，输出按日期升序", () => {
     const out = joinPredictionsWithResets(
       [
-        { date: "2026-10-10", predictedRisk: 20 },
-        { date: "garbage", predictedRisk: 20 },
-        { date: "2026-10-09", predictedRisk: Number.NaN },
-        { date: "2026-10-09", predictedRisk: 10 },
+        { date: "2026-10-10", predictedRisk: 20 }, // 旧四字段记录不倒填
+        row("2026-10-10", 21, "2026-10-09T16:00:00.000Z", "2026-10-09T16:00:00.001Z"), // fetched 晚于 start
+        row("2026-10-10", 22, "2026-10-10T16:00:00.000Z"), // end 在 now 之后
+        row("2026-02-30", 23, "2026-02-28T16:00:00.000Z"), // 非法日历键
+        row("garbage", 24, "2026-10-09T16:00:00.000Z"),
+        row("2026-10-09", Number.NaN, "2026-10-08T16:00:00.000Z"),
+        row("2026-10-10", 25, "2026-10-08T16:00:00.000Z"), // date 与窗口起点对应的北京键不符
+        row("2026-10-09", 10, "2026-10-08T16:00:00.000Z"),
       ],
       ["not-a-date"],
       NOW,
     );
-    expect(out.map((r) => r.dateKey)).toEqual(["2026-10-09", "2026-10-10"]);
+    expect(out.map((r) => r.dateKey)).toEqual(["2026-10-09"]);
     expect(out.every((r) => r.realized === false)).toBe(true);
   });
 
+  it("窗口长度必须等于风险模型的 24h horizon：短窗/长窗一律拒收", () => {
+    const base = { date: "2026-10-09", predictedRisk: 40, fetchedAt: "2026-10-08T16:00:00.000Z", windowStart: "2026-10-08T16:00:00.000Z" };
+    const short = { ...base, windowEnd: "2026-10-09T15:00:00.000Z" }; // 23h
+    const long = { ...base, windowEnd: "2026-10-09T17:00:00.000Z" }; // 25h
+    expect(joinPredictionsWithResets([short, long], [], NOW)).toEqual([]);
+  });
+
   it("端到端：join → scorePredictions 手算闭环", () => {
-    // 事件 10-08T17:30Z 落北京键 10-09：p=[80,20] y=[0,1] → Brier=(0.64+0.64)/2=0.64、命中 0
+    // 事件落第二窗口：p=[80,20]、y=[0,1]，Brier=((.8−0)²+(.2−1)²)/2=.64，命中率 0。
     const s = scorePredictions(
       joinPredictionsWithResets(
         [
-          { date: "2026-10-08", predictedRisk: 80 },
-          { date: "2026-10-09", predictedRisk: 20 },
+          row("2026-10-09", 80, "2026-10-08T16:00:00.000Z"),
+          row("2026-10-10", 20, "2026-10-09T16:00:00.000Z"),
         ],
-        ["2026-10-08T17:30:00Z"],
+        ["2026-10-09T17:30:00Z"],
         NOW,
       ),
     );
