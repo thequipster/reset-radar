@@ -117,6 +117,65 @@
 - 验证口径：产出 docs/review-<日期>.md 且差距逐条有定夺（不许悬空）；BOARD 切回 WORK 且 BACKLOG 有新卡。
 - 状态行：2026-10-11 🟠待领
 
+### RR13 | P1 | 🔧修卡🟠待领 | ui | 立卡 S1011-0843（首轮 REVIEW G1）2026-10-11
+- 现象：窗宽 420（tauri.conf.json:17）下胶囊右侧「重置风险」标签被截断（RR09 胶囊态截图实证）。
+- 证据：src/ui/Capsule.tsx:27 padding 14px 22px / :64 标签；docs/screenshots/20261011-capsule.png 可见截断。
+- 修向：窗宽 420→460 或压缩胶囊内边距（执行会话裁决并在 done 注明理由）；README 上墙截图同步换新。
+- 验证口径：release 截图（B01 特性+PrintWindow B09）无截断 + 四绿（ui 域）。
+- 状态行：2026-10-11 🟠待领
+
+### RR14 | P1 | 🔧修卡🟠待领 | ui | 立卡 S1011-0843（首轮 REVIEW G2；RR09/RR11 遗留）2026-10-11
+- 现象：docs/screenshots/ 只有胶囊态；ExpandedCard 三块从未被视觉验收，README 展开卡宣称无证据件。
+- 证据：TRUTH B09 机制②——agent 无前台权，交互注入不可达；可复现路径=App 读 location.hash=#expanded 起始展开。
+- 修向：App.tsx 支持 hash 状态入口（纯展示接线，不违反 UI 零业务规则）→ release exe 起跑 →
+  PrintWindow(PW_CLIENTONLY|PW_RENDERFULLCONTENT) 截图 → docs/screenshots/<YYYYMMDD>-expanded.png；
+  同步补胶囊态新截图（若 RR13 已改窗宽则连带更新）。
+- 验证口径：两态截图落盘 + tsc/域/全量四绿。
+- 状态行：2026-10-11 🟠待领
+
+### RR15 | P1 | 🧱建卡🟠待领 | data-layer | 立卡 S1011-0843（首轮 REVIEW G3；D019③）2026-10-11
+- 现象：预测落盘只有 scripts/log-prediction.mjs 写仓内 data/predictions.jsonl；安装版 app 无仓可写，
+  %APPDATA% 路径与校准读取断链（D019③原文）。
+- 证据：ARCHITECTURE §4 数据流（每日预测落盘由 app 承担）；README 勾选清单唯一未勾项。
+- 修向：先记 D020 裁决路径方案（倾向：生产落 %APPDATA%\reset-radar\predictions.jsonl，
+  calibrate/log 脚本加 --path 且默认双源合并），再 Rust 侧每日首评幂等追加（语义沿 D019：
+  同日首评必落/漂移>0.5 补行/坏行保留）。
+- 验证口径：Rust 单测幂等 + cargo check + 冒烟（落盘文件出现且 scripts 可读同一文件）。
+- 状态行：2026-10-11 🟠待领
+
+### RR16 | P2 | 🧱建卡🟠待领 | core | 立卡 S1011-0843（首轮 REVIEW G4；ROADMAP v0.2）2026-10-11
+- 现象：codex-resets.com status.active_watch（TRUTH B07 schema 在案）未进风险模型。
+- 证据：ROADMAP v0.2「上游 watch 信号以显式权重混入，权重本身参与校准对比」。
+- 修向：src/lib/risk.ts 增 watch 显式因子（factors[] 可解释），权重参与校准对比；
+  **红线：模型总可调参数 ≤6（ARCHITECTURE §5），超限即作废**。
+- 验证口径：域测试（含 watch 权重变异红验）+ 校准报告能分列该权重。
+- 状态行：2026-10-11 🟠待领
+
+### RR17 | P2 | 🧱建卡🟠待领 | core+data-layer | 立卡 S1011-0843（首轮 REVIEW G5；ROADMAP v0.2）2026-10-11
+- 现象：实际重置发生后，该日预测的对错回填只能人工。
+- 证据：ROADMAP v0.2「预测日志自动对答案」；RR10 predictions.jsonl 已有原料（首行 24.5）。
+- 修向：fetch-history 刷新后 diff 出新重置日 → 对该日 predictions.jsonl 行打分落 calibration
+  消费格式（joinPredictionsWithResets 已在 RR07 就绪）。**依赖：RR15 路径汇流 + RR18 新鲜度守卫。**
+- 验证口径：合成序列测试（有/无新重置日两种）+ 变异红验。
+- 状态行：2026-10-11 🟠待领
+
+### RR18 | P2 | 🔧修卡🟠待领 | data采集 | 立卡 S1011-0843（首轮 REVIEW G6）2026-10-11
+- 现象：resets-history 夹具只在 RR03 手动拉过一次（fetchedAt 2026-10-10T17:20Z），无刷新机制；
+  校准 as_of 停在夹具时刻，风险与校准全部依赖其新鲜度。
+- 证据：docs/calibration-latest.md（本轮 artifact）显示 as_of=昨日夹具时刻。
+- 修向：①scripts/calibrate.mjs 加新鲜度守卫：fetchedAt 距今 >7 天 → 报告头部红字告警（单测覆盖）
+  ②REVIEW 拍每轮先跑 node scripts/fetch-history.mjs（幂等）再出报告（载体=review 文档前置动作，
+  本轮起生效，不改 RUNBOOK）。
+- 验证口径：单测（旧夹具触发告警/新夹具不触发）+ 冒烟。
+- 状态行：2026-10-11 🟠待领
+
+### RR19 | P2 | 🔧修卡🟠待领 | docs+发布 | 立卡 S1011-0843（首轮 REVIEW G7；RR02 遗留）2026-10-11
+- 现象：.github/workflows/ci.yml 不跑 node --test（RR03 的 12 条 scripts 测试游离在 CI 之外）。
+- 证据：RR02 done 遗留记录；node --test 12/12 本地绿。
+- 修向：ci.yml 加 node:test 步骤（注意 RR03/D013 的 vitest exclude 边界不变）。
+- 验证口径：check-ci 结构门禁 + yaml 校验（沿 RR02 口径）。
+- 状态行：2026-10-11 🟠待领
+
 ## 状态流转区（追加行；格式 `- <日期> <状态> <sha/备注>`）
 
 - 2026-10-11 🟠待领 ×12（RR01–RR12 初始化批次，立卡会话 S1011-init）
@@ -142,3 +201,6 @@
 - 2026-10-11 08:00 RR10 🟡待合入（agent/RR10 @ d35bc8b=c78e462+d35bc8b 两 commit；四绿全过：tsc✅ 域13/13✅ 全量86/86 0failed✅（基线73→86只升） 变异红验两轮（阈值比较符>=红1/日键换源UTC红1）✅ 落盘器冒烟两跑幂等实证✅；首行 predictedRisk=24.5 与 RR04 golden 同源交叉验证；D019 已记；证据 task_logs/RR10_done.md；会话 S1011-0743）
 - 2026-10-11 08:18 RR10 🟢已闭环（MERGE S1011-0813：d35bc8b(2 commits)→main 8ec7d6b，树恒等✅ 涉及7路径diff 0字节；预审四过（worktree探活/diffstat对账7文件+304行/patch在位且干净适用/路径交集空）；主仓复验 tsc✅ vitest 全量86/86 0failed✅（基线73→86只升）；worktree/分支已拆（junction先拆）；RR11 可领，阶段切 WORK）
 - 2026-10-11 08:42 RR11 🟡待合入（agent/RR11 @ f5ce969；等价口径全过：tsc✅ 全量86/86 0failed✅ check-release.mjs（版本同步0.1.0+README链接12条+tag守卫咬合证）✅ check-release-wf.py 结构门禁✅ check-ci.py 回归✅ actionlint 零告警✅ 变异红验两轮（链接条件反转红12/触发器比较符反转红1）✅；README 打磨+release workflow+发布三步就绪；证据 task_logs/RR11_done.md；会话 S1011-0813）
+- 2026-10-11 08:44 RR11 🟢已闭环（MERGE S1011-0843：f5ce969→main ae642c0，树恒等✅ 4路径diff 0字节；预审四过（worktree探活/diffstat对账4文件+248行/patch在位且干净适用/路径交集空）；主仓复验 tsc✅ vitest 全量86/86 0failed✅ check-release✅；worktree/分支已拆（junction先拆，残留已清）；RR12 首轮 REVIEW 可执行，阶段切 WORK）
+- 2026-10-11 09:04 RR12 第 1 轮完成（首轮 REVIEW，会话 S1011-0843）：四类 artifact 齐（vitest 86/86 / vite build / cargo check / 校准报告+胶囊截图）；差距 10 条全定夺（立卡 RR13–RR19 共 7 张，3 条不立卡理由见 docs/review-20261011.md）；报告 docs/review-20261011.md；artifact 批支 agent/RR12 🟡待合入（见 BOARD）；**锚卡转回 🟠待领（永不🟢）**
+- 2026-10-11 09:04 RR13–RR19 🟠待领 ×7（首轮 REVIEW 新卡批次，立卡会话 S1011-0843；建议顺序 RR13→RR14→RR15→RR18→RR19→RR16→RR17，RR13/RR14 同域串行，RR17 依赖 RR15）

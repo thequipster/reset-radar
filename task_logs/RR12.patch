@@ -1,0 +1,246 @@
+From f15baad44dca290d7f46f02ac1a668c9354b9120 Mon Sep 17 00:00:00 2001
+From: thequipster <zhengziqian0501@gmail.com>
+Date: Sun, 11 Oct 2026 08:53:08 +0800
+Subject: [PATCH] =?UTF-8?q?docs(review):=20RR12=20first=20review=20round?=
+ =?UTF-8?q?=20=E2=80=94=20artifacts=20+=20gap=20adjudication=20+=20RR13-19?=
+ =?UTF-8?q?=20batch?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ docs/calibration-latest.md                    |  36 ++++++
+ docs/review-20261011.md                       | 116 ++++++++++++++++++
+ .../RR12_artifacts/cargo-check-20261011.txt   |   4 +
+ .../RR12_artifacts/npm-build-20261011.txt     |  16 +++
+ .../RR12_artifacts/vitest-full-20261011.txt   |  18 +++
+ 5 files changed, 190 insertions(+)
+ create mode 100644 docs/calibration-latest.md
+ create mode 100644 docs/review-20261011.md
+ create mode 100644 task_logs/RR12_artifacts/cargo-check-20261011.txt
+ create mode 100644 task_logs/RR12_artifacts/npm-build-20261011.txt
+ create mode 100644 task_logs/RR12_artifacts/vitest-full-20261011.txt
+
+diff --git a/docs/calibration-latest.md b/docs/calibration-latest.md
+new file mode 100644
+index 0000000..60da6f9
+--- /dev/null
++++ b/docs/calibration-latest.md
+@@ -0,0 +1,36 @@
++# 校准报告（calibration-latest）
++
++> 生成：2026-10-11T00:49:52.370Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
++
++- 重置历史：data/resets-history.json —— 59 events（fetchedAt 2026-10-10T17:20:15.727Z）
++- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-10T17:20:15.727Z
++- 预测日志：data/predictions.jsonl —— 1 行有效
++- 计分日：0 个（同日多行取首行 + 未完结日剔除；其中实际重置日 0 个）
++
++## 总分
++
++| 指标 | 值 | 解读 |
++|---|---|---|
++| 计分样本 n | 0 | 每行 = 一个已完结的北京日 |
++| Brier 分数 | —（暂无可计分日） | 0=完美 / 0.25=恒50%参照 / 1=全错，越低越好 |
++| 命中率（阈 50%） | —（暂无可计分日） | 阈值化命中占比 |
++| 基准率 | —（暂无可计分日） | 实际重置日占比；「全猜不重置」命中率为 — |
++
++## 分周走势（周一起）
++
++| 周（周一） | 样本 | Brier | 命中率 |
++|---|---|---|---|
++| —（无样本） | | | |
++
++## 可靠性曲线（预测十分桶）
++
++| 预测区间% | 样本 | 平均预测% | 实际发生% |
++|---|---|---|---|
++| —（无样本） | | | |
++
++## 读法
++
++- Brier ≤ 0.25 才优于「恒猜 50%」；**样本 < 30 时各项指标仅供参考**。
++- 可靠性表「平均预测」与「实际发生」越贴近对角线，概率越可信；系统性高估/低估即校准偏差方向。
++- 分周 Brier 持续走高 = 模型状态漂移，优先复核 risk 因子与夹具新鲜度。
++
+diff --git a/docs/review-20261011.md b/docs/review-20261011.md
+new file mode 100644
+index 0000000..e7f16dd
+--- /dev/null
++++ b/docs/review-20261011.md
+@@ -0,0 +1,116 @@
++# REVIEW 第 1 轮 — 2026-10-11（RR12 循环锚卡）
++
++> 会话 S1011-0843 ｜ 基线 main @ ae642c0（RR01–RR11 全🟢闭环后）｜ 本文档在 agent/RR12 分支
++> 生成，随 artifact 批次待合入。审查方法：RUNBOOK §9.1（四类 artifact + 差距逐条定夺，不许悬空）。
++
++## 1. 验收 artifact（命令 + 时间戳可复现）
++
++| # | artifact | 命令 | 时间(+08) | 结果 | 位置 |
++|---|---|---|---|---|---|
++| 1 | 全量测试输出 | `npx vitest run`（主仓 @ ae642c0） | 08:53 | **86/86 0 failed**（7 文件） | `task_logs/RR12_artifacts/vitest-full-20261011.txt` |
++| 2 | 前端构建 | `npm run build` | 08:54 | vite ✓ 44 模块，dist 265.56 kB（gzip 84.99 kB），exit 0 | `task_logs/RR12_artifacts/npm-build-20261011.txt` |
++| 3 | Rust 检查 | `cargo check --tests`（PATH 按 §10） | 08:55 | Finished dev profile 0.28s，exit 0 | `task_logs/RR12_artifacts/cargo-check-20261011.txt` |
++| 4 | 校准报告 | `node scripts/calibrate.mjs > docs/calibration-latest.md` | 08:49 | 生成成功；**n=0 可计分日**（详见差距 G6） | `docs/calibration-latest.md` |
++| 5 | UI 截图（胶囊态） | 复用 RR09 合入件（本轮 UI 零代码变动，RR11 仅 docs） | — | 真实数据 29% 端到端 | `docs/screenshots/20261011-capsule.png` |
++
++门禁等价口径：agent/RR12 worktree 代码与 main 恒等（本卡只新增 docs/task_logs 文件），
++测试/构建在主仓执行即等价（沿 RR02/D011 先例）。
++
++事故处置记录（审查期间）：RR11 合入拆 worktree 时 `git worktree remove` 在 node_modules
++junction 未拆情况下执行，git 递归进 junction 删损主仓 node_modules（.bin/部分包）；
++次生 EPERM 由 RR09 会话遗留的 vite/esbuild 僵尸进程（07:21 起）引起。已当场修复
++（杀进程 + `npm ci` 重装，86/86 + tsc 复绿）并回填 TRUTH B09〔补记〕。→ 差距 G7。
++
++## 2. 差距清单（逐条定夺）
++
++### G1 胶囊溢出 420px 窗宽（RR09 遗留）→ 🔧修卡 **RR13**
++- 现象：窗宽 420（`src-tauri/tauri.conf.json:17`）下胶囊右侧「重置风险」标签被截断
++  （RR09 胶囊态截图可见）。
++- 位置：`src/ui/Capsule.tsx:27`（padding 14px 22px）/ `:64`（重置风险标签）。
++- 与期望差异：ARCHITECTURE §2 UI 应完整展示核心层数字；README 上墙截图带着截断标签。
++- 修向：二选一（执行会话裁决并注明）：窗宽 420→460，或压缩胶囊内边距。验证：release
++  截图无截断 + 四绿。
++
++### G2 展开态截图缺失（RR09+RR11 两处遗留）→ 🔧修卡 **RR14**
++- 现象：`docs/screenshots/` 只有胶囊态；ExpandedCard 三块（风险雷达/今日建议/用卡规划）
++  从未被视觉验收；README 功能清单宣称的展开卡无证据件。
++- 证据：TRUTH B09 机制②——agent 无前台权，输入注入不可达；两条已证路径：
++  computer-use SDK 注入 / **App 读 `location.hash=#expanded` 起始展开**（可复现，一劳永逸）。
++- 修向：App 支持 hash 状态入口（ui 域纯展示逻辑，不违反零业务规则）→ release exe 起跑
++  （B01 特性）→ PrintWindow 截图（B09 可离屏）→ 落盘 `docs/screenshots/20261011-expanded.png`。
++
++### G3 app 内自动落盘路径汇流 D019③（RR10 遗留）→ 🧱建卡 **RR15**
++- 现象：预测落盘只有 `scripts/log-prediction.mjs`（写仓内 `data/predictions.jsonl`）；
++  安装版 app 无仓可写，%APPDATA% 路径与校准读取断链（D019③ 原文）。
++- 与期望差异：ARCHITECTURE §4 数据流要求「每日预测落盘」由 app 数据流承担；
++  README 勾选清单唯一未勾项即此。
++- 修向：执行会话先记 D020 裁决路径方案（倾向：生产落
++  `%APPDATA%\reset-radar\predictions.jsonl`，calibrate/log 脚本加 `--path` 且默认双源合并），
++  再 Rust 侧每日首评追加（幂等语义沿 D019：同日首评必落/漂移>0.5 补行）。
++
++### G4 ROADMAP v0.2「上游 watch 信号显式权重混入」→ 🧱建卡 **RR16**
++- 现象：`status.active_watch`（TRUTH B07 schema 在案）未进风险模型。
++- 修向：risk.ts 增 watch 显式因子（权重参与校准对比）；**卡面红线：总可调参数 ≤6**
++  （ARCHITECTURE §5），超限即作废。
++- ROADMAP 行尾已标 RR16。
++
++### G5 ROADMAP v0.2「预测日志自动对答案」→ 🧱建卡 **RR17**（依赖 RR15）
++- 现象：检测到实际重置事件后，该日预测的对错回填目前只能人工。
++- 修向：fetch-history 刷新后 diff 出新重置日 → 对 predictions.jsonl 该日行打分落
++  calibration 消费格式；依赖 RR15 的路径汇流与 RR18 的新鲜度守卫。
++- ROADMAP 行尾已标 RR17。
++
++### G6 校准闭环冷启动：零样本 + 夹具新鲜度无守卫（本轮新发现）→ 🔧修卡 **RR18**
++- 现象：校准报告 n=0 可计分日（predictions.jsonl 仅今日 1 行，未完结日正确剔除——逻辑
++  对，但闭环要等明天起才积累样本）；更关键的是 as_of 停在夹具 fetchedAt（2026-10-10T17:20Z），
++  **无任何机制保证夹具刷新**——校准与风险全部依赖它的新鲜度。
++- 修向：①`scripts/calibrate.mjs` 加新鲜度守卫（fetchedAt 距今 >7 天 → 报告头部红字告警，
++  单测覆盖）②REVIEW 拍每轮先跑 `node scripts/fetch-history.mjs`（幂等，已在案）再出报告，
++  本条自下轮起列入 REVIEW 拍前置动作（本 review 文档即为载体，不改 RUNBOOK）。
++- 定夺理由：数据新鲜度是校准闭环（D001 差异化核心）命脉，必须有代码级守卫而非流程约定。
++
++### G7 CI 未纳入 node:test（RR02 遗留）→ 🔧修卡 **RR19**
++- 现象：`.github/workflows/ci.yml` 不跑 `node --test scripts/*.test.mjs`（RR03 的 12 条）。
++- 修向：ci.yml 加一步；验证：check-ci 结构门禁 + PyYAML/yaml 校验（沿 RR02 口径）。
++
++### G8 会话遗留进程锁文件（本轮事故的流程面）→ **不立卡**
++- 现象：RR09 会话收工未清子进程（vite/esbuild 07:21 起存活至本轮），锁主仓 node_modules
++  原生模块致 npm ci EPERM。
++- 理由：无代码载体；TRUTH B09〔补记〕已把「拆 junction 顺序 + 杀进程 + npm ci」修法登记
++  在案（黑名单效力），下轮任何会话按簿可查，立卡无独立验收物。
++
++### G9 ROADMAP v0.2「校准报告自动写入 git 历史」→ **不立卡**
++- 理由：已由循环协议本身达成——RR12 每 REVIEW 轮生成 `docs/calibration-latest.md` 并随
++  artifact 批次合入 git 历史（本轮即首例）；「自动写入」不需要新机制，v0.2 目标判已覆盖。
++  若未来 REVIEW 频率不足再翻案。
++
++### G10 ROADMAP「周粒度 Brier 趋势图（待定）」→ **维持待定，不立卡**
++- 理由：样本 n=0，图无数据可画；待 RR18 新鲜度守卫 + 数周样本积累后由后续 REVIEW 重估。
++
++## 3. 定夺汇总
++
++| 差距 | 定夺 | 卡号 | 域 | 优先级 |
++|---|---|---|---|---|
++| G1 胶囊溢出 | 🔧修卡 | RR13 | ui | P1 |
++| G2 展开态截图 | 🔧修卡 | RR14 | ui | P1 |
++| G3 落盘路径汇流 | 🧱建卡 | RR15 | data-layer | P1 |
++| G4 watch 信号权重 | 🧱建卡 | RR16 | core | P2 |
++| G5 自动对答案 | 🧱建卡 | RR17 | core+data-layer | P2（依赖 RR15） |
++| G6 新鲜度守卫 | 🔧修卡 | RR18 | data采集 | P2 |
++| G7 CI 纳 node:test | 🔧修卡 | RR19 | docs+发布 | P2 |
++| G8 僵尸进程 | 不立卡 | — | — | TRUTH B09 已覆盖 |
++| G9 校准入 git | 不立卡 | — | — | 循环协议已覆盖 |
++| G10 Brier 趋势图 | 不立卡 | — | — | 维持待定 |
++
++无 🟣待用户事项（发布三步=push/tag/release 属用户既定保留动作，非本轮差距）。
++
++## 4. 建议领取顺序（写入 BOARD）
++
++RR13（小修快赢）→ RR14（ui 同域串行）→ RR15（校准闭环命脉）→ RR18（scripts 域，
++可穿插）→ RR19 → RR16 → RR17。RR13/RR14 同域互斥串行；其余按域可换序。
++
++## 5. 第 1 轮结论
++
++首批 12 卡全部闭环：86/86 测试、tsc/vite build/cargo check 全绿、校准闭环管线全线贯通
++（预测落盘→校准报告）、胶囊态真实数据端到端、发布三步就绪。差距 10 条全部定夺，
++新卡批次 RR13–RR19 共 7 张入 BACKLOG。循环进入永续迭代（M4 达成）。
+diff --git a/task_logs/RR12_artifacts/cargo-check-20261011.txt b/task_logs/RR12_artifacts/cargo-check-20261011.txt
+new file mode 100644
+index 0000000..ed5983a
+--- /dev/null
++++ b/task_logs/RR12_artifacts/cargo-check-20261011.txt
+@@ -0,0 +1,4 @@
++# cargo check --tests | repo=main src-tauri @ ae642c0 | 2026-10-11T08:55+08 | session S1011-0843 (RR12 review artifact; gnu toolchain PATH per RUNBOOK §10)
++
++    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.28s
++exit=0
+diff --git a/task_logs/RR12_artifacts/npm-build-20261011.txt b/task_logs/RR12_artifacts/npm-build-20261011.txt
+new file mode 100644
+index 0000000..ee7b241
+--- /dev/null
++++ b/task_logs/RR12_artifacts/npm-build-20261011.txt
+@@ -0,0 +1,16 @@
++# npm run build | repo=main @ ae642c0 | 2026-10-11T08:54+08 | session S1011-0843 (RR12 review artifact)
++
++
++> reset-radar@0.1.0 build
++> tsc && vite build
++
++[36mvite v7.3.7 [32mbuilding client environment for production...[36m[39m
++transforming...
++[32m✓[39m 44 modules transformed.
++rendering chunks...
++computing gzip size...
++[2mdist/[22m[32mindex.html                [39m[1m[2m  0.35 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
++[2mdist/[22m[36massets/index-BhRvfW1i.js  [39m[1m[2m265.56 kB[22m[1m[22m[2m │ gzip: 84.99 kB[22m
++[32m✓ built in 708ms[39m
++
++exit=0
+diff --git a/task_logs/RR12_artifacts/vitest-full-20261011.txt b/task_logs/RR12_artifacts/vitest-full-20261011.txt
+new file mode 100644
+index 0000000..189b114
+--- /dev/null
++++ b/task_logs/RR12_artifacts/vitest-full-20261011.txt
+@@ -0,0 +1,18 @@
++# npx vitest run | repo=main @ ae642c0 | 2026-10-11T08:53+08 | session S1011-0843 (RR12 review artifact; worktree code identical to main)
++
++
++[1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90mC:/Users/slsjz/Desktop/reset-radar[39m
++
++ [32m✓[39m src/lib/__tests__/planner.core.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 9[2mms[22m[39m
++ [32m✓[39m src/lib/__tests__/calibration.core.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 8[2mms[22m[39m
++ [32m✓[39m src/lib/__tests__/resetCard.core.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 8[2mms[22m[39m
++ [32m✓[39m src/ui/__tests__/ui.adapters.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 6[2mms[22m[39m
++ [32m✓[39m src/lib/__tests__/predictions.core.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 7[2mms[22m[39m
++ [32m✓[39m src/lib/__tests__/risk.core.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 6[2mms[22m[39m
++ [32m✓[39m src/lib/__tests__/meta.smoke.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 4[2mms[22m[39m
++
++[2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
++[2m      Tests [22m [1m[32m86 passed[39m[22m[90m (86)[39m
++[2m   Start at [22m 08:49:28
++[2m   Duration [22m 586ms[2m (import 43%, transform 39%, tests 12%, worker 6%)[22m
++
+-- 
+2.52.0.windows.1
+

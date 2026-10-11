@@ -98,6 +98,14 @@
   junction 用正斜杠命名参数；junction（node_modules）须在 `git worktree remove` 前拆除，
   且 `git add -A` 前先查 `git status`（junction 会被当目录展开暂存）。
 - 出处：RR09 会话 S1011-0713 实测（task_logs/RR09_done.md 排障遗产节）。
+- 〔补记 2026-10-11 S1011-0843〕上条"先拆 junction"是**硬前提，违反即事故**：RR11 合入时
+  `git worktree remove` 在 junction 尚在的情况下执行，git 递归**进入 junction 把目标
+  （主仓 node_modules）内容当 worktree 文件删除**（主仓 .bin/部分包被删，报
+  `failed to delete ... Invalid argument` 后中止）。次生坑：经 junction 加载过主仓原生模块
+  的遗留进程（本例 RR09 会话 07:21 起的 vite/esbuild 僵尸进程）会令修复时 `npm ci` 连环
+  EPERM——先 `pwsh Get-CimInstance Win32_Process` 找 reset-radar 路径进程杀净再 `npm ci`。
+  正确拆除顺序：①确认/拆除 junction（cmd rmdir，只删链接）②杀经 junction 加载模块的进程
+  ③`git worktree remove`。事故已当场修复（npm ci 重装，86/86+tsc 复绿）。
 
 ## §8 黑名单（已证伪/已知坑——绝不重踩）
 
