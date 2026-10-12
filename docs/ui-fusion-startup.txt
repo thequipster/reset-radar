@@ -1,0 +1,15 @@
+
+thread 'main' (23656) panicked at C:\Users\slsjz\.cargo\registry\src\rsproxy.cn-e3de039b2554c837\tauri-2.12.2\src\app.rs:1444:11:
+Failed to setup app: runtime error: failed to create webview: WebView2 error: WindowsError(Error { code: HRESULT(0x8007139F), message: "组或资源的状态不是执行请求操作的正确状态。" })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: <tauri::app::App>::make_run_event_loop_callback::<<tauri::app::Builder<tauri_runtime_wry::Wry<tauri::EventLoopMessage>>>::run::{closure#0}>::{closure#0}
+   3: tauri_runtime_wry::handle_event_loop::<tauri::EventLoopMessage>
+   4: <tao::platform_impl::platform::event_loop::EventLoop<tauri_runtime_wry::Message<tauri::EventLoopMessage>>>::run_return::<tauri_runtime_wry::make_event_handler<tauri::EventLoopMessage, <tauri::app::App>::make_run_event_loop_callback<<tauri::app::Builder<tauri_runtime_wry::Wry<tauri::EventLoopMessage>>>::run::{closure#0}>::{closure#0}>::{closure#0}>::{closure#0}
+   5: <tao::platform_impl::platform::event_loop::runner::EventLoopRunner<tauri_runtime_wry::Message<tauri::EventLoopMessage>>>::catch_unwind::<(), <tao::platform_impl::platform::event_loop::runner::EventLoopRunner<tauri_runtime_wry::Message<tauri::EventLoopMessage>>>::call_event_handler::{closure#0}>
+   6: <tao::platform_impl::platform::event_loop::runner::EventLoopRunner<tauri_runtime_wry::Message<tauri::EventLoopMessage>>>::move_state_to
+   7: <tao::platform_impl::platform::event_loop::EventLoop<tauri_runtime_wry::Message<tauri::EventLoopMessage>>>::run::<tauri_runtime_wry::make_event_handler<tauri::EventLoopMessage, <tauri::app::App>::make_run_event_loop_callback<<tauri::app::Builder<tauri_runtime_wry::Wry<tauri::EventLoopMessage>>>::run::{closure#0}>::{closure#0}>::{closure#0}>
+   8: <tauri_runtime_wry::Wry<tauri::EventLoopMessage> as tauri_runtime::Runtime<tauri::EventLoopMessage>>::run::<<tauri::app::App>::make_run_event_loop_callback<<tauri::app::Builder<tauri_runtime_wry::Wry<tauri::EventLoopMessage>>>::run::{closure#0}>::{closure#0}>
+   9: reset_radar_lib::run
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.

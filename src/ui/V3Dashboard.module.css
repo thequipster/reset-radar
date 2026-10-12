@@ -1,13 +1,24 @@
-.page{overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding-bottom:12px;font-size:12px;line-height:1.6}
+.page{overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:10px;padding-bottom:8px;font-size:12px;line-height:1.6}
+.page > *{flex-shrink:0}
+.page p{margin:0}
 .heading{font-size:15px;line-height:1.5;margin:4px 0;color:var(--text-primary)}
 .metric{font-size:38px;line-height:1.2;font-weight:700;color:var(--text-primary)}
-.summary{background:var(--bg-inset);border:1px solid var(--border-subtle);border-radius:12px;padding:12px;color:var(--text-primary)}
+.summary{background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:12px;color:var(--text-primary)}
 .summary p{margin:5px 0;color:var(--text-secondary)}
-.note{margin:0;padding:10px;border-radius:10px;background:var(--bg-inset);color:var(--text-secondary)}
-.warning{margin:0;padding:10px;border-radius:10px;border:1px solid var(--border-subtle);color:var(--text-primary);background:var(--bg-inset)}
-.details{display:grid;grid-template-columns:minmax(110px,.8fr) minmax(0,1.2fr);gap:8px;margin:0}
+.note{margin:0;padding:10px;border-radius:10px;background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-secondary);font-size:11px}
+.warning{margin:0;padding:10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);color:var(--warn-text);background:var(--warn-dim);font-size:11px}
+.details{display:grid;grid-template-columns:minmax(110px,.8fr) minmax(0,1.2fr);gap:0;margin:0;border:1px solid var(--border-subtle);border-radius:12px;padding:4px 10px;background:var(--bg-card);font-size:11px}
+.details dt,.details dd{padding:7px 0;border-bottom:1px solid var(--border-subtle)}.details dt:nth-last-child(2),.details dd:last-child{border-bottom:0}
 .details dt{color:var(--text-tertiary)}.details dd{margin:0;overflow-wrap:anywhere}
-.expander{border:1px solid var(--border-subtle);border-radius:10px;padding:10px;color:var(--text-secondary)}.expander summary{cursor:pointer;color:var(--text-primary);font-weight:600}.expander p{overflow-wrap:anywhere}
+.expander{border:1px solid var(--border-subtle);border-radius:12px;padding:10px;background:var(--bg-card);color:var(--text-secondary);font-size:11px}.expander summary{cursor:pointer;color:var(--text-primary);font-weight:600;font-size:12px}.expander p{overflow-wrap:anywhere;margin-top:8px}.scenarios{margin-top:10px;padding-top:8px;border-top:1px solid var(--border-subtle)}
+.learningTitle{font-size:20px;line-height:1.5}
+.bannerAction{border:0;border-radius:9px;background:rgba(255,255,255,.12);color:var(--banner-tail);width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}
+.bannerAction:hover{background:rgba(255,255,255,.22)}
+.bannerAction:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.signalIcon{width:36px;height:36px;border-radius:50%;background:color-mix(in srgb,var(--accent-blue) 15%,var(--bg-card));color:var(--accent-blue-bright);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+.referenceBadge{align-self:flex-start;font-size:10px;font-weight:600;color:var(--accent-blue-bright);background:color-mix(in srgb,var(--accent-blue) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent-blue) 30%,transparent);padding:1px 7px;border-radius:999px}
+.footerRow{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-top:auto}.footerRow p{flex:1;font-size:11px}.footerRow button{flex-shrink:0}
+.compactShortIcon{width:28px;height:28px;border-radius:9px;background:var(--success-dim);color:var(--success);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
 .compact{width:calc(100% - 12px);height:64px;margin:6px;border-radius:16px;border:1px solid var(--border-subtle);background:var(--bg-panel);color:var(--text-primary);display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px;cursor:pointer;font:inherit;font-size:12px}
 .compact:focus-visible{outline:2px solid var(--text-primary);outline-offset:2px}.compact small{color:var(--text-secondary)}
 .page{scrollbar-width:thin;scrollbar-color:var(--border-subtle) var(--bg-panel)}

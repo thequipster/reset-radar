@@ -1,0 +1,7 @@
+PASS: date-only deadline is Beijing midnight; card ID and versions persisted in isolated demo; workload only today
+PASS: manual 120 weekly-point budget accepted, same-day ledger retained; native response 558ms
+PASS: demo inputs and eight theme screenshots leave production journal byte-identical
+PASS: P0 platform target and unknown account mapping shown separately; no fake optimal score; no horizontal overflow
+PASS: original blue/green rings and purple gradient banner restored in both native themes
+PASS: original capsule drag handle, rounded style, two-line preview and expansion work without horizontal overflow
+PASS: restored copy-summary feedback uses v3 target distinction; optional budget controls reachable by page scrolling

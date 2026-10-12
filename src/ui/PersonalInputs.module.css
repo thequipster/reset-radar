@@ -1,15 +1,14 @@
 .root {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   width: 100%;
-  max-height: 620px;
-  overflow: auto;
-  padding: 16px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  background: var(--bg-panel);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--text-primary);
-  scrollbar-width: thin;
+  scrollbar-width: auto;
 }
 
 .header,
@@ -18,115 +17,146 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
-.header h2 { margin: 0; font-size: 16px; }
+.header {
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.header h2 { margin: 0; font-size: 13px; line-height: 1.35; font-weight: 700; }
 .header p,
 .hint,
 .footer,
-.card p { margin: 4px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
-.version { color: var(--text-tertiary); font-size: 11px; }
+.card p { margin: 3px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.version { flex: 0 0 auto; color: var(--text-tertiary); font-size: 10px; }
 
 .group {
   min-width: 0;
   margin: 0;
-  padding: 0;
-  border: 0;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
 }
-
-.group legend { margin-bottom: 8px; font-size: 13px; font-weight: 700; }
+.group legend { padding: 0 4px; font-size: 12px; font-weight: 700; }
 .options { display: flex; flex-wrap: wrap; gap: 6px; }
 .options button,
 .cardActions button,
 .editExpiry button,
 .addCard button,
 .fieldRow button {
-  min-height: 34px;
-  padding: 6px 10px;
+  min-height: 32px;
+  padding: 6px 9px;
   border: 1px solid var(--border-subtle);
   border-radius: 9px;
-  background: var(--bg-card);
+  background: var(--bg-inset);
   color: var(--text-primary);
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.35;
   cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
 }
-
 .options button:hover,
 .cardActions button:hover,
 .editExpiry button:hover,
 .addCard button:hover,
-.fieldRow button:hover { border-color: var(--accent-blue); }
-.options .selected { border-color: var(--accent-blue); background: color-mix(in srgb, var(--accent-blue) 16%, var(--bg-card)); }
+.fieldRow button:hover { border-color: var(--accent-blue); background: var(--bg-card-hover); }
+.options .selected {
+  border-color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 16%, var(--bg-card));
+  color: var(--accent-blue-bright);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-blue) 24%, transparent);
+}
+/* 工作量沿用主卡片蓝色语义；个人偏好沿用仪表盘紫色决策语义。 */
+.group:nth-of-type(2) .selected {
+  border-color: var(--accent-purple);
+  background: color-mix(in srgb, var(--accent-purple) 16%, var(--bg-card));
+  color: var(--accent-purple-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-purple) 24%, transparent);
+}
 .options button:focus-visible,
 .details summary:focus-visible,
 .root input:focus-visible,
 .root select:focus-visible,
-.root button:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.root button:focus-visible { outline: 2px solid var(--accent-blue-bright); outline-offset: 2px; }
 
 .reminders { display: grid; gap: 6px; }
 .reminder,
 .conflict {
   margin: 0;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 1px solid var(--warn);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--warn-dim);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.5;
 }
 .conflict { border-color: var(--danger); background: var(--danger-dim); }
 
 .details {
-  padding-top: 10px;
-  border-top: 1px solid var(--border-subtle);
-}
-.details summary { cursor: pointer; font-size: 13px; font-weight: 700; }
-.details[open] { display: grid; gap: 10px; }
-.cardList { display: grid; gap: 8px; }
-.card {
-  display: grid;
-  gap: 6px;
-  padding: 10px;
+  min-width: 0;
+  padding: 9px 10px;
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   background: var(--bg-card);
+  box-shadow: var(--shadow-card);
 }
-.cardHeading { font-size: 13px; }
-.cardHeading span { color: var(--text-secondary); font-size: 11px; }
-.cardActions { display: flex; flex-wrap: wrap; gap: 6px; }
+.details summary { cursor: pointer; font-size: 12px; font-weight: 700; }
+.details[open] { display: grid; gap: 8px; }
+.cardList { display: grid; gap: 7px; }
+.card {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-panel);
+}
+.cardHeading { font-size: 12px; }
+.cardHeading span { color: var(--text-secondary); font-size: 10px; text-align: right; }
+.cardActions { display: flex; flex-wrap: wrap; gap: 5px; }
 .editExpiry,
 .addCard {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(130px, 1.2fr);
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 1.2fr);
   align-items: center;
-  gap: 7px 10px;
-  padding-top: 6px;
+  gap: 6px 8px;
+  padding-top: 7px;
   border-top: 1px solid var(--border-subtle);
-  font-size: 12px;
+  font-size: 11px;
 }
 .root input,
 .root select {
   min-width: 0;
   width: 100%;
-  min-height: 34px;
+  min-height: 32px;
   padding: 6px 8px;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  background: var(--bg-card);
+  background: var(--bg-inset);
   color: var(--text-primary);
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
 }
-.addCard { padding: 10px; border: 1px solid var(--border-subtle); border-radius: 12px; }
+.root input:disabled { opacity: 0.55; cursor: not-allowed; }
+.addCard { padding: 9px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--bg-panel); }
 .addCard button { grid-column: 1 / -1; justify-self: start; }
 .fieldRow { flex-wrap: wrap; justify-content: flex-start; }
-.fieldRow label { flex-basis: 100%; font-size: 12px; font-weight: 600; }
-.fieldRow input { flex: 1 1 150px; }
-.error { margin: 0; color: var(--danger); font-size: 12px; }
-.footer { padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+.fieldRow label { flex-basis: 100%; font-size: 11px; font-weight: 600; }
+.fieldRow input { flex: 1 1 140px; }
+.error { margin: 0; color: var(--danger); font-size: 11px; }
+.footer { padding-top: 7px; border-top: 1px solid var(--border-subtle); }
+
+@media (max-width: 360px) {
+  .editExpiry,
+  .addCard { grid-template-columns: minmax(0, 1fr); }
+  .addCard button { grid-column: auto; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .root *, .root *::before, .root *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }

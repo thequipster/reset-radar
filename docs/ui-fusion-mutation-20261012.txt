@@ -1,0 +1,44 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR49
+
+ ❯ src/ui/__tests__/ui.v3-fusion.test.tsx (7 tests | 1 failed) 45ms
+   ❯ 原设计与v3融合 (7)
+     × 胶囊0卡与未知卡不混淆，过期状态可被读屏 8ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+   Start at  20:12:58
+   Duration  655ms (import 46%, transform 45%, tests 8%, worker 1%)
+
+ 
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/ui/__tests__/ui.v3-fusion.test.tsx > 原设计与v3融合 > 胶囊0卡与未知卡不混淆，过期状态可被读屏
+AssertionError: expected '<div class="_shell_2c0c6b" role="grou…' to contain '卡 —'
+
+Expected: "卡 —"
+Received: "<div class="_shell_2c0c6b" role="group" aria-label="reset-radar 悬浮条"><span class="_dragHandle_2c0c6b" data-tauri-drag-region="true" title="拖动悬浮条"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="5" r="1.6" fill="currentColor"></circle><circle cx="5" cy="10" r="1.6" fill="currentColor"></circle><circle cx="5" cy="15" r="1.6" fill="currentColor"></circle><circle cx="11" cy="5" r="1.6" fill="currentColor"></circle><circle cx="11" cy="10" r="1.6" fill="currentColor"></circle><circle cx="11" cy="15" r="1.6" fill="currentColor"></circle></svg></span><span class="_brand_2c0c6b"><svg width="30" height="30" viewBox="0 0 512 512" fill="none" class="_logo_2c0c6b" aria-hidden="true"><defs><linearGradient id="rr-logo-sweep" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="var(--logo-grad-lo)"></stop><stop offset="1" stop-color="var(--logo-grad-hi)"></stop></linearGradient></defs><path d="M256 256 L328.69 100.19 A172 172 0 0 1 417.63 197.17 Z" fill="url(#rr-logo-sweep)"></path><circle cx="256" cy="256" r="172" stroke="var(--logo-ring-main)" stroke-width="15"></circle><circle cx="256" cy="256" r="104" stroke="var(--logo-ring-inner)" stroke-width="12"></circle><path d="M256 256 L417.63 197.17" stroke="var(--logo-ring-main)" stroke-width="7" stroke-linecap="round"></path><circle cx="256" cy="256" r="27" fill="var(--logo-ring-main)"></circle></svg><span class="_brandText_2c0c6b"><span class="_brandName_2c0c6b">CODEX<span class="_dot_2c0c6b _dotOk_2c0c6b" role="img" aria-label="采集正常"></span></span><span class="_brandSub_2c0c6b">reset-radar · PLUS</span></span></span><span class="_metric_2c0c6b" title="周额度剩余"><span class="_metricText_2c0c6b"><strong class="_metricValue_2c0c6b">29%</strong><span class="_metricLabel_2c0c6b">周余</span></span></span><span class="_metric_2c0c6b" title="短窗额度剩余"><span class="_compactShortIcon_59aff7"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12h3.4l2.2-5.6 3.4 11.2 2.4-5.6h5.6"></path></svg></span><span class="_metricText_2c0c6b"><strong class="_metricValue_2c0c6b">64%</strong><span class="_metricLabel_2c0c6b">短窗</span></span></span><span class="_metric_2c0c6b" title="可用重置卡数量"><span class="_cardIconBox_2c0c6b"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7" width="12.5" height="13" rx="2"></rect><path d="M8.5 7V5.4A1.9 1.9 0 0 1 10.4 3.5h8A1.9 1.9 0 0 1 20.3 5.4v11a1.9 1.9 0 0 1-1.9 1.9H16"></path><path d="M4 11.5h12.5" opacity="0.8"></path></svg></span><span class="_metricText_2c0c6b"><strong class="_metricValue_2c0c6b">卡 ×0</strong><span class="_metricLabel_2c0c6b">重置卡</span></span></span><span class="_spacer_2c0c6b"></span><button type="button" class="_expandButton_2c0c6b" aria-label="展开完整面板"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9.5 12 15.5 18 9.5"></path></svg></button></div>"
+
+ ❯ src/ui/__tests__/ui.v3-fusion.test.tsx:33:135
+     31|     const zero=renderToStaticMarkup(<V3CompactBar vm={{...vm,resetCred…
+     32|     expect(zero).toContain('卡 ×0');expect(zero).toContain('数据过期');
+     33|     const unknown=renderToStaticMarkup(<V3CompactBar vm={{...vm,resetC…
+       |                                                                                                                                       ^
+     34|   });
+     35|   it('预览沿用气泡分行并标出旧观测，而不是实时语气',()=>{
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+RED: unknown credits incorrectly coalesced to zero; unknown-vs-zero regression rejected it
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR49
+
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  20:12:59
+   Duration  671ms (transform 47%, import 44%, tests 8%, worker 1%)
+
+ 
+GREEN: restored unknown credits rendering
