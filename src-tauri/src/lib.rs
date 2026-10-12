@@ -7,6 +7,7 @@ mod codex;
 mod models;
 mod snapshots;
 mod reset_status;
+mod platform_history;
 mod predictions;
 mod observations;
 mod calibration_summary;
@@ -130,7 +131,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_snapshots, refresh_snapshots, read_observation_log, append_observation_log, read_prediction_log, append_prediction_log, read_calibration_summary,
+            get_snapshots, refresh_snapshots, platform_history::fetch_platform_history, read_observation_log, append_observation_log, read_prediction_log, append_prediction_log, read_calibration_summary,
             shell::shell_geometry, shell::shell_set_bounds, shell::shell_set_visible, shell::shell_is_visible, shell::shell_quit
         ])
         .run(tauri::generate_context!())

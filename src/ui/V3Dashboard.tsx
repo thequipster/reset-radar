@@ -6,6 +6,7 @@ import { PANEL_TABS, initialPanelTab } from './panelTabs';
 import { RadarLogo, SunIcon, MoonIcon, ChevronUp, CloseIcon, RefreshIcon, GripDots, SpeakerIcon, CheckIcon, SparkleIcon, SlidersIcon, ShieldIcon, PulseIcon, BarChartIcon, CardStackIcon, CalendarIcon, DatabaseIcon, ChevronDown, ChevronRight, ClockIcon, CopyIcon } from './icons';
 import { beijingFull, beijingShort, percentWhole, creditsLabel } from './format';
 import { ProgressRing } from './viz';
+import type {PlatformCalibrationV3} from '../lib/v3/runtime';
 import styles from './DashboardPanel.module.css';
 import extra from './V3Dashboard.module.css';
 import compact from './CompactBar.module.css';
@@ -13,6 +14,7 @@ import peek from './PeekCard.module.css';
 
 export interface V3PanelProps {
   vm:V3DashboardModel|null; controller:PersonalInputsController;
+  calibration?:PlatformCalibrationV3;
   phase:string; readError:string|null; logError?:string|null;subscriptionError:boolean;refreshing:boolean;demo:boolean;
   activeTheme:'light'|'dark';onThemePreference:(theme:'light'|'dark')=>void;onRefresh:()=>void;onCollapse:()=>void;onClose:()=>void;
 }
@@ -86,7 +88,10 @@ export default function V3Dashboard(props:V3PanelProps){
       {tab==='data'&&<>
         <Section icon={<DatabaseIcon size={13}/>}>观测与验证</Section>
         <div className={styles.metricGrid}>{[{label:'完整需求日',value:`${vm.demand.sampleDays} 天`},{label:'regular 公告',value:`${vm.platform.training.eventCount} 条`},{label:'完整间隔',value:`${vm.platform.training.completedGapCount} 段`},{label:'正式模型',value:'P0 · 参考'}].map(item=><div className={styles.metricMini} key={item.label}><span className={styles.metricMiniLabel}>{item.label}</span><strong className={styles.metricMiniValue}>{item.value}</strong></div>)}</div><p className={styles.mutedNote}>个人完整周需求日少于7日仅初步范围，14日起显示常规经验分位。</p>
-        <p>v3 在线固定日预测正在积累；P0 正式参考，P1 / watch 保持影子。旧版本日志保留原 target 和 modelVersion，不算作 v3 成绩。</p>
+        <details className={extra.expander}><summary>最近账号状态变化</summary><p>余额与截止变化会保留执行区间；仅靠时间接近无法确认是平台补给，来源未知时不记为未命中。</p>{vm.mapping.filter(m=>m.incidentId!=null||m.knownClassification!=='unobservable').slice(-10).map((m,i)=><p key={i}>{beijingFull(new Date(m.interval.fromExclusive).toISOString())} – {beijingFull(new Date(m.interval.toInclusive).toISOString())}：{m.knownClassification==='natural_reset'?'自然补给候选':m.knownClassification==='card_use'?'已记录用卡干预':m.status==='ambiguous'?'来源歧义':m.status==='hit'?'已确认平台命中':m.status==='miss'?'可辨识未命中':'不可观测'}。{m.reason}</p>)}</details>
+        <p>v3 在线固定日预测：{props.calibration?.matchedCount??0} 个可评估，正例 {props.calibration?.positiveCount??0}；等待完整覆盖 {props.calibration?.pending??0}，未知 {props.calibration?.unknown??0}，缺配对 {props.calibration?.missingPair??0}。P0 正式参考，P1 保持影子。</p>
+        <dl className={extra.details}><dt>正式 P0 Brier</dt><dd>{props.calibration?.brierP0?.toFixed(4)??'等待可评估样本'}</dd><dt>影子 P1 Brier</dt><dd>{props.calibration?.brierP1?.toFixed(4)??'等待可评估样本'}</dd><dt>P1 相对改善</dt><dd>{props.calibration?.improvement?.toFixed(4)??'尚不可比较'}</dd><dt>完整周分块</dt><dd>{props.calibration?.weeklyBootstrap.blockCount??0} 周；改善区间 {props.calibration?.weeklyBootstrap.lower?.toFixed(4)??'—'} – {props.calibration?.weeklyBootstrap.upper?.toFixed(4)??'—'}</dd><dt>历史覆盖截至</dt><dd>{props.calibration?.coverageEnd!=null?beijingFull(new Date(props.calibration.coverageEnd).toISOString()):'未取得完整覆盖'}</dd></dl>
+        <details className={extra.expander}><summary>概率分组与评分边界</summary>{props.calibration?.probabilityBins.p0.map(bin=><p key={bin.from}>{pct(bin.from)} – {pct(bin.to)}：{bin.count} 个样本，平均预测 {pct(bin.meanProbability)}，实际公告比例 {pct(bin.eventRate)}</p>)}<p>临时预测 {props.calibration?.temporaryRows??0} 条单列，不加入固定日主成绩；旧日志不计入 v3。区间按完整周重采样，样本少时不能证明改进。</p></details>
         <p>升级至少需要60个可评估固定日预测、10个正例、周分块改善证据；watch 另需30个可分辨 episode。</p>
         <dl className={extra.details}><dt>快照</dt><dd>{vm.updatedAt}</dd><dt>卡台账版本</dt><dd>{vm.ledgerVersion}</dd><dt>输入版本</dt><dd>{vm.preferenceVersion}</dd><dt>模拟种子</dt><dd>{vm.planning?.seed??'未运行'}</dd><dt>模型</dt><dd>{vm.planning?.modelVersion??'platform-v3'}</dd></dl>
         <p className={styles.mutedNote}>日耗、平台信号版本和各次预测均只追加到本机日志；演示不会写生产预测记录。</p>

@@ -17,7 +17,7 @@ import {
   DOCK_SNAP_DISTANCE, clampVisiblePosition, dockedPosition, nearestDockEdge, poppedPosition, type DockEdge, type Rect,
 } from "./ui/dockGeometry";
 import { nextOrbMetric, type OrbMetric } from "./ui/orbMetric";
-import { RESET_HISTORY_SOURCE } from "./ui/history";
+import { evaluatePlatformJournal } from './lib/v3/runtime';
 import { useV3Journal } from "./ui/useV3Journal";
 import { usePersonalInputs } from "./ui/usePersonalInputs";
 import { useV3Planning } from "./ui/useV3Planning";
@@ -395,38 +395,41 @@ export default function App() {
     scenarioPhase != null ? [] : scenarioSnapshot != null ? [scenarioSnapshot] : snapshots;
   const effectivePhase = scenarioPhase ?? phase;
   const codex = effectiveSnapshots.find((item) => item.provider === "codex") ?? effectiveSnapshots[0] ?? null;
-  const modelNow = useMemo(() => Date.now(), [clock, codex?.updatedAt]);
-  const personal = usePersonalInputs(demo ? null : codex?.accountKey ?? null, codex?.resetCredits ?? null, modelNow);
   const journal = useV3Journal(codex, live && !demo);
+  const modelNow = useMemo(() => Date.now(), [clock, codex?.updatedAt,journal.historyDocument]);
+  const personal = usePersonalInputs(demo ? null : codex?.accountKey ?? null, codex?.resetCredits ?? null, modelNow);
   const baseVM = useMemo(
     () =>
       codex != null
-        ? buildV3Dashboard(codex, RESET_HISTORY_SOURCE, modelNow, personal.state, journal.observations, journal.signalHistory,true)
+        ? buildV3Dashboard(codex, journal.historyDocument, modelNow, personal.state, journal.observations, journal.signalHistory,true,journal.accountSnapshots)
         : null,
-    [codex, modelNow, personal.state, journal.observations, journal.signalHistory],
+    [codex, modelNow, personal.state, journal.observations, journal.signalHistory,journal.historyDocument,journal.accountSnapshots],
   );
   const planningWorker=useV3Planning(baseVM?.planningInput??null);
   const vm=useMemo(()=>baseVM?{...baseVM,planning:planningWorker.result,recommendation:planningWorker.result?.recommendation??baseVM.recommendation}:null,[baseVM,planningWorker.result]);
+  const calibrationV3=useMemo(()=>evaluatePlatformJournal(journal.predictionContent,journal.historyDocument,modelNow),[journal.predictionContent,journal.historyDocument,modelNow]);
   const [journalWriteError,setJournalWriteError]=useState<string|null>(null);
   useEffect(() => {
     if(!live||demo||!vm||!codex||codex.status!=="ok")return;
     let alive=true;
-    const snapshotId=`${codex.accountKey??'unknown'}@${codex.updatedAt}`;
+    const snapshotId=`v3-${codex.accountKey??'unknown'}-${codex.rateLimitSnapshot?.observedAt??codex.updatedAt}`;
+    const historySnapshotId=`platform-history:${(journal.historyDocument as {fetchedAt?:string})?.fetchedAt??'unknown'}`;
     const base={issuedAt:vm.now,windowStart:vm.now,windowEnd:vm.now+DAY_MS,trainingCutoff:vm.platformModel.cutoff,inputSnapshotId:snapshotId,
-      cardLedgerVersion:vm.ledgerVersion,preferenceVersion:vm.preferenceVersion,assumptions:vm.recommendation.assumptions,evidenceQuality:vm.evidenceQuality};
-    const prefix=`v3:${snapshotId}:${vm.now}:${vm.ledgerVersion}:${vm.preferenceVersion}`;
+      cardLedgerVersion:vm.ledgerVersion,preferenceVersion:vm.preferenceVersion,assumptions:vm.recommendation.assumptions,evidenceQuality:vm.evidenceQuality,platformHistorySnapshotId:historySnapshotId};
+    const prefix=`v3:${snapshotId}:${historySnapshotId}:${vm.now}:${vm.ledgerVersion}:${vm.preferenceVersion}`;
     void(async()=>{
       await journal.appendPrediction({...base,id:`${prefix}:platform`,target:'platform_notice',probability:vm.platform.probability24h,modelVersion:'platform-v3:P0',featureContributions:vm.platform.factors});
       await journal.appendPrediction({...base,id:`${prefix}:platform-shadow`,target:'platform_notice',probability:vm.platform.shadow.probability24h,modelVersion:'platform-v3:P1-shadow',featureContributions:vm.platform.shadowFactors});
       await journal.appendPrediction({...base,id:`${prefix}:account`,target:'account_external_reset',probability:vm.supply?.accountProbability24h??null,modelVersion:'account-v3:learning',featureContributions:[]});
       await journal.appendPrediction({...base,id:`${prefix}:demand`,target:'demand',probability:null,modelVersion:'demand-v3:empirical',featureContributions:[vm.demand]});
+      if(vm.accountKey)await journal.appendAccountMapping(vm.accountKey,vm.mapping,vm.now);
       if(vm.planning)await journal.appendPlanning({id:`${prefix}:planning`,predictionId:`${prefix}:platform`,seed:vm.planning.seed,
         candidates:vm.planning.comparisons.map(c=>({id:c.id,firstAction:c.firstAction,Ltail:c.Ltail,Lmean:c.Lmean,Nspent:c.Nspent,Eexpire:c.Eexpire})),
         selected:vm.planning.selected,alternatives:vm.planning.selected?.scenarios??[]});
       if(alive)setJournalWriteError(null);
     })().catch(e=>{if(alive)setJournalWriteError(String(e));});
     return()=>{alive=false;};
-  },[vm,codex,live,demo,journal.appendPrediction,journal.appendPlanning]);
+  },[vm,codex,live,demo,journal.appendPrediction,journal.appendPlanning,journal.appendAccountMapping,journal.historyDocument]);
 
   return (
     <main
@@ -482,6 +485,7 @@ export default function App() {
         <DashboardPanel
           vm={vm}
           controller={personal}
+          calibration={calibrationV3}
           phase={effectivePhase}
           readError={readError}
           logError={journal.error ?? journalWriteError ?? planningWorker.error}

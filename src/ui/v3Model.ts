@@ -2,9 +2,9 @@
 import { beijingDayKey, DAY_MS } from '../lib/beijing';
 import { emptyPersonalInputs, reconcileCardCount, createResetCard, computeLastActionAt } from '../lib/v3/cards';
 import { fitPlatformModel, predictPlatform, type RegularEventInput } from '../lib/v3/platform';
-import { buildSupplyScenarios } from '../lib/v3/supply';
+import { buildSupplyScenarios,classifyAccountObservations,type AccountObservationSnapshot } from '../lib/v3/supply';
 import { aggregateUsageDays, type UsageObservation } from '../lib/v3/observations';
-import { fitDemandModel, type WorkloadChoice } from '../lib/v3/demand';
+import { fitDemandModel, selectDemandDays, type WorkloadChoice } from '../lib/v3/demand';
 import { planActions, type PlanningOutput, type Recommendation, type PlanningInput } from '../lib/v3/planning';
 import {normalizeAccount,buildReviewTimes,normalizeSignalVersions} from '../lib/v3/inputs';
 import type { PersonalInputsState } from './usePersonalInputs';
@@ -14,11 +14,11 @@ import type { OrbReadout, OrbMetric } from './orbMetric';
 
 export {normalizeAccount,buildReviewTimes} from '../lib/v3/inputs';
 function rawHistory(document:unknown):{events:RegularEventInput[];fetchedAt:number;complete:boolean}{
-  const doc=document as {events?:RegularEventInput[];fetchedAt?:string;upstream?:{pagination?:{has_more?:boolean;next_cursor?:unknown}};coverage?:{complete?:boolean}};
-  return {events:Array.isArray(doc?.events)?doc.events:[],fetchedAt:Date.parse(doc?.fetchedAt??''),complete:doc?.upstream?.pagination?.has_more===false&&doc.upstream.pagination.next_cursor==null};
+  const doc=document as {events?:RegularEventInput[];fetchedAt?:string;coverageThrough?:string;upstream?:{pagination?:{has_more?:boolean;next_cursor?:unknown}};coverage?:{complete?:boolean}};
+  return {events:Array.isArray(doc?.events)?doc.events:[],fetchedAt:Date.parse(doc?.coverageThrough??doc?.fetchedAt??''),complete:doc?.upstream?.pagination?.has_more===false&&doc.upstream.pagination.next_cursor==null};
 }
 export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unknown,now:number,personal?:PersonalInputsState,
-  observations:readonly UsageObservation[]=[],signalHistory:readonly PlatformSignalHistory[]=[],deferPlanning=false){
+  observations:readonly UsageObservation[]=[],signalHistory:readonly PlatformSignalHistory[]=[],deferPlanning=false,accountSnapshots:readonly AccountObservationSnapshot[]=[]){
   const history=rawHistory(historyDocument),events=[...history.events];
   const status=snapshot.resetStatus;
   const latest=status?.latestReset;
@@ -33,7 +33,8 @@ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unkno
   const data=personal??{...emptyPersonalInputs(snapshot.accountKey??null),reconciliation:reconcileCardCount([],snapshot.resetCredits),effectiveWorkloadToday:null,reminders:[],accountCount:snapshot.resetCredits};
   const scopedObservations=observations.filter(o=>o.accountKey===snapshot.accountKey);
   const days=aggregateUsageDays(scopedObservations,now);
-  const choices:WorkloadChoice[]=data.inputVersions.filter(v=>v.field==='workloadToday'&&v.after!=null).map(v=>{
+  const choices:WorkloadChoice[]=data.inputVersions.filter(v=>v.field==='workloadToday').map(v=>{
+    if(v.after==null)return {dateKey:beijingDayKey(v.changedAt),workload:'unknown'};
     const c=v.after as {localDate:string;level:string};return {dateKey:c.localDate,workload:c.level==='quiet'?'light':c.level as WorkloadChoice['workload']};
   });
   const budget=data.weeklyBudgetPercent?.localDate===beijingDayKey(now)?data.weeklyBudgetPercent.value:null;
@@ -43,16 +44,30 @@ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unkno
   const watchSnapshots=normalizeSignalVersions(signalHistory,'active_watch');
   if(status?.scheduledReset&&!scheduleSnapshots.length) scheduleSnapshots.push({...status.scheduledReset,firstSeenAt:status.fetchedAt??snapshot.updatedAt,version:1});
   if(status?.activeWatch&&!watchSnapshots.length) watchSnapshots.push({...status.activeWatch,id:`watch:${status.fetchedAt}`,firstSeenAt:status.fetchedAt??snapshot.updatedAt,version:1});
-  const supply=account?buildSupplyScenarios({accountState:account,platformForecast:platform,scheduleSnapshots,watchSnapshots,now,mechanismConfig:{horizonMs:42*DAY_MS,includePlatformBackground:true,nextReviewAt:reviews[1]??null}}):null;
+  const supply=account?buildSupplyScenarios({accountState:account,platformForecast:platform,scheduleSnapshots,watchSnapshots,platformEvents:events,now,mechanismConfig:{horizonMs:42*DAY_MS,includePlatformBackground:true,nextReviewAt:reviews[1]??null}}):null;
+  const uniqueSnapshots=[...new Map([...accountSnapshots,...(account?[account]:[])].filter(s=>s.observedAt<=now).map(s=>[s.observedAt,s])).values()].sort((a,b)=>a.observedAt-b.observedAt);
+  const mappingSnapshots=uniqueSnapshots.map((s,i)=>({...s,candidateIncidentIds:supply?.incidents.filter(incident=>incident.kind!=='watch'&&
+    [incident.announcedAt,incident.firstSeenAt,incident.scheduledFor].some(at=>at!=null&&at>(uniqueSnapshots[i-1]?.observedAt??s.observedAt)&&at<=s.observedAt)).map(incident=>incident.id)}));
+  const mapping=classifyAccountObservations({snapshots:mappingSnapshots,incidents:supply?.incidents??[],
+    cardOperations:data.useRecords.map(op=>{
+      const previous=uniqueSnapshots.filter(s=>s.observedAt<op.recordedAt).at(-1),current=uniqueSnapshots.find(s=>s.observedAt>=op.recordedAt);
+      const corroborated=previous&&current&&current.availableCardCount<previous.availableCardCount&&
+        current.weekly.resetsAt!==previous.weekly.resetsAt&&
+        (current.weekly.remaining>previous.weekly.remaining||current.short.remaining>previous.short.remaining||
+          Math.abs(current.weekly.resetsAt-(op.recordedAt+7*DAY_MS))<=15*60_000);
+      return {id:op.id,occurredAt:op.recordedAt,confirmed:op.status==='user-recorded'&&!!corroborated};
+    })});
   const cards=data.reconciliation.cards.flatMap(c=>c.card?[c.card]:[]);
   for(let i=0;i<data.reconciliation.placeholderCount;i++)cards.push({...createResetCard({localId:`unknown-${i}`,label:'有效期待补充',enteredExpiry:null,entryPrecision:'unknown',now}),confirmedAt:null});
   const daily=demand.weekly;
   const workload=data.effectiveWorkloadToday==='quiet'?'light':data.effectiveWorkloadToday??'unknown';
+  const learnedToday=workload==='unknown'?null:demand.workloadGroups[workload];
   const preference=data.preference==='save-cards'?'save':data.preference==='use-expiring'?'expiry':'service';
   let planning:PlanningOutput|null=null;
   const planningInput:PlanningInput|null=account?{now,account,cards,reviews,preference,workload,
     dailyRange:daily?{low:daily.p20,median:daily.median,high:daily.p80,p95:daily.p95}:null,
-    dailySamples:days.filter(d=>d.weeklyComplete&&!d.weeklyLowerBound&&!d.crossedReset&&!d.estimated&&!d.capacityConstrained).map(d=>d.weeklyCost!).slice(-28),
+    todayRange:learnedToday&&!learnedToday.fallbackToAll?{low:learnedToday.p20,median:learnedToday.median,high:learnedToday.p80,p95:learnedToday.p95}:null,
+    dailySamples:selectDemandDays(days,now).map(d=>d.weeklyCost!),
     todayBudget:budget,sampleDays:demand.sampleDays,supplyScenarios:supply?.scenarios??[],platformModel,inputSnapshotId:`${snapshot.accountKey??'demo'}@${snapshot.updatedAt}`,
     inventoryConflict:data.reconciliation.status==='conflict'||snapshot.resetCredits==null}:null;
   if(planningInput&&!deferPlanning)planning=planActions(planningInput);
@@ -62,7 +77,7 @@ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unkno
   return {provider:snapshot.provider,status:snapshot.status,message:snapshot.message,plan:snapshot.plan,updatedAt:snapshot.updatedAt,now,
     accountKey:snapshot.accountKey??null,account,remainingPercent:account?.weekly.remaining??snapshot.weeklyWindow?.remainingPercent??null,
     shortRemainingPercent:account?.short.remaining??snapshot.shortWindow?.remainingPercent??null,resetCredits:snapshot.resetCredits,
-    platformModel,platform,supply,demand,planning,planningInput,recommendation,personal:data,
+    platformModel,platform,supply,mapping,demand,planning,planningInput,recommendation,personal:data,
     ledgerVersion:`card-v${data.cardVersions.length}`,preferenceVersion:`preference-v${data.version}`,
     evidenceQuality:[...(coverage.length?[]:['平台历史覆盖不完整，概率可能不可评估。']),'历史firstSeenAt缺失时只作公告时间理想化参考。',`历史覆盖截至 ${Number.isFinite(history.fetchedAt)?new Date(history.fetchedAt).toISOString():'未知'}`],
   };

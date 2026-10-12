@@ -10,6 +10,7 @@ export interface PredictionRecordV3 {
   modelVersion: string;
   trainingCutoff: number;
   inputSnapshotId: string;
+  platformHistorySnapshotId?: string;
   cardLedgerVersion: string;
   preferenceVersion: string;
   featureContributions: unknown[];
@@ -43,7 +44,9 @@ export function nextSignalVersion<T>(
 ): SignalVersion<T> | null {
   if (previous && JSON.stringify(previous.value) === JSON.stringify(value)) return null;
   if (!previous && value == null) return null;
-  const newEpisode = previous == null || previous.value == null;
+  const identity=(v:T|null):unknown=>v&&typeof v==='object'?'id' in v?v.id:null:null;
+  const newEpisode = previous == null || previous.value == null ||
+    (value!=null&&identity(value)!=null&&identity(previous.value)!=null&&identity(value)!==identity(previous.value));
   return {
     observedAt,
     firstSeenAt: newEpisode ? observedAt : previous.firstSeenAt,

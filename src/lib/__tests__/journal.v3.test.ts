@@ -8,6 +8,10 @@ const input = () => ({ id: "p-1", issuedAt: 100, target: "platform_notice" as co
   evidenceQuality: ["observed"], });
 
 describe("v3 frozen prediction journal", () => {
+  it('a different watch identity starts a new episode without requiring a null refresh',()=>{
+    const old=nextSignalVersion(null,{id:'watch-a'},'2026-10-12T01:00:00Z')!;
+    expect(nextSignalVersion(old,{id:'watch-b'},'2026-10-12T02:00:00Z')).toMatchObject({change:'first_seen',firstSeenAt:'2026-10-12T02:00:00Z'});
+  });
   it("freezes all target, version and cutoff inputs needed to reproduce a forecast", () => {
     const source = input();
     const row = freezePrediction(source);

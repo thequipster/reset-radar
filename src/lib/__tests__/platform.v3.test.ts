@@ -3,6 +3,17 @@ import { DAY_MS, backtestPlatform, bootstrapWeeklyBrierImprovement, fitPlatformM
 
 const t = (days: number) => days * DAY_MS;
 describe('platform v3', () => {
+  it('a later revision cannot become available earlier just because the event ID was already known',()=>{
+    const model=fitPlatformModel({events:[{id:'a',resetType:'regular',announcedAt:DAY_MS,firstSeenAt:DAY_MS,versionSeenAt:4*DAY_MS}],coverage:[],trainingCutoff:3*DAY_MS});
+    expect(model.eventCount).toBe(0);
+  });
+  it('scores the exact uppercase version names emitted by the live v3 journal', () => {
+    const summary=summarizeOnlinePlatformScores(['P0','P1-shadow'].map((version,i)=>({group:'primary_daily',groupDate:'2026-10-12',
+      outcome:'positive' as const,record:{target:'platform_notice',issuedAt:101,trainingCutoff:100,probability:i===0?.2:.3,modelVersion:`platform-v3:${version}`}})));
+    expect(summary.matchedCount).toBe(1);
+    expect(summary.brierP0).toBeCloseTo(.64);
+    expect(summary.brierP1).toBeCloseTo(.49);
+  });
   it('counts every regular including text, deduplicates IDs, and excludes banked records', () => {
     const events = Array.from({ length: 54 }, (_, i) => ({ id: `r${i}`, resetType: 'regular', announcedAt: t(i), text: 'official notice', source: 'official' }));
     events.push({ ...events[10], text: 'revised' }, { id: 'b', resetType: 'banked', announcedAt: t(70), text: 'banked', source: 'official' });

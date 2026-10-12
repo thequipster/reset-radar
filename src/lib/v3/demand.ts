@@ -67,15 +67,20 @@ function emptyScenario(): WorkloadScenario {
   return { value: null, low: null, high: null, source: "learning" };
 }
 
+/** 训练和行动规划共用同一组完整周需求日；短窗证据另行筛选。 */
+export function selectDemandDays(observations: readonly DemandDay[], cutoff: number): DemandDay[] {
+  const cutoffDay = beijingDayFloor(cutoff);
+  return observations.filter(day => isValidDay(day, cutoffDay))
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-28);
+}
+
 export function fitDemandModel(
   observations: readonly DemandDay[],
   choices: readonly WorkloadChoice[],
   cutoff: number,
   config: { weeklyBudget?: number } = {},
 ): DemandModel {
-  const cutoffDay = beijingDayFloor(cutoff);
-  const eligible = observations.filter((day) => isValidDay(day, cutoffDay))
-    .sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-28);
+  const eligible = selectDemandDays(observations, cutoff);
   const eligibleDates = new Set(eligible.map((day) => day.dateKey));
   const weeklyValues = eligible.map((day) => day.weeklyCost as number);
   const weekly = weeklyValues.length > 0 ? distribution(weeklyValues) : null;
@@ -84,8 +89,7 @@ export function fitDemandModel(
     !day.shortCrossedReset && !day.shortEstimated)
     .map((day) => day.shortCost as number);
   const shortWindowPaired = shortValues.length >= 7 ? distribution(shortValues) : null;
-  const choiceByDate = new Map(choices.filter((choice) => choice.workload !== "unknown")
-    .map((choice) => [choice.dateKey, choice.workload]));
+  const choiceByDate = new Map(choices.map((choice) => [choice.dateKey, choice.workload]));
   const workloadGroups = {} as DemandModel["workloadGroups"];
   const workload = {} as DemandModel["workload"];
 
@@ -120,7 +124,7 @@ export function fitDemandModel(
   return {
     status: eligible.length >= 7 ? "estimated" : eligible.length > 0 ? "preliminary" : "learning",
     sampleDays: eligible.length,
-    choiceCount: choices.filter((choice) => choice.workload !== "unknown" && eligibleDates.has(choice.dateKey)).length,
+    choiceCount: [...choiceByDate].filter(([date,choice])=>choice!=='unknown'&&eligibleDates.has(date)).length,
     weekly, shortWindowPaired, workload, workloadGroups, budgetScenarios,
     thresholds: { preliminary: 7, established: 14, rollingDays: 28, workloadGroup: 7 },
   };

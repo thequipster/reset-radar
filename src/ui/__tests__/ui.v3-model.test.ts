@@ -5,10 +5,30 @@ import {emptyPersonalInputs,reconcileCardCount} from '../../lib/v3/cards';
 import {normalizeSignalVersions} from '../../lib/v3/inputs';
 import {DAY_MS} from '../../lib/beijing';
 import type {PersonalInputsState} from '../usePersonalInputs';
+import type {UsageObservation} from '../../lib/v3/observations';
+import {normalizeProviderSnapshotV3} from '../useV3Journal';
 const now=Date.parse('2026-10-12T10:00:00+08:00');
 const history={events:Array.from({length:54},(_,i)=>({id:String(i),resetType:'regular',announcedAt:new Date(now-(54-i)*DAY_MS).toISOString(),text:'official announcement'})),fetchedAt:new Date(now).toISOString(),upstream:{pagination:{has_more:false,next_cursor:null}}};
 const snapshot=()=>({...demoSnapshot(),updatedAt:new Date(now).toISOString(),rateLimitSnapshot:null});
 describe('v3运行接线语义',()=>{
+ it('快照日志也按窗口时长归一化，调换字段不污染用量历史',()=>{
+   const s={...snapshot(),accountKey:'test-account'};
+   const normalized=normalizeProviderSnapshotV3(s);
+   const swapped=normalizeProviderSnapshotV3({...s,weeklyWindow:s.shortWindow,shortWindow:s.weeklyWindow});
+   expect(swapped?.weekly).toEqual(normalized?.weekly);expect(swapped?.short).toEqual(normalized?.short);
+ });
+ it('学到足够忙闲标签后仅改变今天的预测；未来保持全体分布',()=>{
+   const s={...snapshot(),accountKey:'test-account'};
+   const midnight=Date.parse('2026-10-12T00:00:00+08:00');
+   const observations:UsageObservation[]=Array.from({length:14},(_,i)=>({id:String(i),accountKey:s.accountKey,fromAt:midnight-(14-i)*DAY_MS,toAt:midnight-(13-i)*DAY_MS,sourceVersion:'test',short:null,
+     weekly:{generation:'g',previousGeneration:'g',nextGeneration:'g',knownConsumption:i<7?10:80,coverageMs:DAY_MS,crossedReset:false,isLowerBound:false,capacityConstrained:false}}));
+   const personal={...emptyPersonalInputs(s.accountKey),reconciliation:reconcileCardCount([],0),effectiveWorkloadToday:'busy' as const,effectiveWeeklyBudgetPercent:null,reminders:[],accountCount:0,
+     inputVersions:Array.from({length:7},(_,i)=>({version:i,changedAt:midnight-(14-i)*DAY_MS,field:'workloadToday' as const,before:null,after:{localDate:new Date(midnight-(14-i)*DAY_MS+8*3_600_000).toISOString().slice(0,10),level:'busy'}}))}satisfies PersonalInputsState;
+   const vm=buildV3Dashboard(s,history,now,personal,observations,[],true);
+   expect(vm.planningInput!.todayRange?.high).toBe(10);
+   expect(vm.planningInput!.dailyRange?.high).toBe(80);
+   expect(vm.planningInput!.dailySamples).toHaveLength(14);
+ });
  it('54条带官方text保留53完整间隔，正式目标是P而A未知',()=>{const vm=buildV3Dashboard(snapshot(),history,now);expect(vm.platform.training.eventCount).toBe(54);expect(vm.platform.training.completedGapCount).toBe(53);expect(vm.platform.probability24h).toBeGreaterThan(0);expect(vm.supply?.accountProbability24h).toBeNull();expect(vm.recommendation.weeklyBudgetToday).toBeNull();});
  it('窗口依时长识别，调换primary位置不交换资源单位',()=>{const s=snapshot();const swapped={...s,weeklyWindow:s.shortWindow,shortWindow:s.weeklyWindow};expect(normalizeAccount(swapped)?.weekly.durationMins).toBe(10080);expect(normalizeAccount(swapped)?.short.durationMins).toBe(300);});
  it('个人偏好和卡修改不改变P；未录入有效期不制造14天',()=>{const s=snapshot();const personal={...emptyPersonalInputs(null),reconciliation:reconcileCardCount([],3),effectiveWorkloadToday:null,effectiveWeeklyBudgetPercent:null,reminders:[],accountCount:3}satisfies PersonalInputsState;const a=buildV3Dashboard(s,history,now,personal);const b=buildV3Dashboard(s,history,now,{...personal,preference:'save-cards',version:1});expect(a.platform).toEqual(b.platform);expect(b.planning?.selected).toBeNull();expect(personal.reconciliation.placeholderCount).toBe(3);});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitDemandModel, type DemandDay, type WorkloadChoice } from "../v3/demand";
+import { fitDemandModel, selectDemandDays, type DemandDay, type WorkloadChoice } from "../v3/demand";
 
 const dateForIndex = (i: number) => new Date(Date.parse("2026-09-03T00:00:00Z") + (i - 1) * 86_400_000).toISOString().slice(0, 10);
 const day = (i: number, patch: Partial<DemandDay> = {}): DemandDay => ({
@@ -23,6 +23,20 @@ const day = (i: number, patch: Partial<DemandDay> = {}): DemandDay => ({
 });
 
 describe("v3 demand fit", () => {
+  it('同日改为不确定会清除旧忙闲标签，重复修改不增加标签样本数',()=>{
+    const days=Array.from({length:7},(_,i)=>day(i+1));
+    const choices:WorkloadChoice[]=days.map(d=>({dateKey:d.dateKey,workload:'busy'}));
+    choices.push({dateKey:days[0]!.dateKey,workload:'busy'},{dateKey:days[1]!.dateKey,workload:'unknown'});
+    const result=fitDemandModel(days,choices,Date.parse('2026-10-01T00:00:00Z'));
+    expect(result.choiceCount).toBe(6);expect(result.workloadGroups.busy.fallbackToAll).toBe(true);
+  });
+  it("规划样本与训练一致：短窗重置不抹去完整周耗，旧日和今日不参与", () => {
+    const cutoff = Date.parse("2026-10-01T00:00:00+08:00");
+    const days = [day(0), day(1, { crossedReset: true, shortCrossedReset: true }),
+      day(2, { weeklyComplete: false }), day(29), day(30)];
+    expect(selectDemandDays(days, cutoff).map(d => d.dateKey)).toEqual([dateForIndex(1)]);
+    expect(fitDemandModel(days, [], cutoff).sampleDays).toBe(1);
+  });
   it("没有有效日时保持需求和短窗配对未知，不填固定日耗", () => {
     const result = fitDemandModel([], [], Date.parse("2026-10-01T00:00:00Z"));
     expect(result.sampleDays).toBe(0);

@@ -22,7 +22,7 @@ export type SupplyScenario = {
   assumptions: string[]; events: { at: number; kind: 'weekly_reset' | 'short_reset' | 'platform_incident' | 'scheduled_weekly_supply' | 'scheduled_short_supply'; incidentId?: string; certainty: 'observed' | 'conditional' }[];
   resultingDeadlines: { weekly: number | null; short: number | null }; accountProbability24h: null;
 };
-export type AccountObservationSnapshot = AccountState & { linkedIncidentIds?: readonly string[] };
+export type AccountObservationSnapshot = AccountState & { linkedIncidentIds?: readonly string[];candidateIncidentIds?:readonly string[] };
 export type CardUseOperation = { id: string; occurredAt: number; confirmed: boolean; linkedIncidentIds?: readonly string[] };
 export type IncidentExecutionWindow = { incidentId: string; from: number; to: number; basis: 'observed_execution_window' };
 export type AccountMappingStatus = 'hit' | 'miss' | 'unobservable' | 'ambiguous';
@@ -64,7 +64,7 @@ export function normalizeSupplyIncidents(input: {
     const incident: SupplyIncident = { id, kind: item.kind, status, firstSeenAt: time(firstSeenAt), announcedAt: time(announcedAt),
       scheduledFor: time(scheduledFor), cancelledAt: time(cancelledAt), version: Number.isFinite(r.version) ? r.version : 1,
       source: r.source ?? r.sourceUrl ?? r.sourceType, text: typeof r.text === 'string' ? r.text : undefined,
-      relatedIds: Array.isArray(r.relatedEventIds) ? r.relatedEventIds.map(String) : [], raw: item.raw,
+      relatedIds: Array.isArray(r.relatedEventIds??r.relatedIds) ? (r.relatedEventIds??r.relatedIds).map(String) : [], raw: item.raw,
       versionHistory: [{ version: Number.isFinite(r.version) ? r.version : 1, firstSeenAt: time(firstSeenAt), status,
         announcedAt: time(announcedAt), scheduledFor: time(scheduledFor), cancelledAt: time(cancelledAt) }] };
     const old = byId.get(id);
@@ -80,7 +80,12 @@ export function normalizeSupplyIncidents(input: {
   // Explicit relation, never same-day/time proximity, merges regular records into schedule incidents.
   for (const schedule of incidents.filter(x => x.kind === 'scheduled')) {
     const related = incidents.filter(x => x.kind === 'regular' && (schedule.relatedIds.includes(x.id) || x.relatedIds.includes(schedule.id)));
-    if (related.length) incidents.splice(incidents.indexOf(related[0]), 1);
+    for(const regular of related){
+      schedule.versionHistory.push(...regular.versionHistory);
+      schedule.relatedIds=[...new Set([...schedule.relatedIds,regular.id,...regular.relatedIds])];
+      if(schedule.announcedAt==null)schedule.announcedAt=regular.announcedAt;
+      incidents.splice(incidents.indexOf(regular),1);
+    }
   }
   return incidents.sort((a, b) => (a.firstSeenAt ?? a.announcedAt ?? Infinity) - (b.firstSeenAt ?? b.announcedAt ?? Infinity));
 }
@@ -126,7 +131,7 @@ export function classifyAccountObservations(input: {
     const cardOps = operations.filter(op => op.confirmed && op.occurredAt > previous.observedAt && op.occurredAt <= current.observedAt);
     const linkedIds = new Set([...(current.linkedIncidentIds ?? []), ...cardOps.flatMap(op => op.linkedIncidentIds ?? [])]);
     const relevantWindows = windows.filter(w => w.from < current.observedAt && w.to > previous.observedAt);
-    const ids = new Set([...linkedIds, ...relevantWindows.map(w => w.incidentId)]);
+    const ids = new Set([...linkedIds, ...(current.candidateIncidentIds??[]), ...relevantWindows.map(w => w.incidentId)]);
     if (ids.size === 0) ids.add(''); // retain an account observation even without an incident candidate
     const completeCoveredWindow = (id: string) => {
       const w = windows.find(x => x.incidentId === id);
@@ -226,7 +231,7 @@ export function buildSupplyScenarios(input: {
     events: [...events.map(e => ({ ...e })), { at: input.mechanismConfig?.nextReviewAt??now+DAY_MS, kind: 'platform_incident', incidentId: watch.id, certainty: 'conditional' },
       {at:input.mechanismConfig?.nextReviewAt??now+DAY_MS,kind:'scheduled_weekly_supply',incidentId:watch.id,certainty:'conditional'},
       ...(short?[{at:input.mechanismConfig?.nextReviewAt??now+DAY_MS,kind:'scheduled_short_supply' as const,incidentId:watch.id,certainty:'conditional' as const}]:[])],
-    resultingDeadlines: { weekly: state.weekly.resetsAt, short: state.short.resetsAt }, accountProbability24h: null });
+    resultingDeadlines: { weekly: reanchor?(input.mechanismConfig?.nextReviewAt??now+DAY_MS)+7*DAY_MS:state.weekly.resetsAt, short: short?null:state.short.resetsAt }, accountProbability24h: null });
   if(input.mechanismConfig?.includePlatformBackground&&bgP!==null){
     const deterministic=scenarios.filter(s=>s.source==='scheduled'||s.source==='watch');
     for(const scenario of deterministic)scenarios.push({...scenario,id:`${scenario.id}:with-platform-background`,source:'platform_background',title:`${scenario.title} + 历史总过程敏感性`,assumptions:[...scenario.assumptions,'同时考虑历史全部regular过程，不称作排期之外的发生率，不与未到账机制情景平均。']});

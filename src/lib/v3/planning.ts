@@ -21,6 +21,7 @@ export interface PolicyComparison { id: string; firstAction: string | null; para
 export interface PlanningInput {
   now: number; account: AccountState; cards: readonly ResetCard[]; reviews: readonly number[];
   preference: Preference; dailyRange: { low: number; median: number; high: number; p95: number } | null;
+  todayRange?: {low:number;median:number;high:number;p95:number}|null;
   dailySamples?: readonly number[]; todayBudget?: number | null; workload?: 'light' | 'normal' | 'busy' | 'unknown';
   sampleDays: number; supplyScenarios: readonly SupplyScenario[]; platformModel?: PlatformModel | null;
   inputSnapshotId: string; inventoryConflict?: boolean;
@@ -28,7 +29,7 @@ export interface PlanningInput {
   explicitDemand?: readonly DemandBlock[];
 }
 export interface PlanningOutput { recommendation: Recommendation; comparisons: PolicyComparison[]; horizons: { days: number; firstAction: string | null }[]; seed: number; modelVersion: string; assumptions: string[]; selected: PolicyComparison | null; alternative?: PolicyComparison|null }
-export const MODEL_VERSION = 'decision-v3.1';
+export const MODEL_VERSION = 'decision-v3.2';
 export function seedFromSnapshot(id: string): number {
   let n = 2166136261; for (const c of `${id}:${MODEL_VERSION}`) n = Math.imul(n ^ c.charCodeAt(0), 16777619); return n >>> 0;
 }
@@ -97,14 +98,42 @@ export function comparePolicies(candidates: readonly PolicyComparison[], prefere
   return [...best].sort((a,b) => { const ka=keys(a), kb=keys(b); for(let i=0;i<ka.length;i++){if(ka[i]!==kb[i])return ka[i]!<kb[i]!?-1:1;} return (a.firstCardDeadline??Infinity)-(b.firstCardDeadline??Infinity)||a.id.localeCompare(b.id); })[0]!;
 }
 
+/** 无经验权重的机制不能被最差值汇总隐藏：分别重选首个动作并报告反转。 */
+export function scenarioActionSensitivity(candidates:readonly PolicyComparison[],preference:Preference):boolean {
+  const ids=[...new Set(candidates.flatMap(c=>c.scenarios.map(s=>s.id)))];
+  const actions=new Set<string|null>();
+  for(const id of ids){
+    const scoped=candidates.flatMap(c=>{
+      const s=c.scenarios.find(s=>s.id===id);
+      return s?[{...c,scenarios:[s],Ltail:s.lossTail,Lmean:s.lossMean,Eexpire:s.expired,Nspent:s.spent}]:[];
+    });
+    const selected=comparePolicies(scoped,preference);
+    if(selected)actions.add(selected.firstAction);
+  }
+  return actions.size>1;
+}
+
 function evaluateHorizon(input: PlanningInput, days: number, seed: number): { selected: PolicyComparison | null; comparisons: PolicyComparison[] } {
-  const end = input.now + days * DAY_MS, rng = random(seed);
+  const end = input.now + days * DAY_MS;
   const empirical = (input.dailySamples?.length ?? 0) >= 7;
-  const count = empirical ? 256 : input.todayBudget != null ? 3 : 1;
-  const samples = Array.from({ length: count }, (_, path) => {
-    const costs = Array.from({ length: days + 1 }, () => empirical ? input.dailySamples![Math.floor(rng()*input.dailySamples!.length)]! : input.dailyRange?.median ?? input.todayBudget ?? 0);
-    const multiplier = empirical ? 1 : [0.5, 1, 2][path] ?? 1;
-    return makeBlocks(input, end, index => index === 0 && input.todayBudget != null ? input.todayBudget * multiplier : index === 0 && input.workload === 'light' ? input.dailyRange!.low : index === 0 && input.workload === 'busy' ? input.dailyRange!.high : costs[index]!);
+  // 手填倍率是无权重压力，未来经验抽样在每个压力组内独立计分，不能混成概率。
+  // 未建立经验分布且忙闲未知时，保留低/中/高全路径，避免中值掩盖较忙缺口。
+  const demandCases = input.todayBudget != null
+    ? [0.5, 1, 2].map((multiplier, i) => ({id:`pressure-${i}`,multiplier,daily:input.dailyRange?.median??0}))
+    : !empirical && input.dailyRange && (input.workload == null || input.workload === 'unknown')
+      ? [{id:'demand-low',multiplier:1,daily:input.dailyRange.low}, {id:'demand-median',multiplier:1,daily:input.dailyRange.median}, {id:'demand-high',multiplier:1,daily:input.dailyRange.high}]
+      : [{id:'demand-reference',multiplier:1,daily:input.dailyRange?.median??0}];
+  const sampleGroups = demandCases.map(demandCase => {
+    const rng = random(seed); // 各压力组共享同一未来需求抽样，差别仅为指定压力。
+    const samples = Array.from({length:empirical?256:1}, () => {
+      const costs = Array.from({length:days+1}, () => empirical ? input.dailySamples![Math.floor(rng()*input.dailySamples!.length)]! : demandCase.daily);
+      const todayRange=input.todayRange??input.dailyRange;
+      return makeBlocks(input,end,index => index === 0 && input.todayBudget != null ? input.todayBudget*demandCase.multiplier
+        : index === 0 && input.workload === 'light' && todayRange ? todayRange.low
+        : index === 0 && input.workload === 'busy' && todayRange ? todayRange.high
+        : index === 0 && input.workload === 'normal' && input.todayRange ? input.todayRange.median : costs[index]!);
+    });
+    return {id:demandCase.id,samples};
   });
   // 额外平台过程属于独立敏感性机制，所有策略复用相同seed/path；不等价本账号概率。
   const background = input.platformModel ? generateRenewalPaths(input.platformModel,{now:input.now,horizonMs:days*DAY_MS,count:256,seed}) : [];
@@ -117,11 +146,10 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
   ];
   // 无权重手填压力各自单列，不能平均成概率；有概率的背景过程始终256条共享路径。
   const worlds = scenarios.flatMap(sc => mechanisms.flatMap((mechanism, mi) => {
-    const groups=empirical?[samples]:samples.map(sample=>[sample]);
-    return groups.map((group,gi)=>{
+    return sampleGroups.map(({samples:group,id})=>{
       const probabilistic=empirical||sc.source==='platform_background'&&input.platformModel?.lambda0!=null;
       const grouped=probabilistic&&!empirical?Array.from({length:256},()=>group[0]!):group;
-      return {id:`${sc.id}:mechanism-${mi}${empirical?'':`:pressure-${gi}`}`,mechanism,probabilistic,
+      return {id:`${sc.id}:mechanism-${mi}:${id}`,mechanism,probabilistic,
         paths:grouped.map((demand,path)=>({start:input.now,end,demand,reviews:input.reviews,platform:[...scenarioEvents(sc,input.now,end),...(sc.source==='platform_background'?(background[path]??[]).map((at,i)=>({at,incidentId:`background-${path}-${i}`,weekly:true,short:false,reanchorWeekly:false})):[])]}as WorldPath))};
     });
   }));
@@ -135,7 +163,11 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
       const horizonMs = parameters.horizonHours===0 ? nextReviewDelay(input.reviews,input.now) : parameters.horizonHours*HOUR_MS;
       const daily = input.dailyRange ? parameters.quantile===0.5?input.dailyRange.median:parameters.quantile===0.8?input.dailyRange.high:input.dailyRange.p95 : input.todayBudget ?? 0;
       const forecastAt=(at:number,state:Readonly<VisibleState>):DemandForecast=>{
-        const blocks=makeBlocks({...input,now:at,todayBudget:beijingDayFloor(at)===beijingDayFloor(input.now)?input.todayBudget:null},Math.min(end,at+horizonMs),()=>daily);
+        const today = beijingDayFloor(at)===beijingDayFloor(input.now);
+        const todayRange=input.todayRange??input.dailyRange;
+        const todayDaily=todayRange?parameters.quantile===0.5?todayRange.median:parameters.quantile===0.8?todayRange.high:todayRange.p95:daily;
+        const blocks=makeBlocks({...input,now:at,todayBudget:today?input.todayBudget:null},Math.min(end,at+horizonMs),index=>
+          index===0&&today?input.todayBudget??todayDaily:daily);
         return {weeklyCost:blocks.reduce((s,b)=>s+b.weeklyCost,0),shortCost:blocks.every(b=>b.shortCost!=null)?blocks.reduce((s,b)=>s+(b.shortCost??0),0):null,nextKnownSupplyAt:state.weekly.resetsAt,blocks};
       };
       const results=w.paths.map(path=>simulatePolicy(input.account,input.cards,makePolicy(parameters,firstAction,input.now,w.mechanism),path,w.mechanism,forecastAt));
@@ -178,17 +210,19 @@ export function planActions(input: PlanningInput): PlanningOutput {
   const chosenCard=input.cards.find(c=>c.localId===selected?.firstAction);
   const positive=selected!=null&&selected.scenarios.every(s=>s.deltaLoss>0||s.deltaLoss>=0&&s.deltaConsumedWeekly>0);
   const reverses=selected?.scenarios.some(s=>s.deltaLoss<0)??false;
-  const uncertain=input.inventoryConflict||input.sampleDays<7||input.dailyRange==null||changes||reverses;
+  const mechanismReversal=scenarioActionSensitivity(result.comparisons,input.preference);
+  const uncertain=input.inventoryConflict||input.sampleDays<7||input.dailyRange==null||changes||reverses||mechanismReversal;
   const firstAction=selected?.firstAction??null;
-  const makeBudget=(daily:number)=>allocateDailyBudget(input.account,makeBlocks(input,input.account.weekly.resetsAt,()=>daily),input.now)?.today??null;
-  const low=makeBudget(input.dailyRange?.low??input.todayBudget! * 0.5),high=makeBudget(input.dailyRange?.high??input.todayBudget! * 2);
+  const budgetForToday=(daily:number)=>allocateDailyBudget(input.account,makeBlocks(input,input.account.weekly.resetsAt,index=>index===0?daily:input.dailyRange?.median??daily),input.now)?.today??null;
+  const todayRange=input.todayRange??input.dailyRange;
+  const low=budgetForToday(input.todayBudget!=null?input.todayBudget*0.5:todayRange?.low??0),high=budgetForToday(input.todayBudget!=null?input.todayBudget*2:todayRange?.high??0);
   const recommendation:Recommendation={...basic,status:!selected?'not_applicable':firstAction&&positive&&!uncertain?'act_now':uncertain?'conditional':'wait',
     action:firstAction?'use_card':'keep_card',cardId:firstAction,
     lastSafeActionAt:chosenCard?.safeDeadlineAt==null?null:chosenCard.safeDeadlineAt-30*60_000,
     weeklyBudgetToday:low==null||high==null?null:{low,high},shortWindowEvaluated:selected?.scenarios.every(s=>s.shortWindowEvaluated)??false,
     reasons:!selected?['没有可执行的用卡方案。']:firstAction?['该用卡方案与先等待、永远不用卡共同比较；收益以实际满足需求计算。']:['当前先不用卡；后续仍在查看时段重新决定。'],
-    assumptions:[...assumptions,...(hadReversal?['较短视野曾改变首个动作，已延长至42天复算。']:[]),...(input.dailyRange==null?['仅评估手填今天工作量0.5/1/2倍压力，未来需求未知，不作长期强建议。']:[])],
-    counterfactuals:result.comparisons,sensitivity:changes||reverses?'changes_with_assumptions':uncertain?'unknown':'stable'};
+    assumptions:[...assumptions,...(mechanismReversal?['不同机制或需求压力下首个动作反转；当前仅给条件建议，到账或需求确认后再决定。']:[]),...(hadReversal?['较短视野曾改变首个动作，已延长至42天复算。']:[]),...(input.dailyRange==null?['仅评估手填今天工作量0.5/1/2倍压力，未来需求未知，不作长期强建议。']:[])],
+    counterfactuals:result.comparisons,sensitivity:changes||reverses||mechanismReversal?'changes_with_assumptions':uncertain?'unknown':'stable'};
   const alternative=comparePolicies(result.comparisons.filter(c=>c.firstAction!==firstAction),input.preference);
   return {recommendation,comparisons:result.comparisons,horizons,seed,modelVersion:MODEL_VERSION,assumptions,selected,alternative};
 }

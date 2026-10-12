@@ -6,6 +6,12 @@ const state = { observedAt: 0, weekly: { remaining: 50, resetsAt: 10 * DAY_MS, d
 const forecast = { target: 'platform_notice' as const, probability24h: 0.12, probabilities: [], model: 'constant_rate' as const, shadow: { model: 'age_piecewise' as const, probability24h: 0.2, probabilities: [] }, globalRatePerDay: 0.13, ageDays: 4, factors: [], shadowFactors: [], training: { eventCount: 54, completedGapCount: 53, exposureDays: 100 }, status: 'reference' as const };
 
 describe('supply scenarios v3', () => {
+  it('keeps all explicitly linked announcement versions under one schedule incident',()=>{
+    const incidents=normalizeSupplyIncidents({scheduleSnapshots:[{id:'s',relatedEventIds:['r1','r2']}],
+      platformEvents:[{id:'r1',resetType:'regular',announcedAt:100},{id:'r2',resetType:'regular',announcedAt:200},{id:'other',resetType:'regular',announcedAt:200}]});
+    expect(incidents.map(i=>i.id).sort()).toEqual(['other','s']);
+    expect(incidents.find(i=>i.id==='s')!.versionHistory).toHaveLength(3);
+  });
   it('retains schedule versions, cancellation and first-seen time without inventing schedule certainty', () => {
     const incidents = normalizeSupplyIncidents({ scheduleSnapshots: [
       { id: 's1', version: 1, firstSeenAt: 100, scheduledFor: 1000, status: 'scheduled' },

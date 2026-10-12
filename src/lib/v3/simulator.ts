@@ -122,7 +122,8 @@ export function simulatePolicy(initial: AccountState, cards: readonly ResetCard[
       const short = block.shortCost == null ? null : Math.max(0, block.shortCost * fraction);
       const served = Math.min(1, week > 0 ? state.weekly.remaining / week : 1,
         short != null && short > 0 ? state.short.remaining / short : 1);
-      if (served < 1 && firstInsufficientAt == null) firstInsufficientAt = Math.max(at, block.start);
+      // 段内按均匀工作推进；余额能支持的前半段不能误报成从段起点就不足。
+      if (served < 1 && firstInsufficientAt == null) firstInsufficientAt = Math.max(at, block.start) + duration * served;
       loss += block.weight * fraction * (1 - served);
       consumedWeekly += week * served; state.weekly.remaining = Math.max(0, state.weekly.remaining - week * served);
       if (short != null) { consumedShort += short * served; state.short.remaining = Math.max(0, state.short.remaining - short * served); }

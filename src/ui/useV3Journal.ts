@@ -4,6 +4,10 @@ import { buildUsageObservations, type SnapshotV3, type UsageObservation } from "
 import { freezePlanning, freezePrediction, nextSignalVersion, predictionGroupAt, type PlanningJournalRecord, type PredictionRecordV3 } from "../lib/v3/journal";
 import type { ProviderSnapshot } from "./types";
 import type { ResetStatusSnapshot } from "../lib/resetStatus";
+import {archivePlatformHistory, latestArchivedHistory} from '../lib/v3/runtime';
+import {RESET_HISTORY_SOURCE} from './history';
+import {normalizeAccount} from '../lib/v3/inputs';
+import type {AccountObservationSnapshot,AccountObservationInterval} from '../lib/v3/supply';
 
 type LogRead = { path: string; content: string };
 type AppendResult = "appended" | "conflict" | "busy";
@@ -16,13 +20,15 @@ export function normalizeProviderSnapshotV3(snapshot: ProviderSnapshot): Snapsho
     window?.resetsAt && Number.isFinite(Date.parse(window.resetsAt)) && Number.isFinite(window.remainingPercent)
       ? { generation: window.resetsAt, usedPercent: Math.max(0, Math.min(100, 100 - window.remainingPercent)) }
       : null;
+  const normalized=normalizeAccount(snapshot);
+  const normalizedWindow=(window:NonNullable<typeof normalized>['weekly']):SnapshotV3['weekly']=>({generation:new Date(window.resetsAt).toISOString(),usedPercent:100-window.remaining});
   return {
     id: `v3-${accountKey}-${observedAt}`,
     observedAt,
     accountKey,
     sourceVersion: `${snapshot.provider}:${snapshot.rateLimitSnapshot?.source ?? "provider"}`,
-    weekly: toWindow(snapshot.weeklyWindow),
-    short: toWindow(snapshot.shortWindow),
+    weekly: normalized?normalizedWindow(normalized.weekly):toWindow(snapshot.weeklyWindow),
+    short: normalized?normalizedWindow(normalized.short):toWindow(snapshot.shortWindow),
     schemaVersion: 3,
     rawSnapshot: snapshot,
   };
@@ -49,8 +55,12 @@ async function appendOnce(kind: "usage" | "cards", row: { id: string; observedAt
 
 export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean) {
   const [observations, setObservations] = useState<UsageObservation[]>([]);
+  const [accountSnapshots,setAccountSnapshots]=useState<AccountObservationSnapshot[]>([]);
   const [signalHistory, setSignalHistory] = useState<PlatformSignalHistory[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [historyError,setHistoryError]=useState<string|null>(null);
+  const [historyDocument,setHistoryDocument]=useState<unknown>(RESET_HISTORY_SOURCE);
+  const [predictionContent,setPredictionContent]=useState('');
   const activeAccount = useRef<string | null>(snapshot?.accountKey ?? null);
   const writer = useRef<Promise<unknown>>(Promise.resolve());
   const enqueueWrite = useCallback(<T,>(operation: () => Promise<T>): Promise<T> => {
@@ -70,11 +80,15 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
         if (row?.schemaVersion === 3 && row.rawSnapshot && typeof row.id === "string" && typeof row.observedAt === "string" && typeof row.accountKey === "string") snapshots.push(row);
       } catch { /* tolerate a damaged JSONL row */ }
     }
-    if (activeAccount.current === accountKey) setObservations(
-      accountKey == null ? [] : buildUsageObservations(snapshots.filter((row) => row.accountKey === accountKey)),
-    );
+    if (activeAccount.current === accountKey){
+      const scoped=accountKey==null?[]:snapshots.filter(row=>row.accountKey===accountKey);
+      setObservations(buildUsageObservations(scoped));
+      setAccountSnapshots(scoped.flatMap(row=>{const normalized=normalizeAccount(row.rawSnapshot as ProviderSnapshot);return normalized?[normalized]:[]}));
+    }
     const cardLog = await read("cards");
     setSignalHistory(readSignalHistory(cardLog.content));
+    setPredictionContent(cardLog.content);
+    setHistoryDocument(latestArchivedHistory(cardLog.content,RESET_HISTORY_SOURCE));
   }, []);
 
   const appendSnapshot = useCallback(async (input: ProviderSnapshot) => {
@@ -86,7 +100,7 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
 
   const appendSignals = useCallback(async (input: ProviderSnapshot) => {
     const status = input.resetStatus;
-    if (!status || input.status !== "ok" || status.status !== "ok" || !status.fetchedAt) return;
+    if (!status || status.status !== "ok" || !status.fetchedAt) return;
     const observedAt = status.fetchedAt;
     if (!Number.isFinite(Date.parse(observedAt))) return;
     const currentValues = [status.scheduledReset ?? null, status.activeWatch ?? null] as const;
@@ -94,11 +108,11 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
     await enqueueWrite(async () => {
       const history = readSignalHistory((await read("cards")).content);
       // A repeated/stale provider cache is not a newly observed signal version.
-      if (history.some((entry) => entry.observedAt === observedAt)) return;
       for (let i = 0; i < signalKinds.length; i += 1) {
         const signalKind = signalKinds[i]!;
         const value = currentValues[i];
         const prior = history.filter((entry) => entry.signalKind === signalKind).at(-1);
+        if(prior&&Date.parse(prior.observedAt)>=Date.parse(observedAt))continue;
         const version = nextSignalVersion(prior ?? null, value, observedAt);
         if (!version) continue;
         const row = { id: `signal-${signalKind}-${observedAt}-${encodeURIComponent(JSON.stringify(value))}`,
@@ -133,21 +147,50 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
     await enqueueWrite(() => appendOnce("cards", { id: record.id, observedAt: new Date().toISOString(), kind: "planning", record }));
   }, [enqueueWrite]);
 
+  const appendAccountMapping=useCallback(async(accountKey:string,rows:readonly AccountObservationInterval[],observedAt:number)=>{
+    await enqueueWrite(async()=>{
+      for(const row of rows){
+        if(row.incidentId==null&&row.knownClassification==='unobservable')continue;
+        const id=`mapping:${accountKey}:${row.interval.fromExclusive}:${row.interval.toInclusive}:${row.incidentId??'unknown'}:${row.knownClassification}:${row.evidence.confirmedCardUseIds.join(',')}`;
+        await appendOnce('cards',{id,observedAt:new Date(observedAt).toISOString(),kind:'account_mapping',accountKey,record:row});
+      }
+    });
+  },[enqueueWrite]);
+
   useEffect(() => {
     activeAccount.current = snapshot?.accountKey ?? null;
-    if (!enabled) { setObservations([]); setError(null); return; }
+    if (!enabled) { setObservations([]);setAccountSnapshots([]); setError(null);setHistoryError(null); setPredictionContent(''); setHistoryDocument(RESET_HISTORY_SOURCE); return; }
     let alive = true;
     void (async () => {
       try {
-        if (snapshot?.status === "ok") { await appendSnapshot(snapshot); await appendSignals(snapshot); }
+        if (snapshot?.status === "ok") await appendSnapshot(snapshot);
         else await refresh(snapshot?.accountKey ?? null);
+        if(snapshot)await appendSignals(snapshot);
         if (alive) setError(null);
       } catch (cause) { if (alive) setError(String(cause)); }
     })();
     return () => { alive = false; };
   }, [enabled, snapshot?.updatedAt, snapshot?.accountKey, appendSnapshot, appendSignals, refresh]);
 
-  return { observations, signalHistory, error, refresh, appendSnapshot, appendPrediction, appendPlanning };
+  // 跟随已有15分钟status节流，一次新成功status拉完整分页；失败不延长历史覆盖。
+  useEffect(()=>{
+    if(!enabled||snapshot?.resetStatus?.status!=='ok'||!snapshot.resetStatus.fetchedAt)return;
+    let alive=true;
+    void(async()=>{
+      const raw=await invoke<unknown>('fetch_platform_history');
+      if(!alive)return;
+      await enqueueWrite(async()=>{
+        if(!alive)return;
+        const log=await read('cards');
+        const document=archivePlatformHistory(raw,latestArchivedHistory(log.content,RESET_HISTORY_SOURCE));
+        await appendOnce('cards',{id:`platform-history:${document.fetchedAt}`,observedAt:document.fetchedAt,kind:'platform_history',document});
+      });
+      if(alive){await refresh();setHistoryError(null);}
+    })().catch(cause=>{if(alive)setHistoryError(`平台完整历史刷新失败，未新增覆盖：${String(cause)}`);});
+    return()=>{alive=false;};
+  },[enabled,snapshot?.resetStatus?.fetchedAt,snapshot?.resetStatus?.status,enqueueWrite,refresh]);
+
+  return { observations,accountSnapshots, signalHistory, historyDocument,predictionContent,error:error??historyError, refresh, appendSnapshot, appendPrediction, appendPlanning,appendAccountMapping };
 }
 
 export interface PlatformSignalHistory {

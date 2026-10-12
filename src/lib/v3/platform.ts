@@ -42,7 +42,8 @@ function normalizeEvents(inputs: readonly RegularEventInput[], cutoff: number): 
     if (raw.resetType !== 'regular') continue;
     const at = asTime(raw.announcedAt);
     const seen = asTime(raw.firstSeenAt);
-    if (at === null || at > cutoff || (seen !== null && seen > cutoff)) continue;
+    const versionSeen=asTime(raw.versionSeenAt);
+    if (at === null || at > cutoff || (seen !== null && seen > cutoff) || (versionSeen!==null&&versionSeen>cutoff)) continue;
     const id = raw.id == null ? `anonymous:${at}:${anonymous++}` : String(raw.id);
     const source = raw.source ?? raw.sourceType;
     const event = { id, announcedAt: at, firstSeenAt: seen, source,
@@ -190,8 +191,8 @@ export function summarizeOnlinePlatformScores(rows: readonly OnlinePlatformScore
   const matched: { label: 0 | 1; p0: number; p1: number }[] = [];
   let pending = 0, censored = 0, unknown = 0, missingPair = 0;
   for (const group of groups.values()) {
-    const p0row = group.find(r => r.p0 != null || r.probabilityP0 != null || (r.record?.modelVersion ?? '').includes('p0'));
-    const p1row = group.find(r => r.p1 != null || r.probabilityP1 != null || (r.record?.modelVersion ?? '').includes('p1'));
+    const p0row = group.find(r => r.p0 != null || r.probabilityP0 != null || (r.record?.modelVersion ?? '').toLowerCase().includes('p0'));
+    const p1row = group.find(r => r.p1 != null || r.probabilityP1 != null || (r.record?.modelVersion ?? '').toLowerCase().includes('p1'));
     const p0 = p0row?.p0 ?? p0row?.probabilityP0 ?? p0row?.probability ?? p0row?.record?.probability;
     const p1 = p1row?.p1 ?? p1row?.probabilityP1 ?? (p0row === p1row ? null : p1row?.probability ?? p1row?.record?.probability) ?? group.find(r => r.probabilityP1 != null)?.probabilityP1;
     const outcome = group.map(r => r.outcome ?? r.label).find(x => x != null) ?? null;
