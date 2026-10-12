@@ -203,3 +203,7 @@
 ### U20261012-release 用户发布裁决
 - 用户明确要求修 C:/Users/slsjz/Desktop/reset-radar_qa_20261011/QA-REPORT.md 六项、负责审美、正式release上传GitHub，并将简单任务交Luna。本次任务授权正常push/tag/release，覆盖默认发布禁令；不force，不改RUNBOOK。QA报告六项为界面修复真值，系统主题移除由报告与用户修复要求直接授权。
 - 本次实测与出处：docs/qa-native-20261012.txt、docs/qa-quota-20261012.md、docs/qa-mutations-20261012.md、docs/release-qa-20261012.md；模型假设见D034。
+
+### U20261012-v3 算法与输入规格
+- 本次用户要求严格实现桌面reset-radar-算法重设计规格-v3.md；其用户确认、定义、默认参数、降级、36项验收为本卡最高依据。0.2非目标描述设计文档上一轮交付，不禁止本次实现。旧架构算法条目被此次具体规格覆盖，协议不改。
+- 原文将在docs/spec-algorithm-v3.md保留，后续用户新增要求追加版本，旧预测/旧target不改写。
