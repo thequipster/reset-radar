@@ -55,7 +55,7 @@ const EMPTY_VALUE = "—";
 /** 视图模型 + 指标 → 迷你圆读数。vm 为 null（空/加载中）时给出诚实的空态。 */
 export function orbReadout(vm: DashboardViewModel | null, metric: OrbMetric): OrbReadout {
   const meta = ORB_METRICS.find((item) => item.key === metric) ?? ORB_METRICS[0];
-  const score = vm?.risk?.score ?? null;
+  const score = vm?.riskPercent ?? null;
   const band = riskBand(score);
   const percent = score == null || !Number.isFinite(score) ? null : Math.min(100, Math.max(0, score));
 
@@ -64,7 +64,8 @@ export function orbReadout(vm: DashboardViewModel | null, metric: OrbMetric): Or
   let hasValue = false;
 
   if (metric === "pace") {
-    const suggested = vm?.dailyPlan?.suggested;
+    // v2：需求未知时 todaySuggested=null（诚实空态，不代入固定配速）。
+    const suggested = vm?.dailyPlan?.todaySuggested;
     if (suggested != null && Number.isFinite(suggested)) {
       value = suggested.toFixed(1);
       hasValue = true;

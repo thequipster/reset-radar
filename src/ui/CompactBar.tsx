@@ -40,7 +40,7 @@ export default function CompactBar({ vm, phase, demo, onExpand, expandRef }: Com
   const announcement = vm?.resetStatus?.announcement ?? null;
   const dotClass =
     collectState === "ok" ? styles.dotOk : collectState === "error" ? styles.dotError : styles.dotWarn;
-  const riskText = loading ? "—" : vm.risk == null ? "—" : percent1(vm.risk.score);
+  const riskText = loading ? "—" : percent1(vm.riskPercent);
 
   return (
     <div className={styles.shell} role="group" aria-label="reset-radar 悬浮条">

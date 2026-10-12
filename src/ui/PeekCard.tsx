@@ -1,7 +1,7 @@
 // RR27 迷你预览（图2）：不点击即可读今日建议；公告有效时首行换公告计划（02-spec §3.3）。
 // stale 时保留数字并标注「上次观测」，不为旧快照显示实时动词。
 import type { DashboardViewModel } from "./adapters";
-import type { ResetCardDecision } from "../lib";
+import type { ResetCardDecisionKind } from "../lib";
 import { beijingShort, percent1 } from "./format";
 import { BarChartIcon, ChevronRight, ClockIcon, SpeakerIcon } from "./icons";
 import styles from "./PeekCard.module.css";
@@ -44,7 +44,11 @@ export default function PeekCard({ vm, phase, demo, onOpen }: PeekCardProps) {
         <div className={styles.row}>
           <span className={styles.rowLabel}>今日建议追加</span>
           <span className={`${styles.rowValue} ${styles.rowValueAccent}`}>
-            {vm.dailyPlan == null ? "暂无建议" : `+${vm.dailyPlan.suggested.toFixed(1)} 个周额度百分点`}
+            {vm.dailyPlan == null
+              ? "暂无建议"
+              : vm.dailyPlan.todaySuggested == null
+                ? "需求未知 · 积累观测中"
+                : `+${vm.dailyPlan.todaySuggested.toFixed(1)} 个周额度百分点`}
           </span>
         </div>
       )}
@@ -68,7 +72,7 @@ export default function PeekCard({ vm, phase, demo, onOpen }: PeekCardProps) {
           ) : (
             <span>额度观测 {observed ?? "—"} 北京时间</span>
           )}
-          风险 {vm.risk == null ? "—" : percent1(vm.risk.score)}
+          风险 {percent1(vm.riskPercent)}
         </span>
         {demo && <span className={styles.demoBadge}>演示数据</span>}
         <button type="button" className={styles.openButton} onClick={onOpen}>
@@ -81,12 +85,11 @@ export default function PeekCard({ vm, phase, demo, onOpen }: PeekCardProps) {
   );
 }
 
-/** 用卡决策短语（机器键→中文短语，rc:39-44 决策语义的 UI 翻译，非业务判断）。 */
-const DECISION_SHORT: Record<ResetCardDecision, string> = {
-  "no-credits": "无可用重置卡",
-  "hold-until-depleted": "额度尚多 · 暂缓用卡",
-  "hold-until-natural-reset": "撑得到自然重置 · 不必烧卡",
-  "hold-until-scheduled-reset": "按公告计划暂缓 · 待核实",
-  "use-today": "建议今天用卡",
-  "wait-for-best-day": "等待最佳用卡日",
+/** 用卡决策短语（机器键→中文短语，v2 §6 决策语义的 UI 翻译，非业务判断）。 */
+const DECISION_SHORT: Record<ResetCardDecisionKind, string> = {
+  not_applicable: "暂不适用",
+  hold: "暂缓用卡",
+  use_today: "建议今天用卡",
+  wait: "等待更优时机",
+  uncertain: "需求未知 · 结论不稳",
 };

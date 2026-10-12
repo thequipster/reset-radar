@@ -1,8 +1,17 @@
 // RR27：复制摘要文本（02-spec §2「输出单位、模型标签、时刻与 stale 标记」）。纯函数：
 // 只拼接 VM/摘要既有字段，不重算任何数字；演示模式必须带标识，绝不冒充实跑。
 import type { DashboardViewModel } from "./adapters";
-import type { CalibrationSummaryView } from "../lib";
+import type { CalibrationSummaryView, ResetCardDecisionKind } from "../lib";
 import { beijingFull, creditsLabel, percent1, percentWhole } from "./format";
+
+/** v2 用卡决策短语（机器键→中文，非业务判断；与 PeekCard.DECISION_SHORT 同口径）。 */
+const CARD_DECISION_PHRASE: Record<ResetCardDecisionKind, string> = {
+  not_applicable: "暂不适用（无有效周窗或无卡）",
+  hold: "暂缓用卡",
+  use_today: "建议今天用卡",
+  wait: "等待更优用卡时机",
+  uncertain: "需求未知 · 结论不稳",
+};
 
 export function buildCopySummary(
   vm: DashboardViewModel,
@@ -14,12 +23,20 @@ export function buildCopySummary(
   lines.push(`方案：${vm.provider}${vm.plan != null ? ` · ${vm.plan}` : ""}`);
   lines.push(`周额度剩余：${percentWhole(vm.remainingPercent)}${vm.shortRemainingPercent != null ? `｜短窗剩余：${percentWhole(vm.shortRemainingPercent)}` : ""}`);
   lines.push(`重置卡：${creditsLabel(vm.resetCredits)}`);
-  lines.push(`重置风险（未来24h 模型估计）：${vm.risk == null ? "—" : percent1(vm.risk.score)}`);
+  lines.push(`重置风险（未来24h 模型估计）：${percent1(vm.riskPercent)}`);
   if (vm.dailyPlan != null) {
-    lines.push(`今日建议追加：+${vm.dailyPlan.suggested.toFixed(1)} 个周额度百分点（建议后剩余 ${vm.dailyPlan.suggestedRemaining.toFixed(1)}%）`);
+    lines.push(
+      vm.dailyPlan.todaySuggested == null
+        ? "今日建议：需求未知（尚无日耗观测样本，不代入固定配速）"
+        : `今日建议追加：+${vm.dailyPlan.todaySuggested.toFixed(1)} 个周额度百分点`,
+    );
   }
   if (vm.cardPlan != null) {
-    lines.push(`用卡建议：今日期望 +${vm.cardPlan.expectedGainTodayPercent.toFixed(1)} pp / 最佳日 +${vm.cardPlan.expectedGainBestPercent.toFixed(1)} pp（${vm.cardPlan.bestDayLocalDate}）`);
+    const at = vm.cardPlan.recommendedAt != null ? beijingFull(new Date(vm.cardPlan.recommendedAt).toISOString()) : null;
+    lines.push(
+      `用卡建议：${CARD_DECISION_PHRASE[vm.cardPlan.decision]}`
+        + `（增量期望 +${vm.cardPlan.incrementalUsage.toFixed(1)} pp${at != null ? `，建议时刻 ${at} 北京时间` : ""}）`,
+    );
   }
   const observed = beijingFull(vm.observedAt);
   lines.push(`额度观测：${observed ?? "—"}（北京时间）`);

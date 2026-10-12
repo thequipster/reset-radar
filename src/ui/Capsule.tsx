@@ -16,7 +16,7 @@ export default function Capsule({
   vm: DashboardViewModel;
   onExpand: () => void;
 }) {
-  const riskScore = vm.risk?.score ?? null;
+  const riskScore = vm.riskPercent ?? null;
   return (
     <button
       onClick={onExpand}
