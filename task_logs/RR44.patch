@@ -1,0 +1,3995 @@
+From c84f95c5bc6e32cdd8d2ca48aa536ada7d0a3a54 Mon Sep 17 00:00:00 2001
+From: thequipster <256361972+thequipster@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 00:22:12 +0800
+Subject: [PATCH] =?UTF-8?q?RR44=20=E6=A0=B8=E5=BF=83=E7=AE=97=E6=B3=95=20v?=
+ =?UTF-8?q?2=EF=BC=88=E4=B8=80=EF=BC=89=EF=BC=9A=E7=BB=9F=E4=B8=80?=
+ =?UTF-8?q?=E4=BA=8B=E4=BB=B6=E6=B5=81=20+=20=E5=91=A8=E6=9C=9F=E7=8A=B6?=
+ =?UTF-8?q?=E6=80=81=E6=9C=BA=20+=20=E9=A3=8E=E9=99=A9/=E9=85=8D=E9=80=9F/?=
+ =?UTF-8?q?=E7=94=A8=E5=8D=A1=E4=B8=89=E6=A8=A1=E5=9D=97=E9=87=8D=E5=86=99?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+按用户给定「reset-radar 核心算法 v2 实现规格」重写后端算法（旧 risk.ts/planner.ts/resetCard.ts 暂留，接线与删除在 RR45）：
+
+① src/lib/resetState.ts —— 唯一状态转换函数（§2）+ 派生视图（§6）+ 预测标签（§7.2）：
+   · 状态：remaining / nextNaturalResetAt / cardsRemaining / cardExpirations / lastForcedLikeResetAt(Kind) / scheduleConfidence / timers / pendingConfirmations / assumptions；
+   · 事件：unexpected | announced | announcement | card | card-failed | natural，含 timePrecision(exact|day) / scope(account|global|unknown) / linkedActionId / observedNextNaturalResetAt / supersedes（追加式更正）；
+   · 规则：用卡撤销旧自然重置定时事件（规则1）、操作 ID 关联去重（规则2）、不凭余额=100 认定用卡成功（规则3）、公告到时无证据不改余额（规则4）、同刻先合并确认信息再做一次转换（规则5）、日级取北京零点不伪造正午（规则6）；
+   · 周期规则未知时截止留空；自然重置默认不改风险年龄（NATURAL_RESET_RESETS_RISK_AGE=false，单点可翻转）；
+   · 派生视图：activeEvents / selectUnexpectedEvents（用卡不计入意外分子）/ selectCalendarResets / splitObservationSegments（用卡切段、前段暴露保留）；
+   · 标签：1 / 0 / censored / unknown，日期级跨窗口边界判不确定。
+
+② src/lib/beijing.ts —— 北京时间唯一入口（日键/日零点/星期/日内小时）。
+
+③ src/lib/riskV2.ts —— §3 风险层：λ0=(K+1)/(E+10)、λw=(Kw+28λ0)/(Ew+28)、λwa=(Kwa+28λw)/(Ewa+28)；
+   预测按北京午夜与 36h/168h 年龄边界分段积分 P=1−exp(−Λ)；删除周二/周六 70%、36h 抬到 40%、近 30 天 +12、星期偏离再加一轮、2–95% 夹逼五条旧硬规则（有测试分别验证可低于 2%、可高于 95%）；
+   日级事件只进星期统计不进年龄子模型；账号/全局/未知分用（账号空则退平台口径并标注未校准）；watch 四项口径全匹配才融合，权重 0.25×max(0,1−数据年龄/24h)；因子步骤固定顺序并标注顺序归因。
+
+④ src/lib/plannerV2.ts —— §4 配速层：最近 28 完整北京日按工作日/周末取中位数（需求）与 75 分位（上限），某组<4 天退回全部完整日，无历史输出需求未知；
+   截止 = min(自然重置, 计划用卡, 假定公告执行)；分配求解 max Σ S_i D_i log(1+x_i/D_i)，x_i=clamp(D_i(S_i/μ−1),0,C_i)，二分至误差<0.01 点；删除固定 25 点软上限与固定周末 ×0.75。
+
+⑤ src/lib/resetCardV2.ts —— §5 用卡层：成对路径共享 Exp(1) 抽样，事件驱动模拟（日界/自然重置/公告/候选用卡/随机意外重置，重置类优先于日界）；
+   主指标是观察期内实际消耗之差 ΔUsage；统一视野 H=最晚候选+2L、H2=H+L；候选=现在+未来 14 天每日 09:00+卡过期前最后时刻，回满则跳过；
+   ε=1 点决策表，需求 0.75/1/1.25 与周期规则 keep/roll 敏感性；删除 8 点/25 点/85% 三条旧固定阈值。
+
+门禁：tsc rc0 / 全量 vitest 386/386（新增域测试 76：状态机 28、风险 19、配速 14、用卡 15）/ 变异红验 3/3 RED 后还原 76/76 绿。
+验收用例 §9：1/2/3/7/7b/8/8b/9/9b/12（状态机）与 4/5/6/11（用卡）均有对应用例；用例 4 实测 Δ=0、用例 5 实测 Δ=10，与规格数值一致。
+未做：§7.1/§7.3 预测与建议日志、§8 UI 接线（RR45）；docs/design/02-spec.md 关窗语义（RR43 遗留）。
+---
+ src/lib/__tests__/plannerV2.core.test.ts   | 206 +++++
+ src/lib/__tests__/resetCardV2.core.test.ts | 223 +++++
+ src/lib/__tests__/resetState.core.test.ts  | 466 ++++++++++
+ src/lib/__tests__/riskV2.core.test.ts      | 303 +++++++
+ src/lib/beijing.ts                         |  46 +
+ src/lib/plannerV2.ts                       | 390 +++++++++
+ src/lib/resetCardV2.ts                     | 716 +++++++++++++++
+ src/lib/resetState.ts                      | 965 +++++++++++++++++++++
+ src/lib/riskV2.ts                          | 564 ++++++++++++
+ 9 files changed, 3879 insertions(+)
+ create mode 100644 src/lib/__tests__/plannerV2.core.test.ts
+ create mode 100644 src/lib/__tests__/resetCardV2.core.test.ts
+ create mode 100644 src/lib/__tests__/resetState.core.test.ts
+ create mode 100644 src/lib/__tests__/riskV2.core.test.ts
+ create mode 100644 src/lib/beijing.ts
+ create mode 100644 src/lib/plannerV2.ts
+ create mode 100644 src/lib/resetCardV2.ts
+ create mode 100644 src/lib/resetState.ts
+ create mode 100644 src/lib/riskV2.ts
+
+diff --git a/src/lib/__tests__/plannerV2.core.test.ts b/src/lib/__tests__/plannerV2.core.test.ts
+new file mode 100644
+index 0000000..22e88b0
+--- /dev/null
++++ b/src/lib/__tests__/plannerV2.core.test.ts
+@@ -0,0 +1,206 @@
++import { describe, expect, it } from "vitest";
++
++import { DAY_MS, HOUR_MS } from "../beijing.ts";
++import {
++  ALLOCATION_TOLERANCE,
++  allocationAtMu,
++  buildSegments,
++  DEMAND_MIN_GROUP_DAYS,
++  estimateDemand,
++  planPaceV2,
++  resolvePlanningDeadline,
++  solveAllocation,
++  type DailyUsageSample,
++  type DemandProfile,
++} from "../plannerV2.ts";
++
++// now = 北京时间 2026-10-11（周日）00:00
++const NOW = Date.UTC(2026, 9, 11, 0, 0, 0) - 8 * HOUR_MS;
++const DAY = 24 * HOUR_MS;
++
++/** 生成最近 days 天的日耗样本：工作日 weekday 点、周末 weekend 点。 */
++function samples(days: number, weekday: number, weekend: number): DailyUsageSample[] {
++  const out: DailyUsageSample[] = [];
++  for (let i = days; i >= 1; i -= 1) {
++    const at = NOW - i * DAY;
++    const weekdayIndex = new Date(at + 8 * HOUR_MS).getUTCDay();
++    const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
++    out.push({
++      dateKey: new Date(at + 8 * HOUR_MS).toISOString().slice(0, 10),
++      usedPercent: isWeekend ? weekend : weekday,
++    });
++  }
++  return out;
++}
++
++const flatSurvival = (): ((at: number) => number) => () => 1;
++
++describe("§4.1 需求估计", () => {
++  it("工作日/周末分组取中位数与 75 分位，当前未结束日不算样本", () => {
++    const profile = estimateDemand(samples(28, 10, 4), NOW);
++    expect(profile.completeDays).toBe(28);
++    expect(profile.quality).toBe("estimated");
++    expect(profile.weekday.demand).toBe(10);
++    expect(profile.weekday.cap).toBe(10);
++    expect(profile.weekend.demand).toBe(4);
++    expect(profile.weekend.cap).toBe(4);
++    expect(profile.weekday.group).toBe("weekday");
++  });
++
++  it("窗口只取最近 28 个完整日；更早的样本不参与", () => {
++    const profile = estimateDemand(samples(60, 10, 4), NOW);
++    expect(profile.completeDays).toBe(28);
++  });
++
++  it("某组不足 4 天 → 退回全部完整日", () => {
++    // 只给 2 个周末日：构造 8 天样本（其中 2 天周末）
++    const eight = samples(8, 10, 4);
++    const profile = estimateDemand(eight, NOW);
++    expect(profile.weekend.ownSampleDays).toBeLessThan(DEMAND_MIN_GROUP_DAYS);
++    expect(profile.weekend.fallbackUsed).toBe(true);
++    expect(profile.weekend.sampleDays).toBe(profile.completeDays);
++    expect(profile.weekend.note).toContain("已退回全部完整日");
++  });
++
++  it("完全无历史 → 需求未知，不代入固定值", () => {
++    const profile = estimateDemand([], NOW);
++    expect(profile.quality).toBe("unknown");
++    expect(profile.weekday.demand).toBe(0);
++    const plan = planPaceV2({
++      now: NOW,
++      remaining: 100,
++      nextNaturalResetAt: NOW + 5 * DAY,
++      demand: profile,
++      survivalAt: flatSurvival(),
++    });
++    expect(plan.todaySuggested).toBeNull();
++    expect(plan.totalAllocated).toBe(0);
++    expect(plan.explanations.some((line) => line.includes("不代入固定的 25 点软上限"))).toBe(true);
++  });
++
++  it("缺失「当日是否耗尽」时如实标注无法分辨", () => {
++    const profile = estimateDemand(samples(28, 10, 4), NOW);
++    expect(profile.hasExhaustionData).toBe(false);
++    expect(profile.note).toContain("无法分辨");
++    const withFlag = samples(28, 10, 4).map((sample) => ({ ...sample, exhausted: false }));
++    expect(estimateDemand(withFlag, NOW).hasExhaustionData).toBe(true);
++  });
++});
++
++describe("§4.2 规划截止", () => {
++  it("取 min(自然重置, 计划用卡, 假定公告执行)", () => {
++    expect(
++      resolvePlanningDeadline({ nextNaturalResetAt: NOW + 5 * DAY, plannedCardAt: NOW + 2 * DAY }),
++    ).toEqual({ deadline: NOW + 2 * DAY, reason: "planned-card" });
++    expect(
++      resolvePlanningDeadline({
++        nextNaturalResetAt: NOW + 5 * DAY,
++        plannedCardAt: NOW + 7 * DAY,
++        assumedAnnouncementAt: NOW + 3 * DAY,
++      }).reason,
++    ).toBe("assumed-announcement");
++    expect(resolvePlanningDeadline({ nextNaturalResetAt: NOW + 5 * DAY })).toEqual({
++      deadline: NOW + 5 * DAY,
++      reason: "natural-reset",
++    });
++    expect(resolvePlanningDeadline({ nextNaturalResetAt: null })).toEqual({
++      deadline: null,
++      reason: "unknown",
++    });
++  });
++
++  it("今天与最后一天按实际剩余时长折算需求与上限", () => {
++    const now = NOW + 18 * HOUR_MS;
++    const profile = estimateDemand(samples(28, 10, 10), now);
++    const segments = buildSegments(now, NOW + 2 * DAY + 12 * HOUR_MS, profile, flatSurvival());
++    expect(segments).toHaveLength(3);
++    expect(segments[0].dayFraction).toBeCloseTo(0.25, 10);
++    expect(segments[1].dayFraction).toBeCloseTo(1, 10);
++    expect(segments[2].dayFraction).toBeCloseTo(0.5, 10);
++    expect(segments[0].demand).toBeCloseTo(10 * 0.25, 10);
++    expect(segments[2].cap).toBeCloseTo(10 * 0.5, 10);
++  });
++});
++
++describe("§4.3 分配公式", () => {
++  const demand = (): DemandProfile => estimateDemand(samples(28, 10, 10), NOW);
++
++  it("上限之和不超过余额 → 全部分配到上限", () => {
++    const drafts = buildSegments(NOW, NOW + 3 * DAY, demand(), flatSurvival());
++    const { allocation } = solveAllocation(drafts, 200);
++    expect(allocation).toEqual([10, 10, 10]);
++  });
++
++  it("二分求解：总分配贴近余额（误差 < 0.01 点），低风险时各日满足比例相近", () => {
++    const drafts = buildSegments(NOW, NOW + 3 * DAY, demand(), flatSurvival());
++    const { allocation } = solveAllocation(drafts, 20);
++    const total = allocation.reduce((sum, value) => sum + value, 0);
++    expect(Math.abs(total - 20)).toBeLessThan(ALLOCATION_TOLERANCE);
++    for (const value of allocation) {
++      expect(value).toBeCloseTo(20 / 3, 1);
++    }
++  });
++
++  it("风险高时后面的 S_i 更小 → 分配自然前移", () => {
++    const drafts = buildSegments(NOW, NOW + 3 * DAY, demand(), flatSurvival());
++    const decaying = drafts.map((draft, index) => ({ ...draft, survival: [1, 0.8, 0.5][index] }));
++    const { allocation } = solveAllocation(decaying, 20);
++    expect(allocation[0]).toBeGreaterThan(allocation[1]);
++    expect(allocation[1]).toBeGreaterThan(allocation[2]);
++    const total = allocation.reduce((sum, value) => sum + value, 0);
++    expect(Math.abs(total - 20)).toBeLessThan(ALLOCATION_TOLERANCE);
++  });
++
++  it("需求为零的片段直接分配零", () => {
++    const drafts = buildSegments(NOW, NOW + 3 * DAY, demand(), flatSurvival()).map((draft) => ({
++      ...draft,
++      demand: 0,
++    }));
++    expect(allocationAtMu(drafts, 0.5)).toEqual([0, 0, 0]);
++    expect(solveAllocation(drafts, 50).allocation).toEqual([0, 0, 0]);
++  });
++
++  it("完整计划：todaySuggested / 各日分配 / 预计来不及使用 / 原因", () => {
++    const plan = planPaceV2({
++      now: NOW,
++      remaining: 20,
++      nextNaturalResetAt: NOW + 3 * DAY,
++      demand: demand(),
++      survivalAt: () => 1,
++    });
++    expect(plan.todaySuggested).toBeCloseTo(20 / 3, 1);
++    expect(plan.dailyAllocations).toHaveLength(3);
++    expect(Math.abs(plan.totalAllocated - 20)).toBeLessThan(ALLOCATION_TOLERANCE);
++    expect(plan.expectedUnspentBeforeDeadline).toBeLessThan(ALLOCATION_TOLERANCE);
++    expect(plan.deadlineReason).toBe("natural-reset");
++    expect(plan.planningDeadline).toBe(NOW + 3 * DAY);
++    expect(plan.explanations.some((line) => line.includes("存续概率"))).toBe(true);
++  });
++
++  it("不为清空额度而超出历史可消耗范围（余额富余时留下来不及使用的部分）", () => {
++    const plan = planPaceV2({
++      now: NOW,
++      remaining: 100,
++      nextNaturalResetAt: NOW + 2 * DAY,
++      demand: demand(),
++      survivalAt: () => 1,
++    });
++    expect(plan.totalAllocated).toBeCloseTo(20, 6); // 2 天 × 上限 10
++    expect(plan.expectedUnspentBeforeDeadline).toBeCloseTo(80, 6);
++    expect(plan.explanations.some((line) => line.includes("来不及使用"))).toBe(true);
++  });
++
++  it("周末是否减少由个人历史决定（不是固定 ×0.75）", () => {
++    const weekendHeavy = estimateDemand(samples(28, 4, 20), NOW);
++    const plan = planPaceV2({
++      now: NOW, // 周日
++      remaining: 30,
++      nextNaturalResetAt: NOW + 2 * DAY,
++      demand: weekendHeavy,
++      survivalAt: () => 1,
++    });
++    expect(weekendHeavy.weekend.demand).toBeGreaterThan(weekendHeavy.weekday.demand);
++    expect(plan.dailyAllocations[0].group).toBe("weekend");
++    expect(plan.dailyAllocations[0].allocation).toBeGreaterThan(plan.dailyAllocations[1].allocation);
++  });
++});
+diff --git a/src/lib/__tests__/resetCardV2.core.test.ts b/src/lib/__tests__/resetCardV2.core.test.ts
+new file mode 100644
+index 0000000..3a9e011
+--- /dev/null
++++ b/src/lib/__tests__/resetCardV2.core.test.ts
+@@ -0,0 +1,223 @@
++import { describe, expect, it } from "vitest";
++
++import { DAY_MS, HOUR_MS } from "../beijing.ts";
++import { estimateDemand, type DailyUsageSample } from "../plannerV2.ts";
++import { createInitialState, type CycleRules, type QuotaState } from "../resetState.ts";
++import {
++  buildCandidates,
++  DEFAULT_DECISION_HOUR,
++  MIN_USEFUL_GAIN_PERCENT,
++  mulberry32,
++  nextShockTime,
++  planResetCardV2,
++  ZERO_RATE_TABLE,
++  type CardState,
++  type ResetCardInputV2,
++} from "../resetCardV2.ts";
++import { trainRates } from "../riskV2.ts";
++
++const NOW = Date.UTC(2026, 9, 11, 0, 0, 0) - 8 * HOUR_MS; // 北京 2026-10-11 00:00
++const DAY = 24 * HOUR_MS;
++
++function flatSamples(days: number, value: number): DailyUsageSample[] {
++  const out: DailyUsageSample[] = [];
++  for (let i = days; i >= 1; i -= 1) {
++    const at = NOW - i * DAY;
++    out.push({
++      dateKey: new Date(at + 8 * HOUR_MS).toISOString().slice(0, 10),
++      usedPercent: value,
++    });
++  }
++  return out;
++}
++
++const demand10 = estimateDemand(flatSamples(28, 10), NOW);
++
++const CARD: CardState = { id: "k1", expiresAt: NOW + 30 * DAY };
++
++const RULES: CycleRules = {
++  cycleDurationHours: 168,
++  cycleRuleSource: "configured",
++  unexpectedResetScheduleRule: "keep",
++};
++
++const stateOf = (remaining: number, nextNatural: number | null): QuotaState =>
++  createInitialState({
++    remaining,
++    nextNaturalResetAt: nextNatural,
++    cardsRemaining: 1,
++    cardExpirations: [CARD.expiresAt],
++  });
++
++const input = (over: Partial<ResetCardInputV2>): ResetCardInputV2 => ({
++  now: NOW,
++  state: stateOf(20, NOW + DAY),
++  cards: [CARD],
++  demand: demand10,
++  rateTable: ZERO_RATE_TABLE,
++  cycleRules: RULES,
++  paths: 32,
++  maxCandidateDays: 0,
++  ...over,
++});
++
++describe("§5 基线行为", () => {
++  it("没有可用卡 → 不适用", () => {
++    const plan = planResetCardV2(input({ cards: [] }));
++    expect(plan.decision).toBe("not_applicable");
++    expect(plan.candidateResults).toHaveLength(0);
++  });
++
++  it("卡已过期 → 不适用", () => {
++    const plan = planResetCardV2(input({ cards: [{ id: "old", expiresAt: NOW - DAY }] }));
++    expect(plan.decision).toBe("not_applicable");
++  });
++
++  it("需求未知 → 暂无法可靠建议（不代入固定需求）", () => {
++    const plan = planResetCardV2(input({ demand: estimateDemand([], NOW) }));
++    expect(plan.decision).toBe("uncertain");
++    expect(plan.explanations.some((line) => line.includes("不代入固定需求值"))).toBe(true);
++  });
++
++  it("候选时刻：现在 + 未来每日固定决策时刻 + 卡过期前最后时刻，且不晚于过期", () => {
++    const candidates = buildCandidates(NOW, [CARD], DEFAULT_DECISION_HOUR, 14);
++    expect(candidates[0].at).toBe(NOW);
++    expect(candidates.some((item) => item.label.includes("过期前最后时刻"))).toBe(true);
++    for (const candidate of candidates) {
++      expect(candidate.at).toBeLessThanOrEqual(CARD.expiresAt);
++    }
++    // 每日 09:00（北京）
++    const daily = candidates.filter((item) => item.label.includes("09:00"));
++    expect(daily.length).toBeGreaterThan(0);
++    for (const item of daily) {
++      const hours = (item.at + 8 * HOUR_MS) % DAY_MS;
++      expect(hours / HOUR_MS).toBe(DEFAULT_DECISION_HOUR);
++    }
++  });
++
++  it("未来候选遇到已回满状态 → 跳过用卡，不强行消耗", () => {
++    const plan = planResetCardV2(input({ state: stateOf(100, NOW + 20 * DAY) }));
++    const nowCandidate = plan.candidateResults[0];
++    expect(nowCandidate.cardConsumed).toBe(false);
++    expect(nowCandidate.incrementalUsage).toBeCloseTo(0, 1);
++    expect(nowCandidate.skippedReason).toBeTruthy();
++  });
++
++  it("主指标是实际消耗之差，不是补给规模（保留全部候选结果）", () => {
++    const plan = planResetCardV2(input({}));
++    expect(plan.candidateResults.length).toBeGreaterThan(1);
++    for (const candidate of plan.candidateResults) {
++      expect(Number.isFinite(candidate.incrementalUsage)).toBe(true);
++      expect(Number.isFinite(candidate.usage)).toBe(true);
++    }
++    expect(plan.explanations.some((line) => line.includes("不是补给规模"))).toBe(true);
++    expect(plan.explanations.some((line) => line.includes("只评估下一张卡"))).toBe(true);
++  });
++});
++
++describe("§9 验收用例", () => {
++  it("用例4 补给很大，增量收益仍可为零（余额 20，1 天后自然重置，周期 7 天，日耗 10）", () => {
++    const plan = planResetCardV2(input({ state: stateOf(20, NOW + DAY) }));
++    const nowCandidate = plan.candidateResults[0];
++    expect(nowCandidate.at).toBe(NOW);
++    // 用卡补给 80 点，但两条时间线在观察期内的实际消耗相同
++    expect(Math.abs(nowCandidate.incrementalUsage)).toBeLessThan(1);
++    expect(plan.decision).toBe("hold");
++    expect(plan.explanations.some((line) => line.includes("所有候选收益都不超过"))).toBe(true);
++  });
++
++  it("用例5 原本断粮时卡可以有价值（余额 0，其余同上 → 增量约 10 点）", () => {
++    const plan = planResetCardV2(input({ state: stateOf(0, NOW + DAY) }));
++    const nowCandidate = plan.candidateResults[0];
++    expect(nowCandidate.incrementalUsage).toBeGreaterThan(9);
++    expect(nowCandidate.incrementalUsage).toBeLessThan(11);
++    expect(plan.decision).toBe("use_today");
++    expect(plan.recommendedAt).toBe(NOW);
++  });
++
++  it("用例6 高风险不必然建议用卡：马上免费重置时，卡的增量收益下降", () => {
++    const imminent = planResetCardV2(input({ state: stateOf(5, NOW + 2 * HOUR_MS) }));
++    const distant = planResetCardV2(input({ state: stateOf(5, NOW + 6 * DAY) }));
++    expect(imminent.candidateResults[0].incrementalUsage).toBeLessThan(
++      distant.candidateResults[0].incrementalUsage,
++    );
++  });
++
++  it("用例11 共同视野：所有候选比到同一个绝对终点 H = 最晚候选 + 2L，H2 = H + L", () => {
++    const card: CardState = { id: "k2", expiresAt: NOW + 3 * DAY };
++    const plan = planResetCardV2(
++      input({ cards: [card], maxCandidateDays: 2, state: stateOf(5, NOW + 5 * DAY) }),
++    );
++    const latest = buildCandidates(NOW, [card], DEFAULT_DECISION_HOUR, 2).slice(-1)[0].at;
++    expect(plan.horizonSensitivity.baseHorizon).toBe(latest + 2 * 168 * HOUR_MS);
++    expect(plan.horizonSensitivity.extendedHorizon).toBe(latest + 3 * 168 * HOUR_MS);
++    // 同一个终点下比较：候选的增量都在同一 H 上算出
++    expect(plan.candidateResults.length).toBeGreaterThan(1);
++  });
++});
++
++describe("§5.5–5.6 随机模拟与敏感性", () => {
++  const hazardTable = () =>
++    trainRates({
++      events: [
++        {
++          id: "u1",
++          kind: "unexpected",
++          occurredAt: NOW - 3 * DAY,
++          timePrecision: "exact",
++          scope: "account",
++          source: "test",
++        },
++      ],
++      coverage: [{ from: NOW - 30 * DAY, to: NOW }],
++      now: NOW,
++      scope: "account",
++    });
++
++  it("随机数确定：同一 seed 得到同一序列（成对路径可复算）", () => {
++    const a = mulberry32(42);
++    const b = mulberry32(42);
++    expect([a(), a(), a()]).toEqual([b(), b(), b()]);
++  });
++
++  it("等待时间按分段发生率求逆：发生率越高，期望等待越短", () => {
++    const table = hazardTable();
++    const fast = ZERO_RATE_TABLE; // λ=0 → 不会在视野内发生
++    expect(nextShockTime(fast, NOW, 1, NOW + 30 * DAY, null)).toBeNull();
++    const hit = nextShockTime(table, NOW, 0.05, NOW + 60 * DAY, NOW - 3 * DAY);
++    expect(hit).not.toBeNull();
++    expect(hit as number).toBeGreaterThan(NOW);
++  });
++
++  it("有意外重置风险时，模拟仍能给出全部候选与敏感性字段", () => {
++    const plan = planResetCardV2(
++      input({
++        rateTable: hazardTable(),
++        state: stateOf(15, NOW + 4 * DAY),
++        maxCandidateDays: 3,
++        cycleRules: { ...RULES, unexpectedResetScheduleRule: "unknown" },
++      }),
++    );
++    expect(plan.candidateResults.length).toBeGreaterThan(1);
++    expect(plan.demandSensitivity.map((point) => point.multiplier)).toEqual([0.75, 1, 1.25]);
++    expect(plan.resetRuleSensitivity.map((point) => point.rule)).toEqual(["keep", "roll"]);
++    expect(plan.assumptions).toContain("unexpected-rule-unknown");
++    expect(plan.simulationError.paths).toBe(32);
++    expect(plan.simulationError.note).toContain("模拟误差小不代表模型可靠");
++  });
++
++  it("周期规则为暂定假设时留下假设标记", () => {
++    const plan = planResetCardV2(
++      input({ cycleRules: { cycleDurationHours: 168, cycleRuleSource: "assumed", unexpectedResetScheduleRule: "unknown" } }),
++    );
++    expect(plan.assumptions).toContain("cycle-duration-assumed");
++    expect(plan.explanations.some((line) => line.includes("暂定假设"))).toBe(true);
++  });
++
++  it("ε 默认 1 点，且不再有 8 点/25 点/85% 的固定阈值", () => {
++    expect(MIN_USEFUL_GAIN_PERCENT).toBe(1);
++    const plan = planResetCardV2(input({}));
++    const text = plan.explanations.join("|");
++    expect(text).not.toMatch(/8 点|25 点|85%/);
++  });
++});
+diff --git a/src/lib/__tests__/resetState.core.test.ts b/src/lib/__tests__/resetState.core.test.ts
+new file mode 100644
+index 0000000..649a063
+--- /dev/null
++++ b/src/lib/__tests__/resetState.core.test.ts
+@@ -0,0 +1,466 @@
++import { describe, expect, it } from "vitest";
++
++import {
++  applyResetEvents,
++  createInitialState,
++  activeEvents,
++  groupByInstant,
++  labelPredictionWindow,
++  planSameInstantGroup,
++  replayResetEvents,
++  resolveEventTime,
++  riskAgeHours,
++  selectCalendarResets,
++  selectUnexpectedEvents,
++  splitObservationSegments,
++  type CycleRules,
++  type QuotaState,
++  type ResetEvent,
++} from "../resetState.ts";
++import { beijingDayStart, HOUR_MS } from "../beijing.ts";
++
++// 基准时刻：北京时间 2026-10-11 00:00（= UTC 2026-10-10T16:00:00Z）。
++const T0 = beijingDayStart("2026-10-11") as number;
++const DAY = 24 * HOUR_MS;
++const L_HOURS = 168;
++const L = L_HOURS * HOUR_MS;
++
++const RULES: CycleRules = {
++  cycleDurationHours: L_HOURS,
++  cycleRuleSource: "configured",
++  unexpectedResetScheduleRule: "unknown",
++};
++
++interface EventOverrides extends Partial<ResetEvent> {
++  id: string;
++  kind: ResetEvent["kind"];
++}
++
++function ev(overrides: EventOverrides): ResetEvent {
++  return {
++    timePrecision: "exact",
++    scope: "account",
++    source: "test",
++    ...overrides,
++  };
++}
++
++const withCard = (overrides: Partial<InitialState> = {}): QuotaState =>
++  createInitialState({ remaining: 100, cardsRemaining: 1, cardExpirations: [T0 + 30 * DAY], ...overrides });
++
++interface InitialState {
++  remaining: number;
++  nextNaturalResetAt: number | null;
++  cardsRemaining: number;
++  cardExpirations: readonly number[];
++  lastForcedLikeResetAt: number | null;
++  lastForcedLikeResetKind: "unexpected" | "announced" | "card" | null;
++}
++
++describe("v2 状态机 §9 验收用例", () => {
++  it("用例1 用卡撤销旧截止：原第 2 天的自然重置不能再自动回满", () => {
++    const state = withCard({ nextNaturalResetAt: T0 + 2 * DAY });
++    const { state: next, notes } = applyResetEvents(
++      state,
++      [ev({ id: "c1", kind: "card", occurredAt: T0 })],
++      { cycleRules: RULES },
++    );
++
++    expect(next.remaining).toBe(100);
++    expect(next.nextNaturalResetAt).toBe(T0 + L);
++    expect(next.cardsRemaining).toBe(0);
++    expect(next.scheduleConfidence).toBe("preview");
++    expect(next.timers.filter((timer) => timer.status === "active")).toEqual([
++      { id: `natural@${T0 + L}`, at: T0 + L, status: "active" },
++    ]);
++    const old = next.timers.find((timer) => timer.at === T0 + 2 * DAY);
++    expect(old?.status).toBe("cancelled");
++    expect(old?.cancelledByEventId).toBe("c1");
++    expect(notes.some((note) => note.code === "timer-cancelled")).toBe(true);
++  });
++
++  it("用例2 周期以实测覆盖预演：快照给出另一个截止时间就以快照为准", () => {
++    const state = withCard({ nextNaturalResetAt: T0 + 2 * DAY });
++    const observed = T0 + 5 * DAY;
++    const { state: next, notes } = applyResetEvents(
++      state,
++      [ev({ id: "c1", kind: "card", occurredAt: T0, observedNextNaturalResetAt: observed })],
++      { cycleRules: RULES },
++    );
++
++    expect(next.nextNaturalResetAt).toBe(observed);
++    expect(next.scheduleConfidence).toBe("observed");
++    expect(next.assumptions).not.toContain("cycle-duration-assumed");
++    expect(notes.some((note) => note.code === "deadline-observed")).toBe(true);
++
++    // 预演分支：没有快照时才用周期长度，并留下「暂定」假设标记。
++    const preview = applyResetEvents(
++      withCard({ nextNaturalResetAt: T0 + 2 * DAY }),
++      [ev({ id: "c2", kind: "card", occurredAt: T0 })],
++      { cycleRules: { ...RULES, cycleRuleSource: "assumed" } },
++    );
++    expect(preview.state.nextNaturalResetAt).toBe(T0 + L);
++    expect(preview.state.assumptions).toContain("cycle-duration-assumed");
++    expect(preview.notes.some((note) => note.code === "deadline-preview" && note.assumption === true)).toBe(true);
++  });
++
++  it("用例3 风险状态归零：用卡后年龄 0，且用卡不计入意外重置计数", () => {
++    const state = createInitialState({
++      remaining: 20,
++      cardsRemaining: 1,
++      cardExpirations: [T0 + 30 * DAY],
++      lastForcedLikeResetAt: T0 - 100 * HOUR_MS,
++      lastForcedLikeResetKind: "unexpected",
++    });
++    const events = [ev({ id: "c1", kind: "card", occurredAt: T0 })];
++    const { state: next } = applyResetEvents(state, events, { cycleRules: RULES });
++
++    expect(next.lastForcedLikeResetAt).toBe(T0);
++    expect(next.lastForcedLikeResetKind).toBe("card");
++    expect(riskAgeHours(next, T0)).toBe(0);
++    expect(selectUnexpectedEvents(events)).toHaveLength(0);
++  });
++
++  it("用例7 多次事件不重复消费旧余额：用卡→意外→自然的截止链唯一", () => {
++    const events: ResetEvent[] = [
++      ev({ id: "c1", kind: "card", occurredAt: T0 }),
++      ev({ id: "u1", kind: "unexpected", occurredAt: T0 + 1 * DAY, observedNextNaturalResetAt: T0 + 8 * DAY }),
++      ev({ id: "n1", kind: "natural", occurredAt: T0 + 8 * DAY }),
++    ];
++    const { state } = replayResetEvents(events, { cycleRules: RULES }, withCard({ nextNaturalResetAt: T0 + 2 * DAY }));
++
++    expect(state.remaining).toBe(100);
++    expect(state.nextNaturalResetAt).toBe(T0 + 15 * DAY);
++    expect(state.cardsRemaining).toBe(0);
++    const active = state.timers.filter((timer) => timer.status === "active");
++    expect(active).toHaveLength(1);
++    expect(active[0].at).toBe(T0 + 15 * DAY);
++    expect(state.timers.find((timer) => timer.at === T0 + 7 * DAY)?.status).toBe("cancelled");
++    expect(state.timers.find((timer) => timer.at === T0 + 8 * DAY)?.status).toBe("fired");
++  });
++
++  it("用例7b 已撤销的自然重置即使收到旧截止的观测事件也不会重复回满", () => {
++    const events: ResetEvent[] = [
++      ev({ id: "c1", kind: "card", occurredAt: T0 }),
++      ev({ id: "n-stale", kind: "natural", occurredAt: T0 + 2 * DAY }),
++    ];
++    const { state } = replayResetEvents(events, { cycleRules: RULES }, withCard({ nextNaturalResetAt: T0 + 2 * DAY }));
++
++    const stale = state.timers.filter((timer) => timer.at === T0 + 2 * DAY);
++    expect(stale.every((timer) => timer.status === "cancelled")).toBe(true);
++    expect(state.timers.filter((timer) => timer.status === "active")).toHaveLength(1);
++  });
++
++  it("用例8 用卡不算预测命中：窗口内只有主动用卡 → 删失", () => {
++    const windowStart = T0;
++    const windowEnd = T0 + DAY;
++    const label = labelPredictionWindow({
++      windowStart,
++      windowEnd,
++      events: [ev({ id: "c1", kind: "card", occurredAt: T0 + 2 * HOUR_MS })],
++      observedUntil: T0 + 2 * DAY,
++    });
++    expect(label.label).toBe("censored");
++    expect(label.interventionKind).toBe("card");
++  });
++
++  it("用例8b 意外重置先发生，之后用卡不取消正例", () => {
++    const label = labelPredictionWindow({
++      windowStart: T0,
++      windowEnd: T0 + DAY,
++      events: [
++        ev({ id: "u1", kind: "unexpected", occurredAt: T0 + 1 * HOUR_MS }),
++        ev({ id: "c1", kind: "card", occurredAt: T0 + 5 * HOUR_MS }),
++      ],
++      observedUntil: T0 + 2 * DAY,
++    });
++    expect(label.label).toBe(1);
++    expect(label.firstUnexpectedAt).toBe(T0 + 1 * HOUR_MS);
++  });
++
++  it("用例9 日期级数据不伪造精确标签：所在日与窗口边界相交 → 不确定", () => {
++    const label = labelPredictionWindow({
++      windowStart: T0 + 6 * HOUR_MS,
++      windowEnd: T0 + 30 * HOUR_MS,
++      events: [ev({ id: "u1", kind: "unexpected", occurredDate: "2026-10-11", timePrecision: "day" })],
++      observedUntil: T0 + 3 * DAY,
++    });
++    expect(label.label).toBe("unknown");
++    expect(label.reason).toContain("不按正午伪造时刻");
++  });
++
++  it("用例9b 日期级事件整日落在一个北京日窗口内 → 可判定为正例", () => {
++    const label = labelPredictionWindow({
++      windowStart: T0,
++      windowEnd: T0 + DAY,
++      events: [ev({ id: "u1", kind: "unexpected", occurredDate: "2026-10-11", timePrecision: "day" })],
++      observedUntil: T0 + 2 * DAY,
++    });
++    expect(label.label).toBe(1);
++  });
++
++  it("用例12 追加而非改写：更正事件取代旧事件，原事件仍在流中", () => {
++    const original = ev({ id: "e1", kind: "unexpected", occurredAt: T0 });
++    const events: ResetEvent[] = [
++      original,
++      ev({ id: "e2", kind: "card", occurredAt: T0, supersedes: "e1" }),
++      ev({ id: "e3", kind: "natural", occurredAt: T0, supersedes: "e1" }),
++    ];
++    const snapshot = JSON.parse(JSON.stringify(events)) as ResetEvent[];
++
++    const active = activeEvents(events);
++    expect(active.map((event) => event.id)).toEqual(["e3"]);
++    expect(events).toEqual(snapshot);
++    expect(events[0]).toEqual(original);
++    expect(selectUnexpectedEvents(events)).toHaveLength(0);
++  });
++});
++
++describe("状态转换表", () => {
++  it("仅收到公告：不改余额、不改截止、不改风险年龄", () => {
++    const state = withCard({ nextNaturalResetAt: T0 + 2 * DAY, remaining: 40 });
++    const { state: next, notes } = applyResetEvents(
++      state,
++      [ev({ id: "a1", kind: "announcement", occurredAt: T0, scheduledFor: T0 + DAY })],
++      { cycleRules: RULES },
++    );
++    expect(next).toBe(state);
++    expect(notes[0].code).toBe("announcement-recorded");
++  });
++
++  it("用卡失败：四项状态全部不变", () => {
++    const state = createInitialState({
++      remaining: 40,
++      nextNaturalResetAt: T0 + 2 * DAY,
++      cardsRemaining: 2,
++      cardExpirations: [T0 + 10 * DAY, T0 + 20 * DAY],
++      lastForcedLikeResetAt: T0 - 10 * HOUR_MS,
++      lastForcedLikeResetKind: "unexpected",
++    });
++    const { state: next, notes } = applyResetEvents(
++      state,
++      [ev({ id: "f1", kind: "card-failed", occurredAt: T0 })],
++      { cycleRules: RULES },
++    );
++    expect(next).toBe(state);
++    expect(notes[0].code).toBe("card-failed-ignored");
++  });
++
++  it("没有可用卡：不产生回满", () => {
++    const state = createInitialState({ remaining: 5, cardsRemaining: 0, nextNaturalResetAt: T0 + DAY });
++    const { state: next, notes } = applyResetEvents(state, [ev({ id: "c1", kind: "card", occurredAt: T0 })], {
++      cycleRules: RULES,
++    });
++    expect(next).toBe(state);
++    expect(notes[0].code).toBe("card-unavailable");
++  });
++
++  it("自然重置默认不改变风险年龄（v2 默认，常量可见）", () => {
++    const state = createInitialState({
++      remaining: 3,
++      nextNaturalResetAt: T0,
++      lastForcedLikeResetAt: T0 - 100 * HOUR_MS,
++      lastForcedLikeResetKind: "unexpected",
++    });
++    const { state: next } = applyResetEvents(state, [ev({ id: "n1", kind: "natural", occurredAt: T0 })], {
++      cycleRules: RULES,
++    });
++    expect(next.remaining).toBe(100);
++    expect(next.nextNaturalResetAt).toBe(T0 + L);
++    expect(riskAgeHours(next, T0 + 10 * HOUR_MS)).toBe(110);
++    expect(next.lastForcedLikeResetKind).toBe("unexpected");
++  });
++
++  it("意外强制重置：规则未知时截止留空，keep/roll 按已确认规则走", () => {
++    const base = withCard({ nextNaturalResetAt: T0 + 3 * DAY });
++
++    const unknown = applyResetEvents(base, [ev({ id: "u1", kind: "unexpected", occurredAt: T0 })], {
++      cycleRules: RULES,
++    });
++    expect(unknown.state.nextNaturalResetAt).toBeNull();
++    expect(unknown.state.scheduleConfidence).toBe("unknown");
++    expect(unknown.state.assumptions).toContain("unexpected-schedule-unknown");
++
++    const keep = applyResetEvents(base, [ev({ id: "u2", kind: "unexpected", occurredAt: T0 })], {
++      cycleRules: { ...RULES, unexpectedResetScheduleRule: "keep" },
++    });
++    expect(keep.state.nextNaturalResetAt).toBe(T0 + 3 * DAY);
++
++    const roll = applyResetEvents(base, [ev({ id: "u3", kind: "unexpected", occurredAt: T0 })], {
++      cycleRules: { ...RULES, unexpectedResetScheduleRule: "roll" },
++    });
++    expect(roll.state.nextNaturalResetAt).toBe(T0 + L);
++    expect(roll.state.scheduleConfidence).toBe("preview");
++  });
++
++  it("公告实际执行：回满并把过期公告标记为待确认不改写的反例", () => {
++    const state = createInitialState({ remaining: 12, nextNaturalResetAt: T0 + DAY, cardsRemaining: 1 });
++    const { state: next } = applyResetEvents(
++      state,
++      [ev({ id: "x1", kind: "announced", occurredAt: T0, observedNextNaturalResetAt: T0 + 9 * DAY })],
++      { cycleRules: RULES },
++    );
++    expect(next.remaining).toBe(100);
++    expect(next.nextNaturalResetAt).toBe(T0 + 9 * DAY);
++    expect(next.lastForcedLikeResetKind).toBe("announced");
++    expect(next.cardsRemaining).toBe(1);
++  });
++
++  it("用卡消耗最早过期的那张卡", () => {
++    const state = createInitialState({
++      remaining: 10,
++      cardsRemaining: 2,
++      cardExpirations: [T0 + 30 * DAY, T0 + 5 * DAY],
++    });
++    const { state: next } = applyResetEvents(state, [ev({ id: "c1", kind: "card", occurredAt: T0 })], {
++      cycleRules: RULES,
++    });
++    expect(next.cardsRemaining).toBe(1);
++    expect(next.cardExpirations).toEqual([T0 + 30 * DAY]);
++  });
++});
++
++describe("同刻合并与关联去重（规则 2 / 规则 5）", () => {
++  it("自然重置已满足需求时不浪费一张卡", () => {
++    const state = createInitialState({ remaining: 2, nextNaturalResetAt: T0, cardsRemaining: 1 });
++    const group = [
++      ev({ id: "n1", kind: "natural", occurredAt: T0 }),
++      ev({ id: "c1", kind: "card", occurredAt: T0 }),
++    ];
++    const plan = planSameInstantGroup(group);
++    expect(plan.primary?.id).toBe("n1");
++    expect(plan.notes.map((note) => note.code)).toContain("card-skipped-natural-satisfies");
++
++    const { state: next } = applyResetEvents(state, group, { cycleRules: RULES });
++    expect(next.cardsRemaining).toBe(1);
++    expect(next.remaining).toBe(100);
++  });
++
++  it("用卡操作与随后余额跳升按操作 ID 合并为同一次重置", () => {
++    const state = createInitialState({ remaining: 5, cardsRemaining: 1, cardExpirations: [T0 + 9 * DAY] });
++    const group = [
++      ev({ id: "jump", kind: "unexpected", occurredAt: T0 + 1 * HOUR_MS, linkedActionId: "act-9" }),
++      ev({ id: "c1", kind: "card", occurredAt: T0, linkedActionId: "act-9" }),
++    ];
++    const plan = planSameInstantGroup(group);
++    expect(plan.primary?.kind).toBe("card");
++    expect(plan.notes.some((note) => note.code === "linked-action-merged")).toBe(true);
++
++    const { state: next } = applyResetEvents(state, group, { cycleRules: RULES });
++    expect(next.cardsRemaining).toBe(0);
++    expect(next.lastForcedLikeResetKind).toBe("card");
++    expect(selectUnexpectedEvents(group)).toHaveLength(0);
++  });
++
++  it("同刻事件合并确认信息后只做一次状态转换", () => {
++    const state = createInitialState({ remaining: 8, cardsRemaining: 1, nextNaturalResetAt: T0 + DAY });
++    const { state: next, notes } = applyResetEvents(
++      state,
++      [
++        ev({ id: "c1", kind: "card", occurredAt: T0 }),
++        ev({ id: "u1", kind: "unexpected", occurredAt: T0, observedNextNaturalResetAt: T0 + 6 * DAY }),
++      ],
++      { cycleRules: RULES },
++    );
++    expect(next.nextNaturalResetAt).toBe(T0 + 6 * DAY);
++    expect(next.remaining).toBe(100);
++    expect(notes.filter((note) => note.code === "card-consumed")).toHaveLength(1);
++  });
++});
++
++describe("时间精度与派生视图（§6）", () => {
++  it("日级事件取北京零点，绝不伪造正午", () => {
++    const { at, precision } = resolveEventTime(
++      ev({ id: "d1", kind: "unexpected", occurredDate: "2026-10-11", timePrecision: "day" }),
++    );
++    expect(precision).toBe("day");
++    expect(at).toBe(T0);
++    expect(at).not.toBe(T0 + 12 * HOUR_MS);
++  });
++
++  it("无法解析时间的事件被丢弃并记录", () => {
++    const { groups, notes } = groupByInstant([
++      ev({ id: "bad", kind: "unexpected", timePrecision: "exact" }),
++    ]);
++    expect(groups).toHaveLength(0);
++    expect(notes[0].code).toBe("unresolved-time");
++  });
++
++  it("重置日历含用卡并标注，排除公告与失败", () => {
++    const entries = selectCalendarResets([
++      ev({ id: "c1", kind: "card", occurredAt: T0 }),
++      ev({ id: "u1", kind: "unexpected", occurredAt: T0 + DAY }),
++      ev({ id: "a1", kind: "announcement", occurredAt: T0 + 2 * DAY }),
++      ev({ id: "f1", kind: "card-failed", occurredAt: T0 + 3 * DAY }),
++    ]);
++    expect(entries.map((entry) => entry.eventId)).toEqual(["c1", "u1"]);
++    expect(entries[0].label).toBe("主动用卡");
++    expect(entries[0].note).toContain("不计入意外重置分子");
++  });
++
++  it("观察段：用卡切段，前段暴露时间保留", () => {
++    const segments = splitObservationSegments(
++      [
++        ev({ id: "u1", kind: "unexpected", occurredAt: T0 }),
++        ev({ id: "c1", kind: "card", occurredAt: T0 + 100 * HOUR_MS }),
++        ev({ id: "u2", kind: "unexpected", occurredAt: T0 + 300 * HOUR_MS }),
++      ],
++      T0 + 400 * HOUR_MS,
++    );
++    expect(segments).toHaveLength(3);
++    expect(segments[0]).toMatchObject({ startedBy: "unexpected", endedBy: "card", exposureHours: 100 });
++    expect(segments[0].endedByIntervention).toBe(true);
++    expect(segments[1]).toMatchObject({ startedBy: "card", endedBy: "unexpected", exposureHours: 200 });
++    expect(segments[2]).toMatchObject({ startedBy: "unexpected", endedBy: "open", exposureHours: 100 });
++  });
++
++  it("自然重置不切分观察段（不改变风险年龄）", () => {
++    const segments = splitObservationSegments(
++      [
++        ev({ id: "u1", kind: "unexpected", occurredAt: T0 }),
++        ev({ id: "n1", kind: "natural", occurredAt: T0 + 50 * HOUR_MS }),
++      ],
++      T0 + 80 * HOUR_MS,
++    );
++    expect(segments).toHaveLength(1);
++    expect(segments[0]).toMatchObject({ startedBy: "unexpected", endedBy: "open", exposureHours: 80 });
++  });
++});
++
++describe("预测标签 §7.2", () => {
++  it("完整观测且无事件无干预 → 负例", () => {
++    expect(
++      labelPredictionWindow({
++        windowStart: T0,
++        windowEnd: T0 + DAY,
++        events: [],
++        observedUntil: T0 + DAY,
++      }).label,
++    ).toBe(0);
++  });
++
++  it("观测覆盖不足 → 不确定，不冒充负例", () => {
++    const result = labelPredictionWindow({
++      windowStart: T0,
++      windowEnd: T0 + DAY,
++      events: [],
++      observedUntil: T0 + 6 * HOUR_MS,
++    });
++    expect(result.label).toBe("unknown");
++    expect(result.reason).toContain("观测覆盖不足");
++  });
++
++  it("公告执行在意外事件之前 → 删失", () => {
++    const result = labelPredictionWindow({
++      windowStart: T0,
++      windowEnd: T0 + DAY,
++      events: [
++        ev({ id: "x1", kind: "announced", occurredAt: T0 + 3 * HOUR_MS }),
++        ev({ id: "u1", kind: "unexpected", occurredAt: T0 + 10 * HOUR_MS }),
++      ],
++      observedUntil: T0 + 2 * DAY,
++    });
++    expect(result.label).toBe("censored");
++    expect(result.interventionKind).toBe("announced");
++  });
++});
+diff --git a/src/lib/__tests__/riskV2.core.test.ts b/src/lib/__tests__/riskV2.core.test.ts
+new file mode 100644
+index 0000000..65614ea
+--- /dev/null
++++ b/src/lib/__tests__/riskV2.core.test.ts
+@@ -0,0 +1,303 @@
++import { describe, expect, it } from "vitest";
++
++import { HOUR_MS } from "../beijing.ts";
++import type { ResetEvent } from "../resetState.ts";
++import {
++  assessResetRiskV2,
++  ageSensitivityProbability,
++  COLD_START_PRIOR_DAYS,
++  integrateLambda,
++  RISK_WINDOW_HOURS,
++  SHRINKAGE_DAYS,
++  toPercentPoint,
++  trainRates,
++  watchBlendWeight,
++  assessWatchComparability,
++  type CoverageWindow,
++  type WatchSignal,
++} from "../riskV2.ts";
++
++// T0 = 北京时间 2026-10-11（周日）00:00
++const T0 = Date.UTC(2026, 9, 11, 0, 0, 0) - 8 * HOUR_MS;
++const DAY = 24 * HOUR_MS;
++
++const unexpected = (id: string, at: number, extra: Partial<ResetEvent> = {}): ResetEvent => ({
++  id,
++  kind: "unexpected",
++  occurredAt: at,
++  timePrecision: "exact",
++  scope: "account",
++  source: "test",
++  ...extra,
++});
++
++const cover = (from: number, to: number): CoverageWindow => ({ from, to });
++
++const watchAt = (probability: number, updatedAt: number, extra: Partial<WatchSignal> = {}): WatchSignal => ({
++  probability,
++  updatedAt,
++  targetMatches: true,
++  windowHours: 24,
++  includesAnnouncedOrNatural: false,
++  ...extra,
++});
++
++describe("§3.1 收缩发生率与冷启动", () => {
++  it("完全无数据：基线每天 0.1 次 ⇒ 24h 概率约 9.5%，且标注未校准", () => {
++    const risk = assessResetRiskV2({ events: [], now: T0, coverage: [] });
++    expect(risk.probability24h).toBeCloseTo(0.0952, 3);
++    expect(risk.quality.coldStart).toBe(true);
++    expect(risk.quality.calibrated).toBe(false);
++    expect(risk.assumptions).toContain("cold-start-baseline");
++    expect(risk.factorSteps[0].assumption).toBe(true);
++    expect(risk.factorSteps[0].note).toContain("尚未校准");
++  });
++
++  it("不再把概率夹到 2%–95%：极低发生率可低于 2%", () => {
++    const risk = assessResetRiskV2({
++      events: [],
++      now: T0,
++      coverage: [cover(T0 - 3650 * DAY, T0)],
++    });
++    expect(risk.probability24h).toBeLessThan(0.01);
++    expect(risk.probability24h).toBeGreaterThan(0);
++  });
++
++  it("不再把概率夹到 2%–95%：极高发生率可高于 95%", () => {
++    const events: ResetEvent[] = [];
++    for (let i = 0; i < 40; i += 1) {
++      events.push(unexpected(`u${i}`, T0 - 2 * DAY + i * ((2 * DAY) / 40)));
++    }
++    const risk = assessResetRiskV2({ events, now: T0, coverage: [cover(T0 - 2 * DAY, T0)] });
++    expect(risk.probability24h).toBeGreaterThan(0.95);
++  });
++
++  it("收缩公式：λ0=(K+1)/(E+10)、λw=(Kw+28λ0)/(Ew+28)", () => {
++    // 覆盖 10 天、2 次事件，事件都在周一（T0+1d）
++    const events = [unexpected("a", T0 + DAY + 2 * HOUR_MS), unexpected("b", T0 + DAY + 4 * HOUR_MS)];
++    const table = trainRates({
++      events,
++      coverage: [cover(T0 - 8 * DAY, T0 + 2 * DAY)],
++      now: T0 + 2 * DAY,
++      scope: "account",
++    });
++    const expectedLambda0 = (2 + 1) / (10 + COLD_START_PRIOR_DAYS);
++    expect(table.lambda0).toBeCloseTo(expectedLambda0, 10);
++    const monday = 1; // 周一
++    const expectedLambdaW =
++      (2 + SHRINKAGE_DAYS * expectedLambda0) / (table.weekday[monday].exposureDays + SHRINKAGE_DAYS);
++    expect(table.weekday[monday].rate).toBeCloseTo(expectedLambdaW, 10);
++  });
++
++  it("覆盖期外的事件不计入 K，也不能把首尾跨度当成完整覆盖", () => {
++    const inside = unexpected("in", T0 - 5 * DAY);
++    const outside = unexpected("out", T0 - 50 * DAY);
++    const risk = assessResetRiskV2({
++      events: [inside, outside],
++      now: T0,
++      coverage: [cover(T0 - 10 * DAY, T0)],
++    });
++    expect(risk.unexpectedEventCount).toBe(1);
++    expect(risk.effectiveExposureDays).toBeCloseTo(10, 6);
++  });
++});
++
++describe("§3.1 按时间分段积分", () => {
++  it("未来 24h 跨北京午夜时按两段积分，而不是用「明天星期几」代表整天", () => {
++    // 事件只落在周六中午；覆盖 28 天
++    const events = [8, 15, 22].map((offset) => unexpected(`s${offset}`, T0 - offset * DAY + 12 * HOUR_MS));
++    const table = trainRates({
++      events,
++      coverage: [cover(T0 - 28 * DAY, T0 - 28 * HOUR_MS)],
++      now: T0 - 28 * HOUR_MS,
++      scope: "account",
++    });
++
++    // 周五 20:00 → 周六 20:00（跨午夜，20/24 的时间在周六）
++    const fridayEvening = integrateLambda(table, T0 - 28 * HOUR_MS, T0 - 4 * HOUR_MS, []);
++    // 周日 20:00 → 周一 20:00（完全不含周六）
++    const sundayEvening = integrateLambda(table, T0 + 20 * HOUR_MS, T0 + 44 * HOUR_MS, []);
++
++    expect(fridayEvening).toBeGreaterThan(sundayEvening * 1.5);
++  });
++
++  it("年龄边界（36h/168h）也要切段", () => {
++    const table = trainRates({
++      events: [unexpected("a", T0 - 10 * DAY)],
++      coverage: [cover(T0 - 30 * DAY, T0)],
++      now: T0,
++      scope: "account",
++    });
++    // 未来 24h 从「距上次重置 12h」开始：12h→24h 仍在 [0,36h) 组
++    const withinFresh = integrateLambda(table, T0 - 12 * HOUR_MS, T0 + 12 * HOUR_MS, [
++      { at: T0 - 24 * HOUR_MS, band: "fresh", dayPrecision: false },
++    ]);
++    expect(withinFresh).toBeGreaterThan(0);
++  });
++});
++
++describe("§3.2 重置后年龄与敏感性", () => {
++  it("年龄组参与计算：同星期下，落在有事件年龄组的概率更高", () => {
++    // 三次事件集中在周一（00:00/10:00/20:00），此刻是周一 21:00（年龄 1h）
++    const monday = T0 + DAY;
++    const events = [
++      unexpected("m1", monday),
++      unexpected("m2", monday + 10 * HOUR_MS),
++      unexpected("m3", monday + 20 * HOUR_MS),
++    ];
++    const now = monday + 21 * HOUR_MS;
++    const input = { events, now, coverage: [cover(T0 - 30 * DAY, monday + DAY)] };
++    const risk = assessResetRiskV2(input);
++    const noAge = ageSensitivityProbability(input);
++
++    expect(risk.probability24h).toBeGreaterThan(noAge);
++    const ageStep = risk.factorSteps.find((step) => step.id === "age");
++    expect(ageStep?.assumption).toBe(true);
++    expect(ageStep?.note).toContain("同类状态效应假设");
++  });
++
++  it("风险年龄未知时只用星期模型", () => {
++    const risk = assessResetRiskV2({
++      events: [unexpected("a", T0 - 5 * DAY)],
++      now: T0,
++      coverage: [cover(T0 - 30 * DAY, T0)],
++      requestedScope: "global", // 全局口径没有账号风险年龄
++    });
++    const ageStep = risk.factorSteps.find((step) => step.id === "age");
++    expect(ageStep?.note).toContain("只用星期模型");
++  });
++});
++
++describe("§3.3 公开历史与账号历史分用、日级事件", () => {
++  it("来源范围未知的事件不进入账号训练", () => {
++    const risk = assessResetRiskV2({
++      events: [unexpected("u1", T0 - 2 * DAY, { scope: "unknown" })],
++      now: T0,
++      coverage: [cover(T0 - 30 * DAY, T0)],
++    });
++    expect(risk.unexpectedEventCount).toBe(0);
++    expect(risk.quality.coldStart).toBe(true);
++    expect(risk.quality.missing.some((item) => item.includes("来源范围未知"))).toBe(true);
++  });
++
++  it("账号样本为空时退到平台口径，并标注账号适用程度未校准", () => {
++    const risk = assessResetRiskV2({
++      events: [unexpected("g1", T0 - 2 * DAY, { scope: "global" })],
++      now: T0,
++      coverage: [cover(T0 - 30 * DAY, T0)],
++    });
++    expect(risk.scope).toBe("global");
++    expect(risk.assumptions).toContain("global-history-as-account-proxy");
++    expect(risk.quality.scopeNote).toContain("账号适用程度未校准");
++    expect(risk.quality.calibrated).toBe(false);
++    expect(risk.unexpectedEventCount).toBe(1);
++  });
++
++  it("日级事件进星期统计，但不进 36h 年龄子模型", () => {
++    const coverage = [cover(T0 - 30 * DAY, T0)];
++    const dayTable = trainRates({
++      events: [
++        {
++          id: "d1",
++          kind: "unexpected",
++          occurredDate: "2026-10-09",
++          timePrecision: "day",
++          scope: "account",
++          source: "public",
++        },
++      ],
++      coverage,
++      now: T0,
++      scope: "account",
++    });
++    expect(dayTable.totalEvents).toBe(1);
++    expect(dayTable.ageEligibleEvents).toBe(0);
++
++    const exactTable = trainRates({ events: [unexpected("e1", T0 - 2 * DAY)], coverage, now: T0, scope: "account" });
++    expect(exactTable.totalEvents).toBe(1);
++    expect(exactTable.ageEligibleEvents).toBe(1);
++  });
++});
++
++describe("§3.4 watch 融合", () => {
++  const base = {
++    events: [unexpected("a", T0 - 5 * DAY)],
++    now: T0,
++    coverage: [cover(T0 - 30 * DAY, T0)],
++  };
++
++  it("四项口径全匹配才融合，权重 = 0.25×max(0,1−数据年龄/24h)", () => {
++    const local = assessResetRiskV2(base).probability24h;
++    const watch = watchAt(0.5, T0);
++    const weight = watchBlendWeight(watch, T0);
++    expect(weight).toBeCloseTo(0.25, 10);
++
++    const risk = assessResetRiskV2({ ...base, watch });
++    expect(risk.watchComparability).toBe("comparable");
++    expect(risk.probability24h).toBeCloseTo((1 - weight) * local + weight * 0.5, 10);
++    const step = risk.factorSteps.find((item) => item.id === "watch");
++    expect(step?.delta).not.toBe(0);
++  });
++
++  it("数据超过 24h：仅作独立参考，不融合", () => {
++    const local = assessResetRiskV2(base).probability24h;
++    const risk = assessResetRiskV2({ ...base, watch: watchAt(0.5, T0 - 48 * HOUR_MS) });
++    expect(risk.watchComparability).toBe("reference-only");
++    expect(risk.probability24h).toBeCloseTo(local, 10);
++    expect(risk.factorSteps.find((item) => item.id === "watch")?.delta).toBe(0);
++  });
++
++  it("窗口不一致 / 含公告或自然重置 / 对象不一致：均不融合", () => {
++    expect(assessWatchComparability(watchAt(0.5, T0, { windowHours: 48 }), T0)).toBe("reference-only");
++    expect(
++      assessWatchComparability(watchAt(0.5, T0, { includesAnnouncedOrNatural: true }), T0),
++    ).toBe("reference-only");
++    expect(assessWatchComparability(watchAt(0.5, T0, { targetMatches: false }), T0)).toBe("reference-only");
++    expect(assessWatchComparability(null, T0)).toBe("absent");
++  });
++});
++
++describe("§3.5 解释输出与 §8 契约", () => {
++  const events = [unexpected("a", T0 - 3 * DAY), unexpected("b", T0 - 12 * DAY)];
++
++  it("因子步骤固定顺序：基线 → 星期 → 年龄 → watch", () => {
++    const risk = assessResetRiskV2({
++      events,
++      now: T0,
++      coverage: [cover(T0 - 30 * DAY, T0)],
++      watch: watchAt(0.4, T0),
++    });
++    expect(risk.factorSteps.map((step) => step.id)).toEqual(["baseline", "weekday", "age", "watch"]);
++    for (const step of risk.factorSteps) {
++      expect(step.afterProbability - step.beforeProbability).toBeCloseTo(step.delta, 10);
++    }
++    expect(risk.factorSteps[0].note).toContain("顺序归因");
++  });
++
++  it("返回 target / 存续曲线 / 暴露天数 / 样本数 / 质量 / 假设 / 模型版本", () => {
++    const risk = assessResetRiskV2({ events, now: T0, coverage: [cover(T0 - 30 * DAY, T0)] });
++    expect(risk.target.definitionVersion).toBeTruthy();
++    expect(risk.target.windowHours).toBe(RISK_WINDOW_HOURS);
++    expect(risk.target.excludes).toContain("主动用卡");
++    expect(risk.modelVersion).toBeTruthy();
++    expect(risk.effectiveExposureDays).toBeCloseTo(30, 6);
++    expect(risk.unexpectedEventCount).toBe(2);
++    expect(risk.quality.dataRange.from).toBe(T0 - 12 * DAY);
++    expect(risk.scope).toBe("account");
++  });
++
++  it("存续曲线单调不增，24h 处与 probability24h 一致（未融合 watch 时）", () => {
++    const risk = assessResetRiskV2({ events, now: T0, coverage: [cover(T0 - 30 * DAY, T0)] });
++    for (let i = 1; i < risk.survivalCurve.length; i += 1) {
++      expect(risk.survivalCurve[i].survival).toBeLessThanOrEqual(risk.survivalCurve[i - 1].survival + 1e-12);
++    }
++    const at24 = risk.survivalCurve.find((point) => point.hours === 24);
++    expect(at24?.cumulativeProbability).toBeCloseTo(risk.probability24h, 10);
++  });
++
++  it("百分点换算（0–1 → 0–100，1 位小数）", () => {
++    expect(toPercentPoint(0.09516)).toBe(9.5);
++    expect(toPercentPoint(1)).toBe(100);
++    expect(toPercentPoint(0)).toBe(0);
++  });
++});
+diff --git a/src/lib/beijing.ts b/src/lib/beijing.ts
+new file mode 100644
+index 0000000..4308f1c
+--- /dev/null
++++ b/src/lib/beijing.ts
+@@ -0,0 +1,46 @@
++// 北京时间（UTC+8）日边界与星期判定：全项目唯一入口（D004：一律 +8h 后取星期/日键，绝不用本地时区）。
++// v2 规格 §1：时间使用 UTC 时间戳，仅星期和日键按北京时间计算。
++
++export const BEIJING_OFFSET_MS = 8 * 3_600_000;
++export const HOUR_MS = 3_600_000;
++export const DAY_MS = 86_400_000;
++
++const pad2 = (v: number): string => String(v).padStart(2, "0");
++
++/** UTC 时间戳 → 北京时间日键（YYYY-MM-DD）。 */
++export function beijingDayKey(ms: number): string {
++  const shifted = new Date(ms + BEIJING_OFFSET_MS);
++  return `${shifted.getUTCFullYear()}-${pad2(shifted.getUTCMonth() + 1)}-${pad2(shifted.getUTCDate())}`;
++}
++
++/**
++ * 北京时间日键 → 该日北京 00:00 对应的 UTC 时间戳；非法键（含 2026-02-31 之类溢出）返回 null。
++ * 注意：日级事件取「北京零点」只代表「这一天内」，绝不把正午当成真实发生时刻（规格 §2 规则 6）。
++ */
++export function beijingDayStart(key: string): number | null {
++  const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
++  if (matched == null) return null;
++  const year = Number(matched[1]);
++  const month = Number(matched[2]);
++  const day = Number(matched[3]);
++  const utcMidnight = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
++  const at = utcMidnight - BEIJING_OFFSET_MS;
++  if (!Number.isFinite(at) || beijingDayKey(at) !== key) return null;
++  return at;
++}
++
++/** UTC 时间戳 → 北京星期（0=周日 … 6=周六）。 */
++export function beijingWeekday(ms: number): number {
++  return new Date(ms + BEIJING_OFFSET_MS).getUTCDay();
++}
++
++/** UTC 时间戳 → 该时刻在北京日内已过的小时数（0–24，浮点）。 */
++export function beijingHoursIntoDay(ms: number): number {
++  const into = (ms + BEIJING_OFFSET_MS) % DAY_MS;
++  return (into < 0 ? into + DAY_MS : into) / HOUR_MS;
++}
++
++/** UTC 时间戳 → 该时刻所属北京日的起始时间戳。 */
++export function beijingDayFloor(ms: number): number {
++  return ms - beijingHoursIntoDay(ms) * HOUR_MS;
++}
+diff --git a/src/lib/plannerV2.ts b/src/lib/plannerV2.ts
+new file mode 100644
+index 0000000..c40e0aa
+--- /dev/null
++++ b/src/lib/plannerV2.ts
+@@ -0,0 +1,390 @@
++// v2 核心（四）：配速层 —— 按「需求」与「能否等到那天」分配余额。
++// 规格出处：「reset-radar 核心算法 v2 实现规格」§4（4.1 需求估计、4.2 规划截止、4.3 分配公式）
++// 与 §8 的 planner.ts 输出契约。
++//
++// 已删除的旧规则（RR44 之前 planner.ts）：固定 25 点软上限、固定周末 ×0.75、
++// 用 DEFAULT_WEEKDAY_HAZARDS 硬编码的周二/周六 0.7 —— 周末是否减少由个人历史决定。
++
++import { beijingDayFloor, beijingDayKey, beijingWeekday, DAY_MS, HOUR_MS } from "./beijing.ts";
++
++/** 需求估计只看最近 28 个完整北京时间日（§4.1）。 */
++export const DEMAND_WINDOW_DAYS = 28;
++/** 某组不足 4 天就退回全部完整日（§4.1）。 */
++export const DEMAND_MIN_GROUP_DAYS = 4;
++/** 二分求解的收敛阈值：总分配误差 < 0.01 点（§4.3）。 */
++export const ALLOCATION_TOLERANCE = 0.01;
++
++export type DayGroup = "weekday" | "weekend";
++
++export interface DailyUsageSample {
++  /** 北京时间日键 YYYY-MM-DD。 */
++  readonly dateKey: string;
++  /** 当日消耗（周额度百分点）。 */
++  readonly usedPercent: number;
++  /** 当日是否耗尽额度；缺失表示无法分辨「没需求」与「额度用完」（§4.1）。 */
++  readonly exhausted?: boolean;
++}
++
++export type DemandQuality = "unknown" | "weak" | "estimated";
++
++export interface DemandEstimate {
++  readonly group: DayGroup;
++  /** D_i：需求预测（该组日耗中位数）。 */
++  readonly demand: number;
++  /** C_i：建议上限（该组日耗 75 分位）。 */
++  readonly cap: number;
++  readonly sampleDays: number;
++  /** 该组自己的样本天数（未回退前），用于判断是否触发回退。 */
++  readonly ownSampleDays: number;
++  /** true=该组样本不足 4 天，已退回全部完整日。 */
++  readonly fallbackUsed: boolean;
++  readonly note: string;
++}
++
++export interface DemandProfile {
++  readonly weekday: DemandEstimate;
++  readonly weekend: DemandEstimate;
++  readonly completeDays: number;
++  readonly quality: DemandQuality;
++  /** 样本里是否带有「当日是否耗尽」的记录。 */
++  readonly hasExhaustionData: boolean;
++  readonly note: string;
++}
++
++const UNKNOWN_DEMAND: DemandEstimate = {
++  group: "weekday",
++  demand: 0,
++  cap: 0,
++  sampleDays: 0,
++  ownSampleDays: 0,
++  fallbackUsed: false,
++  note: "没有可用历史：需求未知。",
++};
++
++/** 线性插值分位数（q ∈ [0,1]）。 */
++export function quantile(sorted: readonly number[], q: number): number {
++  if (sorted.length === 0) return 0;
++  if (sorted.length === 1) return sorted[0];
++  const position = (sorted.length - 1) * Math.min(1, Math.max(0, q));
++  const lower = Math.floor(position);
++  const upper = Math.ceil(position);
++  if (lower === upper) return sorted[lower];
++  return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
++}
++
++export const dayGroupOf = (at: number): DayGroup => {
++  const weekday = beijingWeekday(at);
++  return weekday === 0 || weekday === 6 ? "weekend" : "weekday";
++};
++
++/**
++ * 需求估计（§4.1）：
++ * - 只用最近 28 个「完整」北京日；当前未结束日不算样本；
++ * - 缺失日不填零（样本里没有就是没有）；
++ * - 工作日/周末分组，中位数作需求、75 分位作上限；
++ * - 某组不足 4 天则退回全部完整日；完全没有历史则输出「需求未知」，不代入固定值。
++ */
++export function estimateDemand(samples: readonly DailyUsageSample[], now: number): DemandProfile {
++  const todayKey = beijingDayKey(now);
++  const windowStart = now - DEMAND_WINDOW_DAYS * DAY_MS;
++  const complete = samples
++    .filter((sample) => {
++      if (sample.dateKey === todayKey) return false; // 当天未结束，不能作为一个完整样本
++      const at = Date.parse(`${sample.dateKey}T00:00:00Z`) - 8 * HOUR_MS;
++      if (!Number.isFinite(at)) return false;
++      return at >= windowStart && at < now;
++    })
++    .map((sample) => ({ ...sample, at: Date.parse(`${sample.dateKey}T00:00:00Z`) - 8 * HOUR_MS }));
++
++  const hasExhaustionData = complete.some((sample) => typeof sample.exhausted === "boolean");
++
++  if (complete.length === 0) {
++    return {
++      weekday: UNKNOWN_DEMAND,
++      weekend: { ...UNKNOWN_DEMAND, group: "weekend" },
++      completeDays: 0,
++      quality: "unknown",
++      hasExhaustionData,
++      note: "没有完整日样本：需求未知，不代入固定值（§4.1）。缺失日不填零。",
++    };
++  }
++
++  const build = (group: DayGroup): DemandEstimate => {
++    const own = complete.filter((sample) => dayGroupOf(sample.at) === group).map((sample) => sample.usedPercent);
++    const fallback = own.length < DEMAND_MIN_GROUP_DAYS;
++    const values = (fallback ? complete.map((sample) => sample.usedPercent) : own).slice().sort((a, b) => a - b);
++    const demand = quantile(values, 0.5);
++    const cap = quantile(values, 0.75);
++    return {
++      group,
++      demand,
++      cap: Math.max(demand, cap),
++      sampleDays: values.length,
++      ownSampleDays: own.length,
++      fallbackUsed: fallback,
++      note: fallback
++        ? `${group === "weekend" ? "周末" : "工作日"}样本不足 ${DEMAND_MIN_GROUP_DAYS} 天（${own.length} 天），已退回全部完整日（${values.length} 天）。`
++        : `${group === "weekend" ? "周末" : "工作日"} ${values.length} 个完整日：中位数 ${demand.toFixed(1)} 点，75 分位 ${cap.toFixed(1)} 点。`,
++    };
++  };
++
++  const weekday = build("weekday");
++  const weekend = build("weekend");
++  const quality: DemandQuality = complete.length < DEMAND_MIN_GROUP_DAYS ? "weak" : "estimated";
++
++  return {
++    weekday,
++    weekend,
++    completeDays: complete.length,
++    quality,
++    hasExhaustionData,
++    note: hasExhaustionData
++      ? `按最近 ${complete.length} 个完整北京日的实际消耗估计（含当日是否耗尽记录）。`
++      : `按最近 ${complete.length} 个完整北京日的实际消耗估计；缺少「当日是否耗尽」记录，无法分辨「没需求」与「额度用完」。`,
++  };
++}
++
++export type DeadlineReason = "natural-reset" | "planned-card" | "assumed-announcement" | "unknown";
++
++export interface AllocationSegment {
++  readonly dateKey: string;
++  readonly startAt: number;
++  readonly endAt: number;
++  /** 当日折算系数：今天与最后一天按实际剩余时长折算（§4.3）。 */
++  readonly dayFraction: number;
++  readonly group: DayGroup;
++  readonly demand: number;
++  readonly cap: number;
++  /** S_i：当前余额存续到该片段起点的概率。 */
++  readonly survival: number;
++  readonly allocation: number;
++}
++
++export interface PacePlanV2 {
++  /** 今天建议用量（百分点）；需求未知时为 null。 */
++  readonly todaySuggested: number | null;
++  readonly dailyAllocations: readonly AllocationSegment[];
++  readonly planningDeadline: number | null;
++  readonly deadlineReason: DeadlineReason;
++  /** 预计来不及使用的余额（百分点）。 */
++  readonly expectedUnspentBeforeDeadline: number;
++  readonly demandQuality: DemandQuality;
++  readonly explanations: readonly string[];
++  readonly totalAllocated: number;
++}
++
++export interface PacePlanInputV2 {
++  readonly now: number;
++  /** 当前余额 R（周额度百分点）。 */
++  readonly remaining: number;
++  /** 当前自然重置时刻 N；计划用卡只用于预演，不改变它（§4.2）。 */
++  readonly nextNaturalResetAt: number | null;
++  /** 本情景的计划用卡时刻（预演）。 */
++  readonly plannedCardAt?: number | null;
++  /** 本情景假定执行的公告重置时刻。 */
++  readonly assumedAnnouncementAt?: number | null;
++  readonly demand: DemandProfile;
++  /** S(t)：当前余额存续到 t 的概率（来自风险层的存续曲线）。 */
++  readonly survivalAt: (at: number) => number;
++}
++
++/** 规划截止 = min(当前自然重置, 本情景计划用卡, 本情景假定公告执行)（§4.2）。 */
++export function resolvePlanningDeadline(
++  input: Pick<PacePlanInputV2, "nextNaturalResetAt" | "plannedCardAt" | "assumedAnnouncementAt">,
++): { deadline: number | null; reason: DeadlineReason } {
++  const candidates: { at: number; reason: DeadlineReason }[] = [];
++  if (input.nextNaturalResetAt != null) {
++    candidates.push({ at: input.nextNaturalResetAt, reason: "natural-reset" });
++  }
++  if (input.plannedCardAt != null) candidates.push({ at: input.plannedCardAt, reason: "planned-card" });
++  if (input.assumedAnnouncementAt != null) {
++    candidates.push({ at: input.assumedAnnouncementAt, reason: "assumed-announcement" });
++  }
++  if (candidates.length === 0) return { deadline: null, reason: "unknown" };
++  candidates.sort((a, b) => a.at - b.at);
++  return { deadline: candidates[0].at, reason: candidates[0].reason };
++}
++
++interface SegmentDraft {
++  readonly dateKey: string;
++  readonly startAt: number;
++  readonly endAt: number;
++  readonly dayFraction: number;
++  readonly group: DayGroup;
++  readonly demand: number;
++  readonly cap: number;
++  readonly survival: number;
++}
++
++/** 把截止前的时间切成北京时间日片段（§4.3）。 */
++export function buildSegments(
++  now: number,
++  deadline: number,
++  demand: DemandProfile,
++  survivalAt: (at: number) => number,
++): SegmentDraft[] {
++  const segments: SegmentDraft[] = [];
++  let cursor = Math.max(now, beijingDayFloor(now));
++  let guard = 0;
++  while (cursor < deadline && guard < 400) {
++    guard += 1;
++    const dayStart = beijingDayFloor(cursor);
++    const dayEnd = dayStart + DAY_MS;
++    const end = Math.min(dayEnd, deadline);
++    const fraction = (end - cursor) / DAY_MS;
++    if (fraction <= 0) break;
++    const group = dayGroupOf(cursor);
++    const estimate = group === "weekend" ? demand.weekend : demand.weekday;
++    segments.push({
++      dateKey: beijingDayKey(cursor),
++      startAt: cursor,
++      endAt: end,
++      dayFraction: fraction,
++      group,
++      demand: estimate.demand * fraction,
++      cap: estimate.cap * fraction,
++      survival: Math.min(1, Math.max(0, survivalAt(cursor))),
++    });
++    cursor = end;
++  }
++  return segments;
++}
++
++/** x_i(μ) = clamp(D_i × (S_i/μ − 1), 0, C_i)；需求为零的片段直接分配零（§4.3）。 */
++/** 需求为零时有效上限也是 0：不因为「还有余额」就把额度塞进没有需求的日子。 */
++export const effectiveCap = (segment: SegmentDraft): number => (segment.demand <= 0 ? 0 : segment.cap);
++
++export function allocationAtMu(segments: readonly SegmentDraft[], mu: number): number[] {
++  return segments.map((segment) => {
++    if (segment.demand <= 0) return 0;
++    const raw = segment.demand * (segment.survival / mu - 1);
++    return Math.min(segment.cap, Math.max(0, raw));
++  });
++}
++
++/**
++ * 求解 max Σ S_i D_i log(1 + x_i/D_i)，s.t. 0 ≤ x_i ≤ C_i、Σ x_i ≤ R。
++ * 上限之和不超过余额时全部分配到上限；否则二分 μ 直到总分配误差 < 0.01 点。
++ * 注意：这是可解释的配速启发式，不宣称是全局最优控制策略（§4.3）。
++ */
++export function solveAllocation(
++  segments: readonly SegmentDraft[],
++  remaining: number,
++): { allocation: number[]; mu: number; iterations: number } {
++  const caps = segments.map(effectiveCap);
++  const capSum = caps.reduce((sum, value) => sum + value, 0);
++  if (capSum <= remaining) {
++    return { allocation: caps, mu: 0, iterations: 0 };
++  }
++  const R = Math.max(0, remaining);
++  const maxSurvival = segments.reduce((max, segment) => Math.max(max, segment.survival), 0);
++  let low = 1e-9;
++  let high = Math.max(maxSurvival, 1e-6);
++  // 扩大上界直到总分配 ≤ R（μ 越大分配越少，函数单调）。
++  let guard = 0;
++  while (high < 1e9 && guard < 200) {
++    const total = allocationAtMu(segments, high).reduce((sum, value) => sum + value, 0);
++    if (total <= R) break;
++    low = high;
++    high *= 2;
++    guard += 1;
++  }
++  let iterations = 0;
++  for (let i = 0; i < 200; i += 1) {
++    iterations = i + 1;
++    const mid = (low + high) / 2;
++    const total = allocationAtMu(segments, mid).reduce((sum, value) => sum + value, 0);
++    if (Math.abs(total - R) < ALLOCATION_TOLERANCE) break;
++    if (total > R) low = mid;
++    else high = mid;
++  }
++  const mu = (low + high) / 2;
++  return { allocation: allocationAtMu(segments, mu), mu, iterations };
++}
++
++export function planPaceV2(input: PacePlanInputV2): PacePlanV2 {
++  const { now, demand, survivalAt } = input;
++  const remaining = Math.max(0, input.remaining);
++  const explanations: string[] = [];
++  const { deadline, reason } = resolvePlanningDeadline(input);
++
++  if (reason === "unknown") {
++    explanations.push("截止时间未知（没有自然重置时刻、也没有本次情景的计划用卡或公告执行）：只规划今天，不伪造截止。");
++  } else {
++    const label =
++      reason === "natural-reset"
++        ? "当前自然重置时刻"
++        : reason === "planned-card"
++          ? "本情景的计划用卡时刻（预演，不改变真实自然重置时刻）"
++          : "本情景假定执行的公告重置时刻";
++    explanations.push(`规划截止 = ${label}（${new Date(deadline as number).toISOString()}），取三者最早。`);
++  }
++
++  if (demand.quality === "unknown") {
++    return {
++      todaySuggested: null,
++      dailyAllocations: [],
++      planningDeadline: deadline,
++      deadlineReason: reason,
++      expectedUnspentBeforeDeadline: remaining,
++      demandQuality: "unknown",
++      explanations: [...explanations, demand.note, "需求未知时不分配：不代入固定的 25 点软上限。"],
++      totalAllocated: 0,
++    };
++  }
++
++  const horizon = deadline ?? now + DAY_MS;
++  const drafts = buildSegments(now, horizon, demand, survivalAt);
++  const { allocation } = solveAllocation(drafts, remaining);
++  const segments: AllocationSegment[] = drafts.map((draft, index) => ({
++    dateKey: draft.dateKey,
++    startAt: draft.startAt,
++    endAt: draft.endAt,
++    dayFraction: draft.dayFraction,
++    group: draft.group,
++    demand: draft.demand,
++    cap: draft.cap,
++    survival: draft.survival,
++    allocation: allocation[index],
++  }));
++
++  const totalAllocated = allocation.reduce((sum, value) => sum + value, 0);
++  const unspent = Math.max(0, remaining - totalAllocated);
++  const today = segments[0];
++
++  explanations.push(demand.note);
++  explanations.push(
++    `需求与上限按组取值：工作日 中位数 ${demand.weekday.demand.toFixed(1)} / 上限 ${demand.weekday.cap.toFixed(1)}；周末 中位数 ${demand.weekend.demand.toFixed(1)} / 上限 ${demand.weekend.cap.toFixed(1)}。周末是否减少由个人历史决定。`,
++  );
++  explanations.push(
++    `按存续概率 S_i 前移：越靠后 S_i 越小，分配越少（今天建议 ${today ? today.allocation.toFixed(1) : "—"} 点）。`,
++  );
++  if (unspent > 0.01) {
++    explanations.push(
++      `预计来不及使用 ${unspent.toFixed(1)} 点：已到各日建议上限（历史 75 分位），不为清空额度而超出历史可消耗范围。`,
++    );
++  }
++  const weakest = segments.reduce(
++    (worst, segment) => (segment.survival < worst.survival ? segment : worst),
++    segments[0],
++  );
++  if (weakest != null && weakest.survival < 0.9) {
++    explanations.push(
++      `风险前移：${weakest.dateKey} 的存续概率只有 ${(weakest.survival * 100).toFixed(0)}%，该日之后的额度被提前分配。`,
++    );
++  }
++  if (demand.quality === "weak") {
++    explanations.push("样本偏少（完整日不足 4 天）：结论为弱证据，仅供参考。");
++  }
++
++  return {
++    todaySuggested: today == null ? null : today.allocation,
++    dailyAllocations: segments,
++    planningDeadline: deadline,
++    deadlineReason: reason,
++    expectedUnspentBeforeDeadline: unspent,
++    demandQuality: demand.quality,
++    explanations,
++    totalAllocated,
++  };
++}
+diff --git a/src/lib/resetCardV2.ts b/src/lib/resetCardV2.ts
+new file mode 100644
+index 0000000..66f9981
+--- /dev/null
++++ b/src/lib/resetCardV2.ts
+@@ -0,0 +1,716 @@
++// v2 核心（五）：重置卡层 —— 比较「不用卡」与「在 τ 用卡」两条完整策略，而不是计算充值量。
++// 规格出处：「reset-radar 核心算法 v2 实现规格」§5（5.1 同一快照出发、5.2 主指标、5.3 统一视野、
++// 5.4 候选时刻、5.5 模拟步骤、5.6 决策规则）与 §8 的 resetCard.ts 输出契约。
++//
++// 已删除的旧规则（RR44 之前 resetCard.ts）：「补给不足 25 点不算数」「最佳收益不足 8 点不算数」
++// 「今天达到 85% 就今天打」三条固定阈值 —— 换成 ε=1 点的「最小实用收益」与显式敏感性检查。
++
++import { beijingDayFloor, beijingDayKey, beijingWeekday, DAY_MS, HOUR_MS } from "./beijing.ts";
++import type { AllocationSegment } from "./plannerV2.ts";
++import { estimateDemand, type DemandProfile } from "./plannerV2.ts";
++import type { RateTable } from "./riskV2.ts";
++import {
++  DEFAULT_CYCLE_RULES,
++  type CycleRules,
++  type QuotaState,
++  type RiskAgeBand,
++  type UnexpectedScheduleRule,
++} from "./resetState.ts";
++
++/** 最小实用收益 ε（百分点）：只表示避免为极小收益折腾，不表示统计显著性（§5.6）。 */
++export const MIN_USEFUL_GAIN_PERCENT = 1;
++/** 候选决策时刻默认北京时间 09:00（可配置产品参数，§5.4）。 */
++export const DEFAULT_DECISION_HOUR = 9;
++/** 未来候选最多 14 天（§5.4）。 */
++export const MAX_CANDIDATE_DAYS = 14;
++export const DEFAULT_PATHS = 512;
++export const MAX_PATHS = 4096;
++export const DEFAULT_DEMAND_MULTIPLIERS = [0.75, 1, 1.25] as const;
++/** 视觉/结算容差：余额≥此值视为「已回满」，未来候选跳过不强行用卡（§5.4）。 */
++const FULL_BALANCE = 99.5;
++
++export interface CardState {
++  readonly id: string;
++  readonly expiresAt: number;
++}
++
++export type ResetCardDecisionKind = "not_applicable" | "hold" | "use_today" | "wait" | "uncertain";
++
++export interface CandidateResult {
++  readonly at: number;
++  readonly label: string;
++  /** E[该策略在观察期内的实际消耗]（百分点）。 */
++  readonly usage: number;
++  /** ΔUsage = 用卡策略 − 不用卡策略（§5.2 主指标）。 */
++  readonly incrementalUsage: number;
++  /** 相对基线少了多少「需求未被满足」的天数（辅助输出）。 */
++  readonly unmetDemandDays: number;
++  readonly endingBalanceDiff: number;
++  readonly nextResetShiftHours: number;
++  readonly cardConsumed: boolean;
++  readonly skippedReason?: string;
++}
++
++export interface SensitivityPoint {
++  readonly multiplier: number;
++  readonly bestAt: number | null;
++  readonly bestUsage: number;
++}
++
++export interface ResetRulePoint {
++  readonly rule: UnexpectedScheduleRule;
++  readonly bestAt: number | null;
++  readonly bestUsage: number;
++}
++
++export interface HorizonSensitivity {
++  readonly baseHorizon: number;
++  readonly extendedHorizon: number;
++  readonly bestAtBase: number | null;
++  readonly bestAtExtended: number | null;
++  readonly bestUsageBase: number;
++  readonly bestUsageExtended: number;
++  /** 两个视野下的最佳「增量」收益：视野敏感性比较的是它，不是绝对消耗。 */
++  readonly bestIncrementalBase: number;
++  readonly bestIncrementalExtended: number;
++  readonly flipped: boolean;
++  readonly note: string;
++}
++
++export interface ResetCardDecisionV2 {
++  readonly decision: ResetCardDecisionKind;
++  readonly recommendedAt: number | null;
++  readonly selectedCard: CardState | null;
++  readonly baselineUsage: number;
++  readonly candidateResults: readonly CandidateResult[];
++  readonly incrementalUsage: number;
++  readonly horizonSensitivity: HorizonSensitivity;
++  readonly demandSensitivity: readonly SensitivityPoint[];
++  readonly resetRuleSensitivity: readonly ResetRulePoint[];
++  readonly simulationError: { readonly paths: number; readonly standardError: number; readonly note: string };
++  readonly assumptions: readonly string[];
++  readonly explanations: readonly string[];
++}
++
++export interface ResetCardInputV2 {
++  readonly now: number;
++  readonly state: QuotaState;
++  readonly cards: readonly CardState[];
++  readonly demand: DemandProfile;
++  /** 分段发生率（来自风险层），用于生成意外重置等待时间。 */
++  readonly rateTable: RateTable;
++  readonly cycleRules?: CycleRules;
++  readonly decisionHour?: number;
++  readonly maxCandidateDays?: number;
++  readonly minUsefulGain?: number;
++  readonly paths?: number;
++  readonly seed?: number;
++  readonly demandMultipliers?: readonly number[];
++  /** 公告情景：give probability=undefined ⇒ 分别跑执行/未执行（§5.5）。 */
++  readonly announcements?: readonly { readonly at: number; readonly probability?: number }[];
++}
++
++// —— 确定性随机数（成对路径：同一条路径的两个策略共享同一串 Exp(1) 抽样）——
++
++export function mulberry32(seed: number): () => number {
++  let a = seed >>> 0;
++  return () => {
++    a = (a + 0x6d2b79f5) >>> 0;
++    let t = a;
++    t = Math.imul(t ^ (t >>> 15), t | 1);
++    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
++    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
++  };
++}
++
++const exponentialDraws = (seed: number, count: number): number[] => {
++  const rng = mulberry32(seed);
++  const out: number[] = [];
++  for (let i = 0; i < count; i += 1) {
++    const u = Math.min(1 - 1e-12, Math.max(1e-12, rng()));
++    out.push(-Math.log(1 - u));
++  }
++  return out;
++};
++
++const ageBandAt = (lastResetAt: number | null, at: number): RiskAgeBand | null => {
++  if (lastResetAt == null) return null;
++  const hours = (at - lastResetAt) / HOUR_MS;
++  if (hours < 36) return "fresh";
++  if (hours < 168) return "mid";
++  return "old";
++};
++
++const BAND_INDEX: Record<RiskAgeBand, number> = { fresh: 0, mid: 1, old: 2 };
++
++/** 分段发生率 λ(t)：按北京星期与风险年龄取表；年龄未知时只用星期模型（§3.1）。 */
++function hazardAt(table: RateTable, at: number, lastResetAt: number | null): number {
++  const band = ageBandAt(lastResetAt, at);
++  const weekday = beijingWeekday(at);
++  if (band == null) return table.weekday[weekday].rate;
++  return table.weekdayAge[weekday * 3 + BAND_INDEX[band]].rate;
++}
++
++/**
++ * 用「生成等待时间」的方式抽取下一次意外重置时刻：解 Λ(t0,t) = E（分段积分 + 段内线性插值）。
++ * 规格 §5.5 允许此法或足够细的时间片；这里按分段发生率精确求逆，避免时间片误差。
++ */
++export function nextShockTime(
++  table: RateTable,
++  from: number,
++  target: number,
++  horizon: number,
++  lastResetAt: number | null,
++): number | null {
++  let accumulated = 0;
++  let cursor = from;
++  let guard = 0;
++  while (cursor < horizon && guard < 5000) {
++    guard += 1;
++    const dayEnd = beijingDayFloor(cursor) + DAY_MS;
++    const ageEnd =
++      lastResetAt == null
++        ? horizon
++        : Math.min(
++            ...[36, 168]
++              .map((hours) => lastResetAt + hours * HOUR_MS)
++              .filter((value) => value > cursor)
++              .concat([horizon]),
++          );
++    const segEnd = Math.min(dayEnd, ageEnd, horizon);
++    const rate = hazardAt(table, cursor, lastResetAt);
++    const lambda = (rate * (segEnd - cursor)) / DAY_MS;
++    if (accumulated + lambda >= target) {
++      const remaining = target - accumulated;
++      const fraction = rate > 0 ? (remaining * DAY_MS) / rate : segEnd - cursor;
++      return cursor + Math.min(fraction, segEnd - cursor);
++    }
++    accumulated += lambda;
++    cursor = segEnd;
++  }
++  return null;
++}
++
++interface PathContext {
++  readonly now: number;
++  readonly horizon: number;
++  readonly demand: DemandProfile;
++  readonly table: RateTable;
++  readonly rules: CycleRules;
++  readonly rule: UnexpectedScheduleRule;
++  readonly demandMultiplier: number;
++  readonly announcements: readonly { readonly at: number }[];
++}
++
++interface PathOutcome {
++  readonly usage: number;
++  readonly unmetDays: number;
++  readonly endingBalance: number;
++  readonly nextResetAt: number | null;
++  readonly cardConsumed: boolean;
++  readonly cardSkipped: boolean;
++}
++
++interface SimState {
++  balance: number;
++  nextNatural: number | null;
++  lastResetAt: number | null;
++  cardUsed: boolean;
++  cardSkipped: boolean;
++}
++
++/**
++ * 同一时刻的事件优先级：先重置类，后日界。
++ * 否则自然重置正好落在北京午夜时会被「日界」事件挤掉，且下一轮它的时刻已不再 > t，
++ * 于是这次重置永远丢失 —— 基线会凭空断粮。
++ */
++const KIND_ORDER: Record<string, number> = {
++  shock: 0,
++  card: 1,
++  announcement: 2,
++  natural: 3,
++  day: 4,
++  end: 5,
++};
++
++/**
++ * 某天的实际消耗：需求 × 压力倍率，并受「余额 ÷ 距下次回满的天数」的配速约束（§5.5）。
++ * 分母是到下一次回满（自然重置／候选用卡／假定公告执行）的天数，不是到观察期终点 ——
++ * 否则明知道明天会回满，却把今天的余额摊到 44 天里，凭空制造断粮。
++ */
++function dailyConsumption(
++  ctx: PathContext,
++  at: number,
++  balance: number,
++  remainingDays: number,
++): { consumption: number; demand: number } {
++  const group = beijingWeekday(at) === 0 || beijingWeekday(at) === 6 ? ctx.demand.weekend : ctx.demand.weekday;
++  const demand = group.demand * ctx.demandMultiplier;
++  if (demand <= 0) return { consumption: 0, demand: 0 };
++  const rationed = remainingDays > 0 ? balance / remainingDays : balance;
++  const planned = Math.min(demand, Math.max(rationed, 0));
++  return { consumption: Math.min(planned, balance), demand };
++}
++
++/** 单条路径、单个策略的模拟（事件驱动：日界 / 自然重置 / 公告 / 候选用卡 / 随机意外重置）。 */
++function simulatePath(
++  ctx: PathContext,
++  draws: readonly number[],
++  cardAt: number | null,
++  start: SimState,
++): PathOutcome {
++  const state: SimState = { ...start, cardSkipped: false };
++  let usage = 0;
++  let unmetDays = 0;
++  let t = ctx.now;
++  let drawIndex = 0;
++  let pendingShock: number | null = null;
++  let guard = 0;
++
++  while (t < ctx.horizon && guard < 5000) {
++    guard += 1;
++    const dayEnd = beijingDayFloor(t) + DAY_MS;
++    const refills = [state.nextNatural, cardAt != null && !state.cardUsed ? cardAt : null]
++      .concat(ctx.announcements.map((item) => item.at))
++      .filter((value): value is number => value != null && value > t);
++    const nextRefill = refills.length > 0 ? Math.min(...refills, ctx.horizon) : ctx.horizon;
++    const daysLeft = Math.max(1, Math.ceil((Math.min(nextRefill, ctx.horizon) - t) / DAY_MS));
++    const { consumption, demand } = dailyConsumption(ctx, t, state.balance, daysLeft);
++    const slice = Math.min(dayEnd, ctx.horizon) - t;
++
++    if (pendingShock == null) {
++      const draw = draws[drawIndex] ?? Number.POSITIVE_INFINITY;
++      pendingShock = nextShockTime(ctx.table, t, draw, ctx.horizon, state.lastResetAt);
++    }
++
++    // 事件时间：意外重置 / 自然重置 / 公告 / 候选用卡 / 日界 / 观察期终点
++    const events: { at: number; kind: "shock" | "natural" | "announcement" | "card" | "day" | "end" }[] = [
++      { at: Math.min(dayEnd, ctx.horizon), kind: "day" },
++      { at: ctx.horizon, kind: "end" },
++    ];
++    if (pendingShock != null && pendingShock < ctx.horizon) events.push({ at: pendingShock, kind: "shock" });
++    if (state.nextNatural != null && state.nextNatural > t && state.nextNatural < ctx.horizon) {
++      events.push({ at: state.nextNatural, kind: "natural" });
++    }
++    for (const announcement of ctx.announcements) {
++      if (announcement.at > t && announcement.at < ctx.horizon) {
++        events.push({ at: announcement.at, kind: "announcement" });
++      }
++    }
++    if (cardAt != null && !state.cardUsed && cardAt >= t && cardAt < ctx.horizon) {
++      events.push({ at: cardAt, kind: "card" });
++    }
++    events.sort((a, b) => a.at - b.at || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
++    const next = events[0];
++    const span = Math.max(0, Math.min(next.at, ctx.horizon) - t);
++    const consumed = Math.min((consumption * span) / slice, state.balance);
++    state.balance -= consumed;
++    usage += consumed;
++    if (demand > 0 && consumed + 1e-9 < (demand * span) / slice) {
++      unmetDays += span / DAY_MS; // 该段需求未被满足（断粮）
++    }
++
++    const at = Math.min(next.at, ctx.horizon);
++    switch (next.kind) {
++      case "shock": {
++        state.balance = 100;
++        state.lastResetAt = at;
++        if (ctx.rule === "keep") state.nextNatural = state.nextNatural;
++        else if (ctx.rule === "roll") state.nextNatural = at + ctx.rules.cycleDurationHours * HOUR_MS;
++        else state.nextNatural = null;
++        pendingShock = null;
++        drawIndex += 1;
++        break;
++      }
++      case "natural": {
++        state.balance = 100;
++        state.nextNatural =
++          state.nextNatural != null ? state.nextNatural + ctx.rules.cycleDurationHours * HOUR_MS : null;
++        break;
++      }
++      case "announcement": {
++        state.balance = 100;
++        state.lastResetAt = at;
++        state.nextNatural = at + ctx.rules.cycleDurationHours * HOUR_MS;
++        break;
++      }
++      case "card": {
++        // 未来候选遇到已回满状态时跳过，不强行用卡（§5.4）。
++        if (state.balance >= FULL_BALANCE) {
++          state.cardUsed = true;
++          state.cardSkipped = true;
++          break;
++        }
++        state.balance = 100;
++        state.lastResetAt = at;
++        state.nextNatural = at + ctx.rules.cycleDurationHours * HOUR_MS;
++        state.cardUsed = true;
++        break;
++      }
++      default:
++        break;
++    }
++    t = at;
++    if (next.kind === "end") break;
++  }
++
++  return {
++    usage,
++    unmetDays,
++    endingBalance: state.balance,
++    nextResetAt: state.nextNatural,
++    cardConsumed: state.cardUsed && !state.cardSkipped,
++    cardSkipped: state.cardSkipped,
++  };
++}
++
++/** 候选时刻：现在 + 未来最多 14 天的北京每日固定决策时刻 + 卡过期前最后可执行时刻（§5.4）。 */
++export function buildCandidates(
++  now: number,
++  cards: readonly CardState[],
++  decisionHour: number,
++  maxCandidateDays: number,
++): { at: number; label: string }[] {
++  const selected = [...cards].sort((a, b) => a.expiresAt - b.expiresAt)[0] ?? null;
++  const latest = selected?.expiresAt ?? now + (maxCandidateDays + 2) * DAY_MS;
++  const out: { at: number; label: string }[] = [{ at: now, label: "现在" }];
++  for (let day = 1; day <= maxCandidateDays; day += 1) {
++    const at = beijingDayFloor(now) + day * DAY_MS + decisionHour * HOUR_MS;
++    if (at <= now || at > latest) continue;
++    out.push({ at, label: `${beijingDayKey(at)} ${String(decisionHour).padStart(2, "0")}:00` });
++  }
++  if (selected != null && selected.expiresAt > now) {
++    out.push({ at: selected.expiresAt, label: `卡过期前最后时刻（${beijingDayKey(selected.expiresAt)}）` });
++  }
++  return out.sort((a, b) => a.at - b.at);
++}
++
++function mean(values: readonly number[]): number {
++  return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
++}
++
++function standardError(values: readonly number[]): number {
++  if (values.length < 2) return 0;
++  const m = mean(values);
++  const variance = values.reduce((sum, value) => sum + (value - m) ** 2, 0) / (values.length - 1);
++  return Math.sqrt(variance / values.length);
++}
++
++interface RunResult {
++  readonly baselineUsage: number;
++  readonly candidates: CandidateResult[];
++  readonly bestAt: number | null;
++  readonly bestUsage: number;
++  readonly bestIncremental: number;
++  readonly standardError: number;
++}
++
++function runScenario(input: ResetCardInputV2, options: {
++  readonly demandMultiplier: number;
++  readonly rule: UnexpectedScheduleRule;
++  readonly horizon: number;
++  readonly paths: number;
++  readonly announcements: readonly { readonly at: number }[];
++}): RunResult {
++  const rules = input.cycleRules ?? DEFAULT_CYCLE_RULES;
++  const start: SimState = {
++    balance: input.state.remaining,
++    nextNatural: input.state.nextNaturalResetAt,
++    lastResetAt: input.state.lastForcedLikeResetAt,
++    cardUsed: false,
++    cardSkipped: false,
++  };
++  const ctx: PathContext = {
++    now: input.now,
++    horizon: options.horizon,
++    demand: input.demand,
++    table: input.rateTable,
++    rules,
++    rule: options.rule,
++    demandMultiplier: options.demandMultiplier,
++    announcements: options.announcements,
++  };
++  const candidates = buildCandidates(
++    input.now,
++    input.cards,
++    input.decisionHour ?? DEFAULT_DECISION_HOUR,
++    input.maxCandidateDays ?? MAX_CANDIDATE_DAYS,
++  );
++
++  const usageByCandidate = new Map<number, number[]>();
++  const unmetByCandidate = new Map<number, number[]>();
++  const endBalanceByCandidate = new Map<number, number[]>();
++  const shiftByCandidate = new Map<number, number[]>();
++  const consumedByCandidate = new Map<number, number[]>();
++  const skippedByCandidate = new Map<number, number[]>();
++  const baselineUsage: number[] = [];
++  const baselineUnmet: number[] = [];
++
++  for (let path = 0; path < options.paths; path += 1) {
++    // 成对路径：同一条路径共用同一串 Exp(1) 抽样（§5.1「需求和外部随机数必须共享」）。
++    const draws = exponentialDraws((input.seed ?? 20261011) + path * 7919, 64);
++    const baseline = simulatePath(ctx, draws, null, start);
++    baselineUsage.push(baseline.usage);
++    baselineUnmet.push(baseline.unmetDays);
++    for (const candidate of candidates) {
++      const outcome = simulatePath(ctx, draws, candidate.at, start);
++      const delta = outcome.usage - baseline.usage;
++      usageByCandidate.set(candidate.at, [...(usageByCandidate.get(candidate.at) ?? []), delta]);
++      unmetByCandidate.set(candidate.at, [
++        ...(unmetByCandidate.get(candidate.at) ?? []),
++        baseline.unmetDays - outcome.unmetDays,
++      ]);
++      endBalanceByCandidate.set(candidate.at, [
++        ...(endBalanceByCandidate.get(candidate.at) ?? []),
++        outcome.endingBalance - baseline.endingBalance,
++      ]);
++      shiftByCandidate.set(candidate.at, [
++        ...(shiftByCandidate.get(candidate.at) ?? []),
++        ((outcome.nextResetAt ?? options.horizon) - (baseline.nextResetAt ?? options.horizon)) / HOUR_MS,
++      ]);
++      consumedByCandidate.set(candidate.at, [
++        ...(consumedByCandidate.get(candidate.at) ?? []),
++        outcome.cardConsumed ? 1 : 0,
++      ]);
++      skippedByCandidate.set(candidate.at, [
++        ...(skippedByCandidate.get(candidate.at) ?? []),
++        outcome.cardSkipped ? 1 : 0,
++      ]);
++    }
++  }
++
++  const baselineMean = mean(baselineUsage);
++  const results: CandidateResult[] = candidates.map((candidate) => {
++    const deltas = usageByCandidate.get(candidate.at) ?? [];
++    return {
++      at: candidate.at,
++      label: candidate.label,
++      usage: baselineMean + mean(deltas),
++      incrementalUsage: mean(deltas),
++      unmetDemandDays: mean(unmetByCandidate.get(candidate.at) ?? []),
++      endingBalanceDiff: mean(endBalanceByCandidate.get(candidate.at) ?? []),
++      nextResetShiftHours: mean(shiftByCandidate.get(candidate.at) ?? []),
++      cardConsumed: mean(consumedByCandidate.get(candidate.at) ?? []) > 0.5,
++      ...(mean(skippedByCandidate.get(candidate.at) ?? []) > 0.5
++        ? { skippedReason: "该时刻多数路径下余额已回满：跳过用卡，不强行消耗（§5.4）。" }
++        : {}),
++    };
++  });
++
++  const best = results.reduce<{ at: number | null; usage: number; incremental: number }>(
++    (current, candidate) =>
++      candidate.incrementalUsage > current.incremental
++        ? { at: candidate.at, usage: candidate.usage, incremental: candidate.incrementalUsage }
++        : current,
++    { at: null, usage: baselineMean, incremental: -Infinity },
++  );
++
++  return {
++    baselineUsage: baselineMean,
++    candidates: results,
++    bestAt: best.at,
++    bestUsage: best.usage,
++    bestIncremental: best.incremental,
++    standardError: standardError(baselineUsage),
++  };
++}
++
++/** 零发生率表：用于「忽略意外重置」的对照场景（验收用例 4/5）。 */
++export const ZERO_RATE_TABLE: RateTable = {
++  lambda0: 0,
++  weekday: Array.from({ length: 7 }, () => ({ exposureDays: 0, events: 0, rate: 0 })),
++  weekdayAge: Array.from({ length: 21 }, () => ({ exposureDays: 0, events: 0, rate: 0 })),
++  totalEvents: 0,
++  totalExposureDays: 0,
++  ageEligibleEvents: 0,
++  ageEligibleExposureDays: 0,
++};
++
++export function planResetCardV2(input: ResetCardInputV2): ResetCardDecisionV2 {
++  const rules = input.cycleRules ?? DEFAULT_CYCLE_RULES;
++  const epsilon = input.minUsefulGain ?? MIN_USEFUL_GAIN_PERCENT;
++  const paths = Math.min(MAX_PATHS, Math.max(16, input.paths ?? DEFAULT_PATHS));
++  const multipliers = input.demandMultipliers ?? DEFAULT_DEMAND_MULTIPLIERS;
++  const assumptions: string[] = [];
++  const explanations: string[] = [];
++
++  const usableCards = input.cards.filter((card) => card.expiresAt > input.now);
++  const selectedCard = [...usableCards].sort((a, b) => a.expiresAt - b.expiresAt)[0] ?? null;
++
++  const empty = (decision: ResetCardDecisionKind, note: string): ResetCardDecisionV2 => ({
++    decision,
++    recommendedAt: null,
++    selectedCard: null,
++    baselineUsage: 0,
++    candidateResults: [],
++    incrementalUsage: 0,
++    horizonSensitivity: {
++      baseHorizon: input.now,
++      extendedHorizon: input.now,
++      bestAtBase: null,
++      bestAtExtended: null,
++      bestUsageBase: 0,
++      bestUsageExtended: 0,
++      bestIncrementalBase: 0,
++      bestIncrementalExtended: 0,
++      flipped: false,
++      note,
++    },
++    demandSensitivity: [],
++    resetRuleSensitivity: [],
++    simulationError: { paths: 0, standardError: 0, note },
++    assumptions,
++    explanations: [...explanations, note],
++  });
++
++  if (selectedCard == null) {
++    return empty("not_applicable", "没有可用卡（数量为零或已过期）：用卡规划不适用。");
++  }
++  if (input.demand.quality === "unknown") {
++    return empty("uncertain", "需求历史不足：无法估计消耗，暂无法可靠建议（不代入固定需求值）。");
++  }
++  if (rules.cycleRuleSource === "assumed") {
++    assumptions.push("cycle-duration-assumed");
++    explanations.push(`周期长度为暂定假设（${rules.cycleDurationHours}h）：用卡后的截止按预演计算，结论随之浮动。`);
++  }
++  if (rules.unexpectedResetScheduleRule === "unknown") {
++    assumptions.push("unexpected-rule-unknown");
++    explanations.push("意外重置后的周期规则未知：已分别模拟「截止保持」与「截止滚动」两种情景。");
++  }
++
++  const candidates = buildCandidates(
++    input.now,
++    [selectedCard],
++    input.decisionHour ?? DEFAULT_DECISION_HOUR,
++    input.maxCandidateDays ?? MAX_CANDIDATE_DAYS,
++  );
++  const latestCandidate = candidates[candidates.length - 1]?.at ?? input.now;
++  const cycleMs = rules.cycleDurationHours * HOUR_MS;
++  // 统一比较视野：所有候选比到同一个绝对终点 H = 最晚候选 + 2L（§5.3）。
++  const baseHorizon = latestCandidate + 2 * cycleMs;
++  const extendedHorizon = baseHorizon + cycleMs;
++
++  // 公告：给概率的按「假定执行」跑；没给概率的分别跑执行/未执行，不擅自给可信度（§5.5）。
++  const announcements = (input.announcements ?? []).filter((item) => item.at > input.now);
++  const announcementScenario = announcements.filter(
++    (item) => item.probability == null || (item.probability ?? 0) >= 0.5,
++  );
++  if (announcements.length > 0) {
++    assumptions.push("announcement-scenario-assumed");
++    explanations.push("公告未来是否执行不确定：已按情景分别计算，未给可信度百分比。");
++  }
++
++  const ruleOptions: UnexpectedScheduleRule[] =
++    rules.unexpectedResetScheduleRule === "unknown" ? ["keep", "roll"] : [rules.unexpectedResetScheduleRule];
++
++  const base = runScenario(input, {
++    demandMultiplier: 1,
++    rule: ruleOptions[0],
++    horizon: baseHorizon,
++    paths,
++    announcements: announcementScenario,
++  });
++  const extended = runScenario(input, {
++    demandMultiplier: 1,
++    rule: ruleOptions[0],
++    horizon: extendedHorizon,
++    paths,
++    announcements: announcementScenario,
++  });
++
++  const demandSensitivity: SensitivityPoint[] = multipliers.map((multiplier) => {
++    const run = runScenario(input, {
++      demandMultiplier: multiplier,
++      rule: ruleOptions[0],
++      horizon: baseHorizon,
++      paths,
++      announcements: announcementScenario,
++    });
++    return { multiplier, bestAt: run.bestAt, bestUsage: run.bestUsage };
++  });
++
++  const resetRuleSensitivity: ResetRulePoint[] = ruleOptions.map((rule) => {
++    const run = runScenario(input, {
++      demandMultiplier: 1,
++      rule,
++      horizon: baseHorizon,
++      paths,
++      announcements: announcementScenario,
++    });
++    return { rule, bestAt: run.bestAt, bestUsage: run.bestUsage };
++  });
++
++  const best = base.candidates.reduce<CandidateResult | null>(
++    (current, candidate) =>
++      current == null || candidate.incrementalUsage > current.incrementalUsage ? candidate : current,
++    null,
++  );
++  const today = base.candidates[0];
++  const bestIncremental = best?.incrementalUsage ?? 0;
++  const todayIncremental = today?.incrementalUsage ?? 0;
++
++  const flipped =
++    extended.bestAt !== base.bestAt ||
++    Math.abs(extended.bestIncremental - base.bestIncremental) > 1 ||
++    demandSensitivity.some((point) => point.bestAt !== base.bestAt) ||
++    resetRuleSensitivity.some((point) => point.bestAt !== base.bestAt);
++
++  const horizonSensitivity: HorizonSensitivity = {
++    baseHorizon,
++    extendedHorizon,
++    bestAtBase: base.bestAt,
++    bestAtExtended: extended.bestAt,
++    bestUsageBase: base.bestUsage,
++    bestUsageExtended: extended.bestUsage,
++    bestIncrementalBase: base.bestIncremental,
++    bestIncrementalExtended: extended.bestIncremental,
++    flipped,
++    note: flipped
++      ? "受比较视野影响：延长视野或换假设后最佳候选改变/关键收益变化超过 1 点，不输出确定性的「今天打」。"
++      : `两个视野（${beijingDayKey(baseHorizon)} / ${beijingDayKey(extendedHorizon)}）结论一致。`,
++  };
++
++  explanations.push(
++    `主指标是「观察期内实际消耗之差」，不是补给规模：最大候选增量 ${bestIncremental.toFixed(1)} 点（阈值 ε=${epsilon} 点）。`,
++  );
++  explanations.push("只评估下一张卡，后续卡价值未纳入长期优化（§5.4）。");
++
++  let decision: ResetCardDecisionKind;
++  let recommendedAt: number | null = null;
++  if (bestIncremental <= epsilon) {
++    decision = "hold";
++    explanations.push("所有候选收益都不超过 ε：持有，当前未发现明显收益。");
++  } else if (flipped) {
++    decision = "uncertain";
++    explanations.push("假设或模拟误差足以翻转方向：建议不稳健，已列出翻转原因。");
++  } else if (todayIncremental > epsilon && bestIncremental - todayIncremental <= epsilon) {
++    decision = "use_today";
++    recommendedAt = today?.at ?? null;
++    explanations.push(`今天收益 ${todayIncremental.toFixed(1)} 点，且距最佳收益不超过 ε：今天可用。`);
++  } else {
++    decision = "wait";
++    recommendedAt = best?.at ?? null;
++    explanations.push(
++      `未来候选明显更好：建议等到 ${best != null ? beijingDayKey(best.at) : "—"}（增量 ${bestIncremental.toFixed(1)} 点）。`,
++    );
++  }
++
++  return {
++    decision,
++    recommendedAt,
++    selectedCard,
++    baselineUsage: base.baselineUsage,
++    candidateResults: base.candidates,
++    incrementalUsage: bestIncremental,
++    horizonSensitivity,
++    demandSensitivity,
++    resetRuleSensitivity,
++    simulationError: {
++      paths,
++      standardError: base.standardError,
++      note: "模拟误差小不代表模型可靠；这是成对路径下的基线消耗标准误，与模型可靠性分开显示（§5.6）。",
++    },
++    assumptions,
++    explanations,
++  };
++}
+diff --git a/src/lib/resetState.ts b/src/lib/resetState.ts
+new file mode 100644
+index 0000000..96f9cad
+--- /dev/null
++++ b/src/lib/resetState.ts
+@@ -0,0 +1,965 @@
++// v2 核心（一）：统一事件流 + 周期状态机 + 派生视图 + 预测标签。
++// 规格出处：用户给定「reset-radar 核心算法 v2 实现规格」§1 定义 / §2 状态转换 / §6 派生视图 / §7.2 标签。
++// 这是风险（§3）、配速（§4）、用卡模拟（§5）唯一的状态转换入口：规格 §2 开头要求
++// 「风险、配速和用卡模拟必须调用同一个状态转换函数，禁止分别维护重置逻辑」。
++//
++// 设计底线（违反任何一条即为 bug）：
++//  · 不把「余额变成 100」当成用卡成功的证据（规则 3）；
++//  · 日级事件取北京零点作为「天内」代表，绝不伪造正午（规则 6）；
++//  · 周期规则未知时截止时间留空，不伪造（§1、规则 5）；
++//  · 用卡事件不计入意外重置分子，也不算预测命中（§6）。
++
++import { beijingDayKey, beijingDayStart, DAY_MS, HOUR_MS } from "./beijing.ts";
++
++export const STATE_MODEL_VERSION = "quota-state-machine-v1";
++/** 风险预测目标定义版本：未来 24h 意外强制重置（不含自然重置、不含公告、不含用卡）。 */
++export const TARGET_DEFINITION_VERSION = "reset-risk-target-v2";
++/** 模型版本（风险发生率实现版本，§7.1 落盘字段）。 */
++export const RISK_MODEL_VERSION = "risk-shrinkage-v2";
++
++/** 周期长度无法确认时的暂定预演基准（§1）；使用时必须标注「暂定」。 */
++export const ASSUMED_CYCLE_HOURS = 168;
++
++/**
++ * 自然重置是否重置风险年龄：v2 默认 **否**。
++ * 规格 §2：「自然重置是否也触发短期连续重置效应，目前没有给定证据。v2 默认不改变风险年龄，
++ * 单独保留事件类型，便于以后验证。」——这里用常量固定，便于日后单点翻转与回归。
++ */
++export const NATURAL_RESET_RESETS_RISK_AGE = false;
++
++/** 意外强制重置后的周期规则：keep=截止保持原值，roll=滚动到事件时刻+L，unknown=不推断。 */
++export type UnexpectedScheduleRule = "unknown" | "keep" | "roll";
++export type CycleRuleSource = "observed" | "configured" | "assumed";
++
++export type ResetEventKind =
++  | "unexpected" // 意外强制重置（非主动、非公告执行）
++  | "announced" // 公告实际执行
++  | "announcement" // 仅收到公告：不是已发生事件，不改状态
++  | "card" // 用卡成功
++  | "card-failed" // 用卡失败
++  | "natural"; // 自然重置
++
++/** 会重置「风险年龄」的三类事件（§1 风险年龄定义）。 */
++export type ForcedLikeResetKind = "unexpected" | "announced" | "card";
++
++export type TimePrecision = "exact" | "day";
++export type EventScope = "account" | "global" | "unknown";
++/** observed=快照实测；preview=按周期规则预演；unknown=规则未知、不伪造。 */
++export type ScheduleConfidence = "observed" | "preview" | "unknown";
++
++export interface ResetEvent {
++  readonly id: string;
++  readonly kind: ResetEventKind;
++  /** exact 精度下的发生时刻（UTC ms）。 */
++  readonly occurredAt?: number;
++  /** day 精度下的发生日（北京时间日键 YYYY-MM-DD）。 */
++  readonly occurredDate?: string;
++  readonly timePrecision: TimePrecision;
++  readonly scope: EventScope;
++  readonly source: string;
++  /** 关联操作 ID：用卡操作与随后观察到的余额跳升据此合并为同一次重置（规则 2）。 */
++  readonly linkedActionId?: string;
++  /** 事件后快照观测到的下一次自然重置时刻；有则以它为准（覆盖预演）。 */
++  readonly observedNextNaturalResetAt?: number | null;
++  /** 公告的计划执行时刻（仅 announcement 用）。 */
++  readonly scheduledFor?: number;
++  /** 追加式更正：本事件取代该 id 的事件进入派生视图，原事件永不改写（§9 用例 12）。 */
++  readonly supersedes?: string;
++}
++
++export interface CycleRules {
++  readonly cycleDurationHours: number;
++  readonly cycleRuleSource: CycleRuleSource;
++  readonly unexpectedResetScheduleRule: UnexpectedScheduleRule;
++}
++
++export const DEFAULT_CYCLE_RULES: CycleRules = {
++  cycleDurationHours: ASSUMED_CYCLE_HOURS,
++  cycleRuleSource: "assumed",
++  unexpectedResetScheduleRule: "unknown",
++};
++
++/** 自然重置定时事件：用卡成功后必须撤销旧事件，而不是新增一个截止后保留旧事件（规则 1）。 */
++export interface ScheduledResetTimer {
++  readonly id: string;
++  readonly at: number;
++  readonly status: "active" | "fired" | "cancelled";
++  readonly cancelledByEventId?: string;
++}
++
++/** 公告到时但没有执行证据 → 待确认，不改写真实余额（规则 4）。 */
++export interface PendingConfirmation {
++  readonly announcementId: string;
++  readonly scheduledFor: number;
++  readonly note: string;
++}
++
++export interface QuotaState {
++  /** 周额度剩余，百分点（0–100）。 */
++  readonly remaining: number;
++  /** 下一次自然重置时刻 N（UTC ms），未知为 null。 */
++  readonly nextNaturalResetAt: number | null;
++  readonly cardsRemaining: number;
++  readonly cardExpirations: readonly number[];
++  readonly lastForcedLikeResetAt: number | null;
++  readonly lastForcedLikeResetKind: ForcedLikeResetKind | null;
++  readonly scheduleConfidence: ScheduleConfidence;
++  readonly timers: readonly ScheduledResetTimer[];
++  readonly pendingConfirmations: readonly PendingConfirmation[];
++  /** 累积的假设代码（去重，按首次出现顺序），供 §3.5/§8 的 assumptions 字段输出。 */
++  readonly assumptions: readonly string[];
++}
++
++export type TransitionCode =
++  | "card-consumed"
++  | "card-unavailable"
++  | "card-failed-ignored"
++  | "card-skipped-natural-satisfies"
++  | "deadline-observed"
++  | "deadline-preview"
++  | "deadline-kept"
++  | "deadline-rolled"
++  | "deadline-unknown-rule"
++  | "timer-cancelled"
++  | "timer-fired"
++  | "linked-action-merged"
++  | "announcement-recorded"
++  | "unresolved-time"
++  | "natural-age-unchanged"
++  | "correction-applied";
++
++export interface TransitionNote {
++  readonly eventId: string;
++  readonly code: TransitionCode;
++  readonly message: string;
++  /** true 表示这条是「假设/未证实」而非观测事实，UI 必须如实标注。 */
++  readonly assumption?: boolean;
++}
++
++export interface TransitionContext {
++  readonly cycleRules?: CycleRules;
++}
++
++const clampPercent = (value: number): number => Math.min(100, Math.max(0, value));
++
++const note = (
++  eventId: string,
++  code: TransitionCode,
++  message: string,
++  assumption = false,
++): TransitionNote => (assumption ? { eventId, code, message, assumption: true } : { eventId, code, message });
++
++const timerId = (at: number): string => `natural@${at}`;
++
++function withAssumption(current: readonly string[], code: string | null): readonly string[] {
++  if (code == null || current.includes(code)) return current;
++  return [...current, code];
++}
++
++/**
++ * 解析事件时刻：
++ * - day 精度 → 该北京日的 00:00（只代表「这一天」，不伪造正午，规则 6）；
++ * - exact → occurredAt；
++ * - 两者都缺 → null，调用方跳过并记 note（不猜）。
++ */
++export function resolveEventTime(event: ResetEvent): { at: number | null; precision: TimePrecision } {
++  if (event.timePrecision === "day") {
++    const key =
++      event.occurredDate ?? (typeof event.occurredAt === "number" ? beijingDayKey(event.occurredAt) : null);
++    if (key == null) return { at: null, precision: "day" };
++    return { at: beijingDayStart(key), precision: "day" };
++  }
++  const at = typeof event.occurredAt === "number" && Number.isFinite(event.occurredAt) ? event.occurredAt : null;
++  return { at, precision: "exact" };
++}
++
++export interface InitialStateInput {
++  readonly remaining?: number;
++  readonly nextNaturalResetAt?: number | null;
++  readonly cardsRemaining?: number;
++  readonly cardExpirations?: readonly number[];
++  readonly lastForcedLikeResetAt?: number | null;
++  readonly lastForcedLikeResetKind?: ForcedLikeResetKind | null;
++  readonly scheduleConfidence?: ScheduleConfidence;
++}
++
++export function createInitialState(input: InitialStateInput = {}): QuotaState {
++  const expirations = [...(input.cardExpirations ?? [])].sort((a, b) => a - b);
++  const next = input.nextNaturalResetAt ?? null;
++  return {
++    remaining: clampPercent(input.remaining ?? 100),
++    nextNaturalResetAt: next,
++    cardsRemaining: input.cardsRemaining ?? expirations.length,
++    cardExpirations: expirations,
++    lastForcedLikeResetAt: input.lastForcedLikeResetAt ?? null,
++    lastForcedLikeResetKind: input.lastForcedLikeResetKind ?? null,
++    scheduleConfidence: input.scheduleConfidence ?? (next != null ? "observed" : "unknown"),
++    timers: next != null ? [{ id: timerId(next), at: next, status: "active" }] : [],
++    pendingConfirmations: [],
++    assumptions: [],
++  };
++}
++
++interface TimerOutcome {
++  readonly timers: readonly ScheduledResetTimer[];
++  readonly cancelled: number;
++  readonly fired: number;
++}
++
++/** 撤销所有尚未触发的自然重置定时事件（规则 1：旧周期截止时间失效）。 */
++function cancelActiveTimers(
++  timers: readonly ScheduledResetTimer[],
++  at: number,
++  byEventId: string,
++): TimerOutcome {
++  let cancelled = 0;
++  const next = timers.map((timer) => {
++    if (timer.status !== "active" || timer.at <= at) return timer;
++    cancelled += 1;
++    return { id: timer.id, at: timer.at, status: "cancelled" as const, cancelledByEventId: byEventId };
++  });
++  return { timers: next, cancelled, fired: 0 };
++}
++
++/** 自然重置到点：把已到期的定时器标记为 fired。 */
++function fireTimers(timers: readonly ScheduledResetTimer[], at: number): TimerOutcome {
++  let fired = 0;
++  const next = timers.map((timer) => {
++    if (timer.status !== "active" || timer.at > at) return timer;
++    fired += 1;
++    return { id: timer.id, at: timer.at, status: "fired" as const };
++  });
++  return { timers: next, cancelled: 0, fired };
++}
++
++const readObserved = (event: ResetEvent): number | null =>
++  typeof event.observedNextNaturalResetAt === "number" && Number.isFinite(event.observedNextNaturalResetAt)
++    ? event.observedNextNaturalResetAt
++    : null;
++
++function cycleMs(rules: CycleRules): number {
++  return rules.cycleDurationHours * HOUR_MS;
++}
++
++/** 用卡成功：余额回满、截止改为观测值或 t+L、风险年龄归零、消耗一张卡、撤销旧定时事件。 */
++function applyCard(
++  state: QuotaState,
++  event: ResetEvent,
++  at: number,
++  rules: CycleRules,
++): { state: QuotaState; notes: TransitionNote[] } {
++  if (state.cardsRemaining <= 0) {
++    return { state, notes: [note(event.id, "card-unavailable", "没有可用卡：不产生回满，状态不变。")] };
++  }
++  const observed = readObserved(event);
++  const next = observed ?? at + cycleMs(rules);
++  const notes: TransitionNote[] = [];
++  notes.push(
++    observed != null
++      ? note(event.id, "deadline-observed", "用卡后截止时间采用用卡后快照的观测值。")
++      : note(
++          event.id,
++          "deadline-preview",
++          `用卡后截止时间按周期 ${rules.cycleDurationHours}h 预演，待快照确认（周期来源：${rules.cycleRuleSource}）。`,
++          true,
++        ),
++  );
++  const outcome = cancelActiveTimers(state.timers, at, event.id);
++  if (outcome.cancelled > 0) {
++    notes.push(
++      note(
++        event.id,
++        "timer-cancelled",
++        `撤销 ${outcome.cancelled} 个旧自然重置定时事件：旧周期截止已失效，不会再次自动回满。`,
++      ),
++    );
++  }
++  notes.push(note(event.id, "card-consumed", "消耗最早过期的一张卡；风险年龄归零。"));
++  const expirations = [...state.cardExpirations].sort((a, b) => a - b).slice(1);
++  return {
++    state: {
++      ...state,
++      remaining: 100,
++      nextNaturalResetAt: next,
++      cardsRemaining: state.cardsRemaining - 1,
++      cardExpirations: expirations,
++      lastForcedLikeResetAt: at,
++      lastForcedLikeResetKind: "card",
++      scheduleConfidence: observed != null ? "observed" : "preview",
++      timers: [...outcome.timers, { id: timerId(next), at: next, status: "active" }],
++      assumptions: withAssumption(state.assumptions, observed == null ? "cycle-duration-assumed" : null),
++    },
++    notes,
++  };
++}
++
++/** 意外强制重置 / 公告实际执行：回满 + 年龄归零；截止时间优先快照，其次已确认规则，否则留空。 */
++function applyForcedLike(
++  state: QuotaState,
++  event: ResetEvent,
++  at: number,
++  rules: CycleRules,
++): { state: QuotaState; notes: TransitionNote[] } {
++  const observed = readObserved(event);
++  const notes: TransitionNote[] = [];
++  let next: number | null = null;
++  let confidence: ScheduleConfidence = "unknown";
++  let assumptionCode: string | null = null;
++
++  if (observed != null) {
++    next = observed;
++    confidence = "observed";
++    notes.push(note(event.id, "deadline-observed", "截止时间采用事件后快照的观测值。"));
++  } else if (rules.unexpectedResetScheduleRule === "keep") {
++    next = state.nextNaturalResetAt;
++    confidence = state.scheduleConfidence === "observed" ? "observed" : "preview";
++    assumptionCode = "unexpected-schedule-keep";
++    notes.push(
++      note(event.id, "deadline-kept", `按已确认规则：截止时间保持原值（${next ?? "未知"}）。`, true),
++    );
++  } else if (rules.unexpectedResetScheduleRule === "roll") {
++    next = at + cycleMs(rules);
++    confidence = "preview";
++    assumptionCode = "unexpected-schedule-roll";
++    notes.push(
++      note(
++        event.id,
++        "deadline-rolled",
++        `按已确认规则：截止时间滚动到事件时刻 + ${rules.cycleDurationHours}h。`,
++        true,
++      ),
++    );
++  } else {
++    next = null;
++    confidence = "unknown";
++    assumptionCode = "unexpected-schedule-unknown";
++    notes.push(
++      note(
++        event.id,
++        "deadline-unknown-rule",
++        "意外强制重置后的周期规则未知：截止时间留空，不伪造（另需按 keep/roll 两种情景分别模拟）。",
++        true,
++      ),
++    );
++  }
++
++  const outcome = cancelActiveTimers(state.timers, at, event.id);
++  if (outcome.cancelled > 0) {
++    notes.push(
++      note(event.id, "timer-cancelled", `撤销 ${outcome.cancelled} 个旧自然重置定时事件。`),
++    );
++  }
++  const kind: ForcedLikeResetKind = event.kind === "announced" ? "announced" : "unexpected";
++  return {
++    state: {
++      ...state,
++      remaining: 100,
++      nextNaturalResetAt: next,
++      lastForcedLikeResetAt: at,
++      lastForcedLikeResetKind: kind,
++      scheduleConfidence: confidence,
++      timers: next != null ? [...outcome.timers, { id: timerId(next), at: next, status: "active" }] : outcome.timers,
++      assumptions: withAssumption(state.assumptions, assumptionCode),
++    },
++    notes,
++  };
++}
++
++/** 自然重置：回满 + 推进到下一周期截止；默认不改变风险年龄（NATURAL_RESET_RESETS_RISK_AGE=false）。 */
++function applyNatural(
++  state: QuotaState,
++  event: ResetEvent,
++  at: number,
++  rules: CycleRules,
++): { state: QuotaState; notes: TransitionNote[] } {
++  const observed = readObserved(event);
++  const notes: TransitionNote[] = [];
++  let next: number | null;
++  if (observed != null) {
++    next = observed;
++    notes.push(note(event.id, "deadline-observed", "截止时间采用事件后快照的观测值。"));
++  } else if (state.nextNaturalResetAt != null) {
++    next = state.nextNaturalResetAt + cycleMs(rules);
++    notes.push(
++      note(
++        event.id,
++        "deadline-preview",
++        `自然重置后按周期长度推进下一截止（周期来源：${rules.cycleRuleSource}）。`,
++        rules.cycleRuleSource !== "observed",
++      ),
++    );
++  } else {
++    next = null;
++    notes.push(
++      note(event.id, "deadline-unknown-rule", "原截止时间未知：下一周期截止留空，不伪造。", true),
++    );
++  }
++
++  const fired = fireTimers(state.timers, at);
++  if (fired.fired > 0) notes.push(note(event.id, "timer-fired", `${fired.fired} 个自然重置定时事件到点触发。`));
++  // 观测到的自然重置意味着真实周期在此刻结束：任何尚未触发的（含用卡预演出来的）定时事件
++  // 都被新周期截止取代，否则会留下两个 active 定时器、将来重复回满。
++  const cleared = cancelActiveTimers(fired.timers, at, event.id);
++  if (cleared.cancelled > 0) {
++    notes.push(
++      note(
++        event.id,
++        "timer-cancelled",
++        `撤销 ${cleared.cancelled} 个尚未触发的旧自然重置定时事件：新周期截止取代它们。`,
++      ),
++    );
++  }
++
++  if (NATURAL_RESET_RESETS_RISK_AGE) {
++    notes.push(
++      note(event.id, "natural-age-unchanged", "自然重置重置了风险年龄（当前常量关闭，此为分支保留）。", true),
++    );
++  } else {
++    notes.push(
++      note(
++        event.id,
++        "natural-age-unchanged",
++        "自然重置不改变风险年龄（v2 默认；无证据支持纳入短期连续重置效应）。",
++        true,
++      ),
++    );
++  }
++
++  return {
++    state: {
++      ...state,
++      remaining: 100,
++      nextNaturalResetAt: next,
++      lastForcedLikeResetAt: NATURAL_RESET_RESETS_RISK_AGE ? at : state.lastForcedLikeResetAt,
++      lastForcedLikeResetKind: NATURAL_RESET_RESETS_RISK_AGE ? "card" : state.lastForcedLikeResetKind,
++      scheduleConfidence: observed != null ? "observed" : next != null ? "preview" : "unknown",
++      timers:
++        next != null ? [...cleared.timers, { id: timerId(next), at: next, status: "active" }] : cleared.timers,
++      assumptions: withAssumption(state.assumptions, rules.cycleRuleSource !== "observed" ? "cycle-duration-assumed" : null),
++    },
++    notes,
++  };
++}
++
++/** 单个事件的状态转换。所有调用方（风险/配速/用卡模拟）都必须走这里。 */
++export function applyResetEvent(
++  state: QuotaState,
++  event: ResetEvent,
++  context: TransitionContext = {},
++): { state: QuotaState; notes: TransitionNote[] } {
++  const rules = context.cycleRules ?? DEFAULT_CYCLE_RULES;
++  const { at } = resolveEventTime(event);
++  if (at == null) {
++    return {
++      state,
++      notes: [note(event.id, "unresolved-time", "事件时间无法解析：跳过，不伪造发生时刻。")],
++    };
++  }
++  switch (event.kind) {
++    case "card":
++      return applyCard(state, event, at, rules);
++    case "unexpected":
++    case "announced":
++      return applyForcedLike(state, event, at, rules);
++    case "natural":
++      return applyNatural(state, event, at, rules);
++    case "card-failed":
++      return { state, notes: [note(event.id, "card-failed-ignored", "用卡失败：余额、截止、风险年龄均不变。")] };
++    case "announcement":
++      return { state, notes: [note(event.id, "announcement-recorded", "仅收到公告：不是已发生事件，不修改真实状态。")] };
++    default:
++      return { state, notes: [] };
++  }
++}
++
++interface GroupPlan {
++  readonly primary: ResetEvent | null;
++  readonly observedNextNaturalResetAt?: number | null;
++  readonly notes: TransitionNote[];
++}
++
++/**
++ * 同刻优先级：**用卡优先**。
++ * 用卡是用户主动动作，一旦发生就必须记一笔（卡数 −1、风险年龄归零）；
++ * 若同一时刻还记录了一条「意外重置」，二者几乎总是同一次事件（§6：用卡当天看到额度重置，
++ * 不能给意外重置记一次，也不能给之前的高风险预测记命中），因此保留用卡事件、合并其余。
++ */
++const PRIORITY: readonly ResetEventKind[] = ["card", "announced", "unexpected", "natural", "card-failed", "announcement"];
++
++const priorityOf = (kind: ResetEventKind): number => {
++  const index = PRIORITY.indexOf(kind);
++  return index < 0 ? PRIORITY.length : index;
++};
++
++const prefer = (a: ResetEvent, b: ResetEvent): ResetEvent =>
++  priorityOf(a.kind) <= priorityOf(b.kind) ? a : b;
++
++/**
++ * 跨时刻按操作 ID 归并（规则 2）：一次用卡操作与随后观察到的余额跳升可能相隔几分钟，
++ * 不是同一时刻，但属于同一次重置 —— 必须在回放前先合并，否则会既扣卡又记一次意外重置。
++ */
++export function dedupeByLinkedAction(
++  events: readonly ResetEvent[],
++): { events: ResetEvent[]; notes: TransitionNote[] } {
++  const notes: TransitionNote[] = [];
++  const kept: ResetEvent[] = [];
++  const byAction = new Map<string, number>();
++  const drops: { event: ResetEvent; actionId: string }[] = [];
++
++  for (const event of events) {
++    const actionId = event.linkedActionId;
++    if (actionId == null || actionId.length === 0) {
++      kept.push(event);
++      continue;
++    }
++    const index = byAction.get(actionId);
++    if (index == null) {
++      byAction.set(actionId, kept.length);
++      kept.push(event);
++      continue;
++    }
++    const current = kept[index];
++    const winner = prefer(current, event);
++    if (winner === current) {
++      drops.push({ event, actionId });
++    } else {
++      drops.push({ event: current, actionId });
++      kept[index] = event;
++    }
++  }
++
++  for (const drop of drops) {
++    notes.push(
++      note(
++        drop.event.id,
++        "linked-action-merged",
++        `与操作 ${drop.actionId} 关联为同一次重置：合并掉 ${drop.event.kind} 事件，不重复计入。`,
++      ),
++    );
++  }
++  return { events: kept, notes };
++}
++
++/**
++ * 同一时刻（或同一天）的多个事件：先合并确认信息，再做 **一次** 状态转换（规则 5）。
++ * - 同一 linkedActionId 视为同一次重置，保留用卡事件（规则 2），其余合并掉；
++ * - 自然重置已满足需求时不浪费一张卡（规则 5）。
++ */
++export function planSameInstantGroup(group: readonly ResetEvent[]): GroupPlan {
++  const notes: TransitionNote[] = [];
++  const byAction = new Map<string, ResetEvent[]>();
++  const kept: ResetEvent[] = [];
++  for (const event of group) {
++    if (event.linkedActionId == null || event.linkedActionId.length === 0) {
++      kept.push(event);
++      continue;
++    }
++    const bucket = byAction.get(event.linkedActionId) ?? [];
++    bucket.push(event);
++    byAction.set(event.linkedActionId, bucket);
++  }
++  for (const [actionId, bucket] of byAction) {
++    const winner = bucket.reduce((best, event) => prefer(best, event));
++    kept.push(winner);
++    for (const dropped of bucket) {
++      if (dropped.id === winner.id) continue;
++      notes.push(
++        note(
++          dropped.id,
++          "linked-action-merged",
++          `与操作 ${actionId} 关联为同一次重置，不重复计入（保留 ${winner.kind} 事件）。`,
++        ),
++      );
++    }
++  }
++
++  // 非状态事件也要留下可解释记录，否则「收到公告但什么都没发生」在 UI 上不可见。
++  for (const event of group) {
++    if (event.kind === "announcement") {
++      notes.push(note(event.id, "announcement-recorded", "仅收到公告：不是已发生事件，不修改真实状态。"));
++    } else if (event.kind === "card-failed") {
++      notes.push(note(event.id, "card-failed-ignored", "用卡失败：余额、截止、风险年龄均不变。"));
++    }
++  }
++
++  const has = (kind: ResetEventKind): boolean => kept.some((event) => event.kind === kind);
++  let candidates = kept;
++  if (has("natural") && has("card")) {
++    for (const event of kept) {
++      if (event.kind === "card") {
++        notes.push(
++          note(event.id, "card-skipped-natural-satisfies", "同一时刻自然重置已满足需求：不模拟浪费一张卡。"),
++        );
++      }
++    }
++    candidates = kept.filter((event) => event.kind !== "card");
++  }
++
++  const stateChanging = candidates
++    .filter((event) => event.kind !== "announcement" && event.kind !== "card-failed")
++    .sort((a, b) => priorityOf(a.kind) - priorityOf(b.kind));
++  const primary = stateChanging.length > 0 ? stateChanging[0] : null;
++
++  // 合并确认信息：组内任一事件观测到新截止时间，就以观测值为准（规格：优先快照）。
++  let observed: number | null | undefined;
++  for (const event of candidates) {
++    const value = readObserved(event);
++    if (value != null) {
++      observed = observed == null ? value : Math.max(observed, value);
++    }
++  }
++
++  return primary == null ? { primary: null, notes } : { primary, observedNextNaturalResetAt: observed, notes };
++}
++
++interface InstantGroup {
++  readonly at: number;
++  readonly precision: TimePrecision;
++  readonly events: ResetEvent[];
++}
++
++/** 按发生时刻分组：day 精度按「北京日」归组，exact 按时间戳归组；无法解析的单独丢弃。 */
++export function groupByInstant(
++  events: readonly ResetEvent[],
++): { groups: InstantGroup[]; notes: TransitionNote[] } {
++  const notes: TransitionNote[] = [];
++  const map = new Map<string, InstantGroup>();
++  const order: string[] = [];
++  for (const event of events) {
++    const { at, precision } = resolveEventTime(event);
++    if (at == null) {
++      notes.push(note(event.id, "unresolved-time", "事件时间无法解析：不参与状态回放。"));
++      continue;
++    }
++    const key = `${precision}|${at}`;
++    const existing = map.get(key);
++    if (existing == null) {
++      map.set(key, { at, precision, events: [event] });
++      order.push(key);
++    } else {
++      existing.events.push(event);
++    }
++  }
++  const groups = order
++    .map((key) => map.get(key))
++    .filter((group): group is InstantGroup => group != null)
++    .sort((a, b) => a.at - b.at);
++  return { groups, notes };
++}
++
++/** 按时间顺序回放事件流（同刻合并后才做一次转换）。 */
++export function applyResetEvents(
++  state: QuotaState,
++  events: readonly ResetEvent[],
++  context: TransitionContext = {},
++): { state: QuotaState; notes: TransitionNote[] } {
++  // 先跨时刻按操作 ID 归并（规则 2），再按时刻分组（规则 5）。
++  const deduped = dedupeByLinkedAction(events);
++  const { groups, notes } = groupByInstant(deduped.events);
++  notes.unshift(...deduped.notes);
++  let current = state;
++  for (const group of groups) {
++    const plan = planSameInstantGroup(group.events);
++    notes.push(...plan.notes);
++    if (plan.primary == null) continue;
++    const merged: ResetEvent =
++      plan.observedNextNaturalResetAt === undefined
++        ? plan.primary
++        : { ...plan.primary, observedNextNaturalResetAt: plan.observedNextNaturalResetAt };
++    const result = applyResetEvent(current, merged, context);
++    current = result.state;
++    notes.push(...result.notes);
++  }
++  return { state: current, notes };
++}
++
++export function replayResetEvents(
++  events: readonly ResetEvent[],
++  context: TransitionContext = {},
++  initial: QuotaState = createInitialState({ remaining: 100 }),
++): { state: QuotaState; notes: TransitionNote[] } {
++  return applyResetEvents(initial, events, context);
++}
++
++/** 风险年龄 A（小时）：距上次「意外强制／公告执行／用卡」重置的时间；未知返回 null。 */
++export function riskAgeHours(state: QuotaState, now: number): number | null {
++  if (state.lastForcedLikeResetAt == null) return null;
++  return Math.max(0, (now - state.lastForcedLikeResetAt) / HOUR_MS);
++}
++
++/** 风险年龄分组（§3.1）：[0,36h)、[36h,168h)、[168h,∞)；年龄未知返回 null。 */
++export type RiskAgeBand = "fresh" | "mid" | "old";
++export function riskAgeBand(ageHours: number | null): RiskAgeBand | null {
++  if (ageHours == null || !Number.isFinite(ageHours)) return null;
++  if (ageHours < 36) return "fresh";
++  if (ageHours < 168) return "mid";
++  return "old";
++}
++
++// —— 派生视图（§6）：同一事件流派生不同统计口径，用卡事件绝不污染意外事件标签 ——
++
++/**
++ * 生效事件：被追加更正取代的事件（及其旧更正）不进入派生视图，但原始数组永不改写（§9 用例 12）。
++ */
++export function activeEvents(events: readonly ResetEvent[]): ResetEvent[] {
++  const superseded = new Set<string>();
++  const corrections = new Map<string, string>();
++  for (const event of events) {
++    const target = event.supersedes;
++    if (target == null || target.length === 0) continue;
++    superseded.add(target);
++    const previous = corrections.get(target);
++    if (previous != null) superseded.add(previous);
++    corrections.set(target, event.id);
++  }
++  return events.filter((event) => !superseded.has(event.id));
++}
++
++/**
++ * 意外强制重置事件（发生率训练分子）：用卡／公告执行／自然重置一律不计入（§6 表）。
++ * 注意：本函数只做「口径筛选」，不做时间窗过滤。
++ */
++export function selectUnexpectedEvents(events: readonly ResetEvent[]): ResetEvent[] {
++  const active = activeEvents(events);
++  // 与用卡操作关联的事件不是外生意外事件（§6：用卡当天看到额度重置，不能记为意外重置，
++  // 也不能算之前高风险预测的命中）。
++  const cardActions = new Set(
++    active.filter((event) => event.kind === "card" && event.linkedActionId != null).map((event) => event.linkedActionId),
++  );
++  return active.filter(
++    (event) =>
++      event.kind === "unexpected" &&
++      !(event.linkedActionId != null && cardActions.has(event.linkedActionId)),
++  );
++}
++
++export type CalendarResetLabel = "主动用卡" | "意外强制重置" | "公告执行" | "自然重置";
++
++export interface CalendarResetEntry {
++  readonly eventId: string;
++  readonly kind: ResetEventKind;
++  readonly label: CalendarResetLabel;
++  readonly at: number | null;
++  readonly dateKey: string | null;
++  readonly precision: TimePrecision;
++  readonly note: string;
++}
++
++const CALENDAR_LABEL: Record<string, CalendarResetLabel> = {
++  card: "主动用卡",
++  unexpected: "意外强制重置",
++  announced: "公告执行",
++  natural: "自然重置",
++};
++
++/** 所有重置日历（含用卡，明确标注「主动用卡」）；日级事件只给日键，不伪造时刻。 */
++export function selectCalendarResets(events: readonly ResetEvent[]): CalendarResetEntry[] {
++  const entries: CalendarResetEntry[] = [];
++  for (const event of activeEvents(events)) {
++    const label = CALENDAR_LABEL[event.kind];
++    if (label == null) continue; // announcement / card-failed 不是已发生重置
++    const { at, precision } = resolveEventTime(event);
++    entries.push({
++      eventId: event.id,
++      kind: event.kind,
++      label,
++      at,
++      dateKey: at != null ? beijingDayKey(at) : null,
++      precision,
++      note:
++        precision === "day"
++          ? "日期级记录：只知道发生在这一天，时刻未伪造。"
++          : event.kind === "card"
++            ? "主动用卡：计入日历与周期重建，但不计入意外重置分子。"
++            : "已发生的重置事件。",
++    });
++  }
++  return entries.sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
++}
++
++export interface ObservationSegment {
++  readonly startAt: number;
++  readonly endAt: number | null;
++  readonly startedBy: ForcedLikeResetKind | "history-start";
++  readonly endedBy: "card" | "unexpected" | "announced" | "open";
++  /** 该段被确认完整观测的时长（小时）。 */
++  readonly exposureHours: number;
++  /** true=该段因用卡而结束（观察被干预打断，不是「没有发生重置」）。 */
++  readonly endedByIntervention: boolean;
++}
++
++/**
++ * 观察段切分（§6 末段）：用卡造成观察段结束并开启新段；前一段未发生意外重置的观测时间仍有价值，
++ * 不能整个删除；新段从用卡后的风险年龄 0 开始累计暴露时间。自然重置不切段（不改风险年龄）。
++ */
++export function splitObservationSegments(
++  events: readonly ResetEvent[],
++  now: number,
++  historyStart: number | null = null,
++): ObservationSegment[] {
++  const markers = activeEvents(events)
++    .filter((event) => event.kind === "card" || event.kind === "unexpected" || event.kind === "announced")
++    .map((event) => {
++      const { at } = resolveEventTime(event);
++      return { event, at };
++    })
++    .filter((entry): entry is { event: ResetEvent; at: number } => entry.at != null)
++    .sort((a, b) => a.at - b.at);
++
++  if (markers.length === 0) {
++    const start = historyStart ?? 0;
++    return [
++      {
++        startAt: start,
++        endAt: now >= start ? now : start,
++        startedBy: "history-start",
++        endedBy: "open",
++        exposureHours: Math.max(0, (now - start) / HOUR_MS),
++        endedByIntervention: false,
++      },
++    ];
++  }
++
++  const segments: ObservationSegment[] = [];
++  let segmentStart = historyStart ?? markers[0].at;
++  let startedBy: ForcedLikeResetKind | "history-start" =
++    historyStart != null ? "history-start" : (markers[0].event.kind as ForcedLikeResetKind);
++
++  for (let index = 0; index < markers.length; index += 1) {
++    const marker = markers[index];
++    const kind = marker.event.kind as ForcedLikeResetKind;
++    if (index === 0 && historyStart == null) {
++      // 第一个标记即本段起点（无更早的历史起点可观测）
++      segmentStart = marker.at;
++      startedBy = kind;
++      continue;
++    }
++    const endAt = marker.at;
++    segments.push({
++      startAt: segmentStart,
++      endAt,
++      startedBy,
++      endedBy: kind,
++      exposureHours: Math.max(0, (endAt - segmentStart) / HOUR_MS),
++      endedByIntervention: kind === "card",
++    });
++    segmentStart = marker.at;
++    startedBy = kind;
++  }
++
++  segments.push({
++    startAt: segmentStart,
++    endAt: now,
++    startedBy,
++    endedBy: "open",
++    exposureHours: Math.max(0, (now - segmentStart) / HOUR_MS),
++    endedByIntervention: false,
++  });
++  return segments;
++}
++
++// —— 预测标签（§7.2）——
++
++export type PredictionLabel = 1 | 0 | "censored" | "unknown";
++
++export interface PredictionWindowLabel {
++  readonly label: PredictionLabel;
++  readonly reason: string;
++  readonly firstUnexpectedAt: number | null;
++  readonly interventionAt: number | null;
++  readonly interventionKind: "card" | "announced" | null;
++}
++
++export interface LabelWindowInput {
++  readonly windowStart: number;
++  readonly windowEnd: number;
++  readonly events: readonly ResetEvent[];
++  /** 数据被确认完整观测到的时刻；小于 windowEnd 即存在缺口。 */
++  readonly observedUntil: number;
++}
++
++/**
++ * 给一个预测窗口打标签（§7.2）：
++ * - 窗口内先出现意外强制重置 → 1（之后再用卡不取消正例）；
++ * - 意外事件前先用卡／公告执行 → censored（用卡不算命中，§9 用例 8）；
++ * - 完整观测到窗口结束且无目标事件与干预 → 0；
++ * - 数据缺失或日期精度跨窗口边界无法判断 → unknown（§9 用例 9）。
++ */
++export function labelPredictionWindow(input: LabelWindowInput): PredictionWindowLabel {
++  const { windowStart, windowEnd, observedUntil } = input;
++  const candidates = activeEvents(input.events)
++    .filter((event) => event.kind === "unexpected" || event.kind === "card" || event.kind === "announced")
++    .map((event) => {
++      const { at, precision } = resolveEventTime(event);
++      return { event, at, precision };
++    })
++    .filter((entry): entry is { event: ResetEvent; at: number; precision: TimePrecision } => entry.at != null)
++    .sort((a, b) => a.at - b.at);
++
++  // 日期级事件跨窗口边界 → 无法判断先后，标签不确定（不按正午猜答案）。
++  for (const entry of candidates) {
++    if (entry.precision !== "day") continue;
++    const dayEnd = entry.at + DAY_MS;
++    const straddlesStart = entry.at < windowStart && dayEnd > windowStart;
++    const straddlesEnd = entry.at < windowEnd && dayEnd > windowEnd;
++    if (straddlesStart || straddlesEnd) {
++      return {
++        label: "unknown",
++        reason: "日期级事件的所在日与窗口边界相交，无法判断先后：不按正午伪造时刻。",
++        firstUnexpectedAt: null,
++        interventionAt: null,
++        interventionKind: null,
++      };
++    }
++  }
++
++  const inWindow = candidates.filter((entry) => entry.at >= windowStart && entry.at < windowEnd);
++  const firstUnexpected = inWindow.find((entry) => entry.event.kind === "unexpected") ?? null;
++  const firstIntervention =
++    inWindow.find((entry) => entry.event.kind === "card" || entry.event.kind === "announced") ?? null;
++
++  if (firstUnexpected != null) {
++    const interventionBefore =
++      firstIntervention != null && firstIntervention.at < firstUnexpected.at ? firstIntervention : null;
++    if (interventionBefore == null) {
++      return {
++        label: 1,
++        reason: "窗口内先出现意外强制重置（之后的用卡不取消已有正例）。",
++        firstUnexpectedAt: firstUnexpected.at,
++        interventionAt: firstIntervention?.at ?? null,
++        interventionKind: null,
++      };
++    }
++  }
++
++  if (firstIntervention != null) {
++    return {
++      label: "censored",
++      reason:
++        firstIntervention.event.kind === "card"
++          ? "意外事件出现前先主动用卡：该窗口被干预删失，不算预测命中。"
++          : "意外事件出现前先有公告实际执行：该窗口被干预删失。",
++      firstUnexpectedAt: firstUnexpected?.at ?? null,
++      interventionAt: firstIntervention.at,
++      interventionKind: firstIntervention.event.kind === "card" ? "card" : "announced",
++    };
++  }
++
++  if (observedUntil >= windowEnd) {
++    return {
++      label: 0,
++      reason: "完整观测到窗口结束，没有目标事件也没有干预。",
++      firstUnexpectedAt: null,
++      interventionAt: null,
++      interventionKind: null,
++    };
++  }
++
++  return {
++    label: "unknown",
++    reason: "观测覆盖不足（数据缺口）：未完整观察到窗口结束，不能判定为负例。",
++    firstUnexpectedAt: null,
++    interventionAt: null,
++    interventionKind: null,
++  };
++}
+diff --git a/src/lib/riskV2.ts b/src/lib/riskV2.ts
+new file mode 100644
+index 0000000..ae09c4b
+--- /dev/null
++++ b/src/lib/riskV2.ts
+@@ -0,0 +1,564 @@
++// v2 核心（三）：风险层 —— 预测「外生」意外强制重置，不预测用户自己的动作。
++// 规格出处：「reset-radar 核心算法 v2 实现规格」§3（含 3.1 收缩发生率、3.2 用卡后 36h 效应、
++// 3.3 公开/账号历史分用、3.4 watch 融合、3.5 解释输出）与 §8 的 risk.ts 输出契约。
++//
++// 预测目标（固定含义，§3 开头）：
++//   如果未来 24 小时没有主动用卡或公告执行干预，发生意外强制重置的概率。
++// 已删除的旧硬规则（RR44 之前 risk.ts）：周二/周六固定 70%、36h 内强行抬到 40%、
++// 近 30 天频次 +12、星期偏离再加一轮、最终夹到 2–95% —— 它们重复利用同一份历史信息，
++// 且输出没有概率含义。
++
++import { beijingDayKey, beijingWeekday, DAY_MS, HOUR_MS } from "./beijing.ts";
++import {
++  activeEvents,
++  DEFAULT_CYCLE_RULES,
++  RISK_MODEL_VERSION,
++  TARGET_DEFINITION_VERSION,
++  resolveEventTime,
++  splitObservationSegments,
++  type CycleRules,
++  type EventScope,
++  type ResetEvent,
++  type RiskAgeBand,
++} from "./resetState.ts";
++
++/** 收缩强度：28 个等效观测天（§3.1）。初始配置，不是已验证的最优值。 */
++export const SHRINKAGE_DAYS = 28;
++/** 冷启动先验：+1 次事件 / +10 天观测 ⇒ 无数据时每天 0.1 次，24h 概率约 9.5%。 */
++export const COLD_START_PRIOR_EVENTS = 1;
++export const COLD_START_PRIOR_DAYS = 10;
++/** watch 融合：初始权重 0.25，有效期 24h（§3.4，均为初始配置，非已验证权重）。 */
++export const WATCH_BLEND_WEIGHT = 0.25;
++export const WATCH_MAX_AGE_HOURS = 24;
++
++export const RISK_WINDOW_HOURS = 24;
++const AGE_FRESH_HOURS = 36;
++const AGE_MID_HOURS = 168;
++
++const BAND_INDEX: Record<RiskAgeBand, number> = { fresh: 0, mid: 1, old: 2 };
++
++/** §3.5：说明这是顺序归因，不是因果贡献。每个因子步骤的 note 都带上这句。 */
++const SEQUENTIAL_NOTE = "（顺序归因：记录加入该因素前后的概率差，不是因果贡献。）";
++
++export interface CoverageWindow {
++  readonly from: number;
++  readonly to: number;
++}
++
++export interface WatchSignal {
++  /** watch 概率（0–1）。 */
++  readonly probability: number;
++  /** watch 数据更新时间（UTC ms）。 */
++  readonly updatedAt: number;
++  /** 预测对象是否与本模型目标一致（未来 24h 意外强制重置）。 */
++  readonly targetMatches: boolean;
++  /** watch 的预测窗口小时数。 */
++  readonly windowHours: number;
++  /** watch 的概率是否把公告／自然重置也算进去。 */
++  readonly includesAnnouncedOrNatural: boolean;
++}
++
++export type WatchComparability = "comparable" | "reference-only" | "absent";
++
++export interface RateCell {
++  readonly exposureDays: number;
++  readonly events: number;
++  readonly rate: number;
++}
++
++export interface RateTable {
++  /** 全局收缩发生率 λ0（次/天）。 */
++  readonly lambda0: number;
++  /** 按北京星期（0=周日）的 λw。 */
++  readonly weekday: readonly RateCell[];
++  /** 按 星期×年龄组 的 λwa，索引 = w * 3 + bandIndex。 */
++  readonly weekdayAge: readonly RateCell[];
++  readonly totalEvents: number;
++  readonly totalExposureDays: number;
++  /** 进入年龄子模型的样本（仅精确时刻事件 + 年龄来源非日级）。 */
++  readonly ageEligibleEvents: number;
++  readonly ageEligibleExposureDays: number;
++}
++
++export interface RiskTargetSpec {
++  readonly definitionVersion: string;
++  readonly label: string;
++  readonly windowHours: number;
++  readonly excludes: readonly string[];
++  readonly note: string;
++}
++
++export const RISK_TARGET: RiskTargetSpec = {
++  definitionVersion: TARGET_DEFINITION_VERSION,
++  label: "未来 24h 意外强制重置风险",
++  windowHours: RISK_WINDOW_HOURS,
++  excludes: ["主动用卡", "公告执行", "自然重置"],
++  note: "含义：如果未来 24 小时没有主动用卡或公告执行干预，发生意外强制重置的概率。用卡或公告执行后重新计算。",
++};
++
++export interface SurvivalPoint {
++  readonly hours: number;
++  readonly survival: number;
++  readonly cumulativeProbability: number;
++}
++
++export interface FactorStep {
++  readonly id: "baseline" | "weekday" | "age" | "watch";
++  readonly label: string;
++  readonly beforeProbability: number;
++  readonly afterProbability: number;
++  readonly delta: number;
++  readonly note: string;
++  readonly assumption?: boolean;
++}
++
++export interface RiskQuality {
++  /** 被确认完整观测的时间 E（天）。 */
++  readonly effectiveExposureDays: number;
++  /** 覆盖期内意外强制重置次数 K。 */
++  readonly unexpectedEventCount: number;
++  readonly dataRange: { readonly from: number | null; readonly to: number | null };
++  /** 冷启动：还没有足够的账号样本，基线是产品假设。 */
++  readonly coldStart: boolean;
++  readonly missing: readonly string[];
++  readonly scopeNote: string;
++  /** 是否已完成账号口径校准（有账号样本且 E>0）。 */
++  readonly calibrated: boolean;
++}
++
++export interface ResetRiskV2 {
++  readonly target: RiskTargetSpec;
++  /** 未来 24h 概率（0–1）。 */
++  readonly probability24h: number;
++  /** 存续曲线（0–72h，不套用 watch 修正）。 */
++  readonly survivalCurve: readonly SurvivalPoint[];
++  readonly factorSteps: readonly FactorStep[];
++  readonly effectiveExposureDays: number;
++  readonly unexpectedEventCount: number;
++  readonly scope: EventScope;
++  readonly quality: RiskQuality;
++  readonly assumptions: readonly string[];
++  readonly modelVersion: string;
++  readonly watchComparability: WatchComparability;
++}
++
++interface AgePoint {
++  readonly at: number;
++  readonly band: RiskAgeBand;
++  /** 该段年龄来自日级事件：不能进入年龄子模型（§3.3）。 */
++  readonly dayPrecision: boolean;
++}
++
++export interface AssessRiskV2Input {
++  readonly events: readonly ResetEvent[];
++  readonly now: number;
++  /** 被确认完整观测的区间；不给则从观察段派生（并记为缺失项）。 */
++  readonly coverage?: readonly CoverageWindow[];
++  readonly watch?: WatchSignal | null;
++  readonly cycleRules?: CycleRules;
++  /** 期望口径：account=账号风险（默认）。 */
++  readonly requestedScope?: EventScope;
++  /** 未来 24h 内是否已计划用卡/公告执行（用于提示而非改概率）。 */
++  readonly plannedIntervention?: boolean;
++}
++
++const EMPTY_RATE: RateCell = { exposureDays: 0, events: 0, rate: 0 };
++
++const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
++
++const bandIndexOf = (band: RiskAgeBand | null): number | null => (band == null ? null : BAND_INDEX[band]);
++
++/** 风险年龄时间线：每次强制类重置归零，并在 +36h / +168h 换组。 */
++export function buildAgeTimeline(
++  events: readonly ResetEvent[],
++  horizonTo: number,
++  scope: EventScope,
++): AgePoint[] {
++  const points: AgePoint[] = [];
++  for (const event of activeEvents(events)) {
++    if (event.kind !== "card" && event.kind !== "unexpected" && event.kind !== "announced") continue;
++    if (event.scope !== scope) continue;
++    const { at, precision } = resolveEventTime(event);
++    if (at == null) continue;
++    const dayPrecision = precision === "day";
++    points.push({ at, band: "fresh", dayPrecision });
++    if (at + AGE_FRESH_HOURS * HOUR_MS <= horizonTo) {
++      points.push({ at: at + AGE_FRESH_HOURS * HOUR_MS, band: "mid", dayPrecision });
++    }
++    if (at + AGE_MID_HOURS * HOUR_MS <= horizonTo) {
++      points.push({ at: at + AGE_MID_HOURS * HOUR_MS, band: "old", dayPrecision });
++    }
++  }
++  return points.sort((a, b) => a.at - b.at);
++}
++
++export interface AgeLookup {
++  readonly bandAt: (at: number) => { band: RiskAgeBand; dayPrecision: boolean } | null;
++}
++
++export function ageLookup(timeline: readonly AgePoint[]): AgeLookup {
++  return {
++    bandAt: (at: number) => {
++      let found: AgePoint | null = null;
++      for (const point of timeline) {
++        if (point.at <= at) found = point;
++        else break;
++      }
++      return found == null ? null : { band: found.band, dayPrecision: found.dayPrecision };
++    },
++  };
++}
++
++/** 在 [from,to) 内切段：北京午夜 + 36h/168h 年龄边界（§3.1 要求）。 */
++function segmentBoundaries(from: number, to: number, timeline: readonly AgePoint[]): number[] {
++  const marks = new Set<number>([from, to]);
++  let cursor = Math.floor((from + 8 * HOUR_MS) / DAY_MS) * DAY_MS - 8 * HOUR_MS;
++  if (cursor < from) cursor += DAY_MS;
++  for (let t = cursor; t < to; t += DAY_MS) marks.add(t);
++  for (const point of timeline) {
++    if (point.at > from && point.at < to) marks.add(point.at);
++  }
++  return [...marks].filter((t) => t >= from && t <= to).sort((a, b) => a - b);
++}
++
++/**
++ * 训练收缩发生率（§3.1）：
++ *   λ0 = (K + 1) / (E + 10)
++ *   λw = (Kw + 28·λ0) / (Ew + 28)
++ *   λwa = (Kwa + 28·λw) / (Ewa + 28)
++ * 日级事件进星期统计，不进年龄子模型；年龄来自日级事件的暴露也不进年龄子模型。
++ */
++export function trainRates(input: {
++  readonly events: readonly ResetEvent[];
++  readonly coverage: readonly CoverageWindow[];
++  readonly now: number;
++  readonly scope: EventScope;
++}): RateTable {
++  const { coverage, now, scope } = input;
++  const events = activeEvents(input.events);
++  const forcedTimeline = buildAgeTimeline(events, now, scope);
++  const lookup = ageLookup(forcedTimeline);
++
++  const weekdayEvents = new Array(7).fill(0) as number[];
++  const weekdayExposure = new Array(7).fill(0) as number[];
++  const ageEvents = new Array(21).fill(0) as number[];
++  const ageExposure = new Array(21).fill(0) as number[];
++  let totalEvents = 0;
++  let totalExposure = 0;
++
++  for (const window of coverage) {
++    const from = Math.max(window.from, 0);
++    const to = Math.min(window.to, now);
++    if (!(to > from)) continue;
++    const marks = segmentBoundaries(from, to, forcedTimeline);
++    for (let i = 0; i + 1 < marks.length; i += 1) {
++      const start = marks[i];
++      const end = marks[i + 1];
++      const days = (end - start) / DAY_MS;
++      if (days <= 0) continue;
++      const weekday = beijingWeekday(start);
++      weekdayExposure[weekday] += days;
++      totalExposure += days;
++      const age = lookup.bandAt(start);
++      const band = bandIndexOf(age?.band ?? null);
++      if (band != null && age != null && !age.dayPrecision) {
++        ageExposure[weekday * 3 + band] += days;
++      }
++    }
++  }
++
++  for (const event of events) {
++    if (event.kind !== "unexpected" || event.scope !== scope) continue;
++    const { at, precision } = resolveEventTime(event);
++    if (at == null) continue;
++    if (!coverage.some((window) => at >= window.from && at < Math.min(window.to, now))) continue;
++    const weekday = beijingWeekday(at);
++    weekdayEvents[weekday] += 1;
++    totalEvents += 1;
++    if (precision === "day") continue; // 不拿虚构正午训练 36h 年龄效应
++    const age = lookup.bandAt(at);
++    const band = bandIndexOf(age?.band ?? null);
++    if (band != null && age != null && !age.dayPrecision) {
++      ageEvents[weekday * 3 + band] += 1;
++    }
++  }
++
++  const lambda0 = (totalEvents + COLD_START_PRIOR_EVENTS) / (totalExposure + COLD_START_PRIOR_DAYS);
++  const weekday: RateCell[] = [];
++  for (let w = 0; w < 7; w += 1) {
++    const rate = (weekdayEvents[w] + SHRINKAGE_DAYS * lambda0) / (weekdayExposure[w] + SHRINKAGE_DAYS);
++    weekday.push({ exposureDays: weekdayExposure[w], events: weekdayEvents[w], rate });
++  }
++  const weekdayAge: RateCell[] = [];
++  for (let w = 0; w < 7; w += 1) {
++    for (let band = 0; band < 3; band += 1) {
++      const index = w * 3 + band;
++      const rate =
++        (ageEvents[index] + SHRINKAGE_DAYS * weekday[w].rate) / (ageExposure[index] + SHRINKAGE_DAYS);
++      weekdayAge.push({ exposureDays: ageExposure[index], events: ageEvents[index], rate });
++    }
++  }
++
++  return {
++    lambda0,
++    weekday,
++    weekdayAge,
++    totalEvents,
++    totalExposureDays: totalExposure,
++    ageEligibleEvents: ageEvents.reduce((sum, value) => sum + value, 0),
++    ageEligibleExposureDays: ageExposure.reduce((sum, value) => sum + value, 0),
++  };
++}
++
++/** 分段积分：Λ(t0,t1) = Σ λ(w,a) × 段时长 / 24h；年龄未知时只用星期模型。 */
++export function integrateLambda(
++  table: RateTable,
++  from: number,
++  to: number,
++  timeline: readonly AgePoint[],
++): number {
++  if (!(to > from)) return 0;
++  const lookup = ageLookup(timeline);
++  const marks = segmentBoundaries(from, to, timeline);
++  let lambda = 0;
++  for (let i = 0; i + 1 < marks.length; i += 1) {
++    const start = marks[i];
++    const end = marks[i + 1];
++    const weekday = beijingWeekday(start);
++    const age = lookup.bandAt(start);
++    const band = age == null || age.dayPrecision ? null : bandIndexOf(age.band);
++    const rate =
++      band == null ? table.weekday[weekday].rate : table.weekdayAge[weekday * 3 + band].rate;
++    lambda += (rate * (end - start)) / DAY_MS;
++  }
++  return lambda;
++}
++
++const probabilityFromLambda = (lambda: number): number => clamp01(1 - Math.exp(-lambda));
++
++/** watch 可比较性：预测对象、窗口、是否含公告/自然重置、数据更新时间四项全匹配才融合（§3.4）。 */
++export function assessWatchComparability(watch: WatchSignal | null | undefined, now: number): WatchComparability {
++  if (watch == null) return "absent";
++  if (!Number.isFinite(watch.probability) || watch.probability < 0 || watch.probability > 1) return "reference-only";
++  if (!watch.targetMatches) return "reference-only";
++  if (watch.windowHours !== RISK_WINDOW_HOURS) return "reference-only";
++  if (watch.includesAnnouncedOrNatural) return "reference-only";
++  if (!Number.isFinite(watch.updatedAt)) return "reference-only";
++  if ((now - watch.updatedAt) / HOUR_MS > WATCH_MAX_AGE_HOURS) return "reference-only";
++  if (now < watch.updatedAt) return "reference-only";
++  return "comparable";
++}
++
++/** watch 融合权重：0.25 × max(0, 1 − 数据年龄/24h)（§3.4）。 */
++export function watchBlendWeight(watch: WatchSignal, now: number): number {
++  const ageHours = Math.max(0, (now - watch.updatedAt) / HOUR_MS);
++  return WATCH_BLEND_WEIGHT * Math.max(0, 1 - ageHours / WATCH_MAX_AGE_HOURS);
++}
++
++export function assessResetRiskV2(input: AssessRiskV2Input): ResetRiskV2 {
++  const { events, now } = input;
++  const rules = input.cycleRules ?? DEFAULT_CYCLE_RULES;
++  const requestedScope = input.requestedScope ?? "account";
++  const assumptions: string[] = [];
++  const missing: string[] = [];
++
++  // 覆盖期：显式优先；缺省从观察段派生，并如实记为「未显式确认完整覆盖」。
++  const hasDatedEvents = activeEvents(events).some((event) => resolveEventTime(event).at != null);
++  let coverage: CoverageWindow[] =
++    input.coverage != null
++      ? [...input.coverage]
++      : hasDatedEvents
++        ? splitObservationSegments(events, now).map((segment) => ({
++            from: segment.startAt,
++            to: segment.endAt ?? now,
++          }))
++        : [];
++  if (input.coverage == null && hasDatedEvents && coverage.length > 0) {
++    missing.push("未显式提供完整观测覆盖：当前由观察段派生，缺失采集期未排除。");
++  }
++  if (coverage.length === 0) {
++    missing.push("没有可用观测覆盖：既没有事件，也没有显式确认的完整观测区间。");
++  }
++  coverage = coverage.filter((window) => window.to > window.from);
++
++  // §3.3：账号风险只用账号样本；范围未知不进入账号训练；全局历史只能当平台参考。
++  const accountEvents = activeEvents(events).filter((event) => event.scope === "account");
++  const globalEvents = activeEvents(events).filter((event) => event.scope === "global");
++  const unknownScopeCount = activeEvents(events).filter((event) => event.scope === "unknown").length;
++
++  let scope: EventScope = requestedScope;
++  let scopeNote = "";
++  if (requestedScope === "account" && accountEvents.length === 0) {
++    if (globalEvents.length > 0) {
++      scope = "global";
++      scopeNote = "平台风险参考：账号样本为空，当前概率由公开全局历史训练，账号适用程度未校准。";
++      assumptions.push("global-history-as-account-proxy");
++    } else {
++      scopeNote = "账号与全局样本均为空：输出冷启动基线，尚未校准。";
++    }
++  } else if (requestedScope === "account") {
++    scopeNote = unknownScopeCount > 0 ? `另有 ${unknownScopeCount} 条来源范围未知的事件未进入账号训练。` : "账号口径。";
++  } else {
++    scopeNote = "平台口径：只训练「平台层面出现重置事件」的风险，不等于该账号一定重置。";
++  }
++
++  const table = trainRates({ events, coverage, now, scope });
++  const unexpectedEventCount = table.totalEvents;
++  const coldStart = table.totalExposureDays <= 0 || unexpectedEventCount === 0;
++
++  const timeline = buildAgeTimeline(events, now + 72 * HOUR_MS, scope);
++  const lambda24 = integrateLambda(table, now, now + RISK_WINDOW_HOURS * HOUR_MS, timeline);
++  const pBaseline = probabilityFromLambda(table.lambda0); // 冷启动/历史基线（不含星期结构）
++  const pLambda0Only = probabilityFromLambda((table.lambda0 * RISK_WINDOW_HOURS) / 24);
++  const pWeekday = probabilityFromLambda(lambda24);
++
++  // 年龄情景：不套用年龄分组（只用星期率）作对照（§3.2 敏感性要求）。
++  const timelineNoAge: readonly AgePoint[] = [];
++  const lambdaNoAge = integrateLambda(table, now, now + RISK_WINDOW_HOURS * HOUR_MS, timelineNoAge);
++  const pNoAge = probabilityFromLambda(lambdaNoAge);
++
++  const factorSteps: FactorStep[] = [];
++  factorSteps.push({
++    id: "baseline",
++    label: "冷启动／历史基线",
++    beforeProbability: 0,
++    afterProbability: pLambda0Only,
++    delta: pLambda0Only,
++    note: coldStart
++      ? "没有可用样本：使用产品假设基线（每天 0.1 次 ⇒ 24h 约 9.5%），显示「尚未校准」。"
++      : `覆盖期 ${table.totalExposureDays.toFixed(1)} 天内 ${unexpectedEventCount} 次意外重置，全局发生率 ${table.lambda0.toFixed(3)}/天。${SEQUENTIAL_NOTE}`,
++    assumption: coldStart,
++  });
++  factorSteps.push({
++    id: "weekday",
++    label: "星期结构",
++    beforeProbability: pLambda0Only,
++    afterProbability: pWeekday,
++    delta: pWeekday - pLambda0Only,
++    note: `按北京星期分段收缩（${SHRINKAGE_DAYS} 等效观测天）并对未来 24h 逐段积分，不是用「明天星期几」代表整天。${SEQUENTIAL_NOTE}`,
++  });
++  factorSteps.push({
++    id: "age",
++    label: "重置后年龄",
++    beforeProbability: pNoAge,
++    afterProbability: pWeekday,
++    delta: pWeekday - pNoAge,
++    note:
++      timeline.length === 0
++        ? `风险年龄未知：只用星期模型（年龄组不参与）。${SEQUENTIAL_NOTE}`
++        : `按 [0,36h)/[36h,168h)/[168h,∞) 分组；用卡后年龄归零进入短期组（同类状态效应假设，非已证实的相同幅度）。${SEQUENTIAL_NOTE}`,
++    assumption: timeline.length > 0,
++  });
++
++  let probability = pWeekday;
++  let lambdaLocal = lambda24;
++  const comparability = assessWatchComparability(input.watch, now);
++  if (input.watch != null) {
++    if (comparability === "comparable") {
++      const weight = watchBlendWeight(input.watch, now);
++      const qBlend = (1 - weight) * pWeekday + weight * clamp01(input.watch.probability);
++      const before = probability;
++      probability = qBlend;
++      // 把本地 24h 累积发生率按比例缩放，使积分对应 qBlend（更远日期不套用当前 watch）。
++      const lambdaTarget = -Math.log(Math.max(1e-9, 1 - clamp01(qBlend)));
++      lambdaLocal = lambda24 > 0 ? lambdaTarget : 0;
++      factorSteps.push({
++        id: "watch",
++        label: "可比较的 watch 修正",
++        beforeProbability: before,
++        afterProbability: qBlend,
++        delta: qBlend - before,
++        note: `watch 四项口径匹配，以权重 ${weight.toFixed(3)} 融合（0.25×max(0,1−数据年龄/24h)）。${SEQUENTIAL_NOTE}`,
++        assumption: true,
++      });
++    } else {
++      factorSteps.push({
++        id: "watch",
++        label: "watch 仅作独立参考",
++        beforeProbability: probability,
++        afterProbability: probability,
++        delta: 0,
++        note: `watch 口径不匹配（预测对象/窗口/含公告或自然重置/数据更新时间），仅并列展示，不融合。${SEQUENTIAL_NOTE}`,
++        assumption: true,
++      });
++    }
++  }
++
++  const survivalCurve: SurvivalPoint[] = [];
++  for (let hours = 0; hours <= 72; hours += 6) {
++    const lambda = integrateLambda(table, now, now + hours * HOUR_MS, timeline);
++    survivalCurve.push({
++      hours,
++      survival: Math.exp(-lambda),
++      cumulativeProbability: probabilityFromLambda(lambda),
++    });
++  }
++
++  const rangedEvents = activeEvents(events)
++    .map((event) => resolveEventTime(event).at)
++    .filter((at): at is number => at != null)
++    .sort((a, b) => a - b);
++  const dataRange = {
++    from: rangedEvents.length > 0 ? rangedEvents[0] : null,
++    to: rangedEvents.length > 0 ? rangedEvents[rangedEvents.length - 1] : null,
++  };
++
++  if (coldStart) assumptions.push("cold-start-baseline");
++  if (table.ageEligibleEvents === 0) {
++    assumptions.push("age-model-untrained");
++    missing.push("没有可用于年龄子模型的精确时刻样本：36h/168h 年龄效应未训练。");
++  }
++  if (unknownScopeCount > 0) missing.push(`${unknownScopeCount} 条事件来源范围未知，未进入训练。`);
++  if (scope === "global") missing.push("账号样本为空：当前为平台参考概率，不等于该账号的风险。");
++  if (rules.cycleRuleSource !== "observed") {
++    missing.push(`周期长度来源为 ${rules.cycleRuleSource}：自然重置倒计时与预演截止按暂定值计算。`);
++  }
++
++  return {
++    target: RISK_TARGET,
++    probability24h: clamp01(probability),
++    survivalCurve,
++    factorSteps,
++    effectiveExposureDays: table.totalExposureDays,
++    unexpectedEventCount,
++    scope,
++    quality: {
++      effectiveExposureDays: table.totalExposureDays,
++      unexpectedEventCount,
++      dataRange,
++      coldStart,
++      missing,
++      scopeNote,
++      calibrated: !coldStart && scope === "account" && table.totalExposureDays > 0,
++    },
++    assumptions,
++    modelVersion: RISK_MODEL_VERSION,
++    watchComparability: comparability,
++  };
++}
++
++/** 用卡后不套用年龄修正的对照概率（§3.2：两个情景结论相反时标「对短期风险假设敏感」）。 */
++export function ageSensitivityProbability(input: AssessRiskV2Input): number {
++  const table = trainRates({
++    events: input.events,
++    coverage:
++      input.coverage ??
++      splitObservationSegments(input.events, input.now).map((segment) => ({
++        from: segment.startAt,
++        to: segment.endAt ?? input.now,
++      })),
++    now: input.now,
++    scope: input.requestedScope ?? "account",
++  });
++  const lambda = integrateLambda(table, input.now, input.now + RISK_WINDOW_HOURS * HOUR_MS, []);
++  return probabilityFromLambda(lambda);
++}
++
++/** 供 UI 展示：把 0–1 概率转成百分点（1 位小数）。 */
++export const toPercentPoint = (probability: number): number => Math.round(clamp01(probability) * 1000) / 10;
++
++/** 调试/落盘用：事件流的北京日键（与日级事件口径一致）。 */
++export const eventDayKey = (event: ResetEvent): string | null => {
++  const { at } = resolveEventTime(event);
++  return at == null ? null : beijingDayKey(at);
++};
+-- 
+2.52.0.windows.1
+

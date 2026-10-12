@@ -35,6 +35,8 @@
 - 验证口径：tsc rc0 / 全量 vitest 386/386（新增域测试 76）/ 变异红验 3 处注入全 RED 后还原绿；
   §9 用例 1/2/3/7/8/9/12（状态机）与 4/5/6/11（用卡）逐条对应用例，用例 4 实测 Δ=0、用例 5 实测 Δ=10。
 - 状态行：2026-10-11 🟡待合入（worktree ../reset-radar_wt/RR44，分支 agent/RR44；wip=task_logs/RR44_wip.md）
+- 2026-10-12 11:00:00 RR44 🟡待合入（接管收尾）：agent/RR44 @c84f95c 单commit基于main 6a2c0fa（9文件+3879/−0，v2 五模块+76 域测试）；接管班 S1012-1053 §7 双超时接管后复跑门禁（tsc rc0 / 全量 386/386 0failed / 变异抽验 SHRINKAGE_DAYS→8红→复原绿；Rust 不适用）；done=task_logs/RR44_done.md、patch=task_logs/RR44.patch（164KB）齐备；UI 接线与旧模块删除留 RR45。同会话续占 MERGE 自合入。
+- 2026-10-12 11:05:00 RR44 🟢已闭环 main 737c959←c84f95c 树恒等（git diff c84f95c..HEAD -- src/lib/=0 字节）；预审四过（探活/对账/patch 干净适用/交集空）；主仓复验 tsc✅ vitest 全量386/386 0failed✅ test:node 38/38✅（Rust 不适用：未触 src-tauri/）；junction 先拆（含 RR43 遗留 worktree 顺带拆除+archive/RR43-merged-6a2c0fa）worktree 移除无残留、branch 归档（archive/RR44-merged-737c959）。→阶段切 WORK（建议 RR45→RR30 前置已满足），v0.3 等点单（D031）。会话 S1012-1053 MERGE
 
 ### RR01 | P0 | 🧱建卡🟠待领 | core+ui+data-layer | 立卡 S1011-init 2026-10-11
 - 现象：仓库只有看板与文档，无任何可运行代码。

@@ -14,7 +14,7 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：REVIEW 第 9 轮（无🟠可领无🟡待合——RR42 已闭环 67494a2、r8 产物批已落 main 6f6a991）——用户门控期维持（D031）：RR30 等 CI 首跑、v0.3 等点单**
+**当前阶段：WORK（RR44 已合入 main 737c959；RR45 🟠待领〔P0：v2 UI 接线+删旧三模块+日耗观测日志+§7.1/§7.3 日志〕；RR30 前置已满足可领〔human-1011 注：用户已 push+CI 首跑 success run 38144186083+v0.1.0 正式发布〕；无🟡待合）**
 （REVIEW 第 8 轮已闭环（S1011-2120）：报告 docs/review-20261011-round8.md——七门全绿
 〔272/272/build 1.00s/cargo 0.44s/node 38/38/check-release 13/校准 fresh 60事件54重置 n=0 如实〕
 +刷新与 README 区间改后复跑三绿=落库前终验+E2E 源码恒等复用 r7 同源 exe 自采双主题新图识图
@@ -47,7 +47,16 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
-### [2026-10-11 23:20:00] RR44 | 🧱🟠在飞 | core | S1011-2223
+### [2026-10-12 11:05:00] RR44 | P0 | 🧱🟢已闭环（合入 main 737c959） | core | S1012-1053 MERGE
+- c84f95c→main **737c959** 树恒等✅（`git diff c84f95c HEAD -- src/lib/`=0 字节，9 路径全量对账）；预审四过（探活/diffstat 9文件+3879 对账/patch 164KB 在位且对 main 干净适用 rc0/交集空——主仓工作树仅看板协调文件）；主仓复验 tsc rc0✅ vitest 全量 **386/386 0failed**✅ test:node **38/38**✅（Rust 不适用：未触 src-tauri/）。
+- 顺带拆 RR43 遗留 worktree（S1011-2223 合入 6a2c0fa 后未拆）：node_modules junction 先拆（B09）主仓 node_modules 完好实证，worktree 移除无残留；分支归档 archive/RR43-merged-6a2c0fa。RR44 worktree 同口径拆除，branch 归档 archive/RR44-merged-737c959。RR26=用户参考图保留勿动；RR13/RR21 空壳句柄占用既有遗留。
+- →阶段切 WORK（建议 RR45 → RR30）；交付细节见 task_logs/RR44_done.md。MERGE 释放，本会话收工。
+
+### [2026-10-12 11:00:00] RR44 | P0 | 🧱🟡待合入（已被顶部 🟢闭环条目吸收） | core | S1011-2223 交付 / S1012-1053 接管收尾
+- c84f95c（单 commit，base main 6a2c0fa，9 文件 +3879/−0：beijing/resetState/riskV2/plannerV2/resetCardV2 五新模块 + 76 条域测试；旧三模块暂留，切换与删除在 RR45）。四绿：tsc rc0 / 全量 vitest 386/386 0failed（基线 310+76）/ 变异红验 3 处全 RED 后还原绿（接管班抽验复现：riskV2.ts:26 SHRINKAGE_DAYS 28→0 → risk 域 8 failed → 复原 19/19 绿）；Rust 不适用（未触 src-tauri/，9 路径全在 src/lib）。修真 bug 一处：自然重置正落北京午夜被日界事件挤掉致基线断粮（用例 4 Δ=80 修正为 Δ=0）。
+- 接管班 S1012-1053：§7 双超时接管（wip 00:26/心跳 22:23），产物备份 /tmp/takeover/RR44/；门禁全复跑确认后补齐交付件（done/patch 164KB/看板闭环）；前班心跳纪律缺口（RR43 闭环与 RR44 领收未写心跳行）已注记 done。时间盒余量充足，续占 MERGE 槽自合入（预审：探活 c84f95c/diffstat 对账/patch 在位/交集核）。
+
+### [2026-10-11 23:20:00] RR44 | 🧱🟠在飞→已被顶部 11:00 🟡交付条目吸收 | core | S1011-2223
 - 用户在线点单（承接 RR43 同一班）：严格按「reset-radar 核心算法 v2 实现规格」重写后端算法。
 - base main 6a2c0fa；worktree ../reset-radar_wt/RR44（分支 agent/RR44）。已交付：beijing.ts + resetState.ts
   （唯一状态转换 + 派生视图 + 删失标签）+ riskV2.ts（收缩发生率/分段积分/watch 四项匹配/顺序归因）+
@@ -547,9 +556,9 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 
 ## 建议领取顺序
 
-1. REVIEW 第 9 轮（锚卡 RR12 照 §9.1 全量执行：七门 artifact+识图独立复核+差距定夺零悬空；README 区间现为 RR01–RR42 滚动态，仅新卡闭环时顺带刷新〔D032〕）
-2. RR30（🎣 挖卡，依赖用户 CI 首跑，不可领）；v0.3 维持留点单见 D031 用户门控期
-3. 用户动作解锁项：push 触发 CI 首跑（→RR30 可领）/ v0.3 三条点单（系统通知/配速联动开关/窗口布局记忆）/ 发布三步（push/tag/release 永远留用户）
+1. RR45（P0，ui+data-layer：v2 UI 接线 adapters.ts + 删旧三模块与引用收敛 + 日耗观测日志 + §7.1/§7.3 日志 + 02-spec 关窗语义；v2 五模块已入 main 737c959 可直接 import）
+2. RR30（🎣 挖卡，**前置已满足**：用户已 push、CI 首跑 success run 38144186083、v0.1.0 已发布〔HEARTBEAT human-1011 21:57 注〕；与 RR45 异域但单工位串行）
+3. v0.3 维持留点单见 D031 用户门控期；发布动作（push/tag/release）永远留用户
 
 
 
