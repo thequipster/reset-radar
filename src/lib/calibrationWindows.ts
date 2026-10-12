@@ -1,7 +1,6 @@
 // RR17：风险模型唯一目标为未来24h（risk.ts），不能用同一北京日代替。
 // 日键只用于每天选首条与分周，实际结果采用精确的(start,end]窗口。
-import { beijingCalendarDateKey } from "./resetCard.ts";
-import { RESET_RISK_HORIZON_MS } from "./risk.ts";
+import { beijingDayKey, DAY_MS } from "./beijing.ts";
 import { parseIsoWithZone } from "./watchSignal.ts";
 import type { PredictionLogRow } from "./calibration.ts";
 
@@ -30,8 +29,8 @@ export function selectCompletedPredictionWindows(
     const end = parseIsoWithZone(row?.windowEnd)?.timestamp;
     const recorded = parseIsoWithZone(row?.fetchedAt)?.timestamp;
     if (!Number.isFinite(asOfMs) || start === undefined || end === undefined || recorded === undefined
-      || typeof row?.date !== "string" || beijingCalendarDateKey(start) !== row.date
-      || end - start !== RESET_RISK_HORIZON_MS || !Number.isFinite(row.predictedRisk)
+      || typeof row?.date !== "string" || beijingDayKey(start) !== row.date
+      || end - start !== DAY_MS || !Number.isFinite(row.predictedRisk)
       || row.predictedRisk < 0 || row.predictedRisk > 100) { excluded.invalid++; continue; }
     if (recorded > start) { excluded.late++; continue; }
     valid.push({ row, start, end, recorded, index });

@@ -1,4 +1,7 @@
 // RR18：历史事件只按已确认的重置类型与数据抓取时刻参与核心计算。
+// RR45：追加 v2 事件流入口——公开夹具的公告执行按平台口径（scope=global）进状态机。
+
+import type { ResetEvent } from "./resetState.ts";
 
 /** RR18：BACKLOG.md §RR18 将历史新鲜度阈值定为 7 天。 */
 export const HISTORY_STALE_DAYS = 7;
@@ -51,6 +54,25 @@ export function selectQuotaResetHistory(events: readonly unknown[]): string[] {
     if (epoch !== null) timestamps.add(epoch);
   }
   return [...timestamps].sort((left, right) => right - left).map((epoch) => new Date(epoch).toISOString());
+}
+
+/** 公告执行 ISO 串（RR03 夹具口径）→ v2 平台口径事件流（scope=global，RR45 D033）。
+ *  事件 id 以原 ISO 串为锚：同参重放得到同一事件流，与账号实时观测按时间戳去重有稳定键。 */
+export function historyEvents(history: readonly string[]): ResetEvent[] {
+  const events: ResetEvent[] = [];
+  for (const iso of history) {
+    const at = Date.parse(iso);
+    if (!Number.isFinite(at)) continue;
+    events.push({
+      id: `history-${iso}`,
+      kind: "announced",
+      occurredAt: at,
+      timePrecision: "exact",
+      scope: "global",
+      source: "resets-history",
+    });
+  }
+  return events;
 }
 
 /** 以明确传入的 now 评估抓取年龄；无效或未来时间不退回墙钟。 */

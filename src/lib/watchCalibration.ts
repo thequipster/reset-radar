@@ -1,11 +1,15 @@
 // RR16：对同一批已完成的前瞻窗口比较 watch 与不含 watch 的风险校准。
-// 窗口 24h 来自 risk.ts 风险模型定义；北京日期边界复用 resetCard.ts（D004）。
+// RR45：旧 risk.ts 已删（v2 单轨）；watch 对账仅服务历史日志行的遗留 watchComparison
+// 字段——v2 起新行不再融合 watch（恒 reference-only），本模块继续对账存量数据。
+// 窗口 24h = 风险模型唯一目标；北京日期边界复用 beijing（D004）。
 // Brier/命中率只调用 calibration.ts，避免第二份评分公式。
 
 import { selectCompletedPredictionWindows } from "./calibrationWindows.ts";
 import { scorePredictions, type CalibrationScore, type PredictionOutcome } from "./calibration.ts";
-import { WATCH_WEIGHT } from "./risk.ts";
 import type { PredictionRecord } from "./predictions.ts";
+
+/** 旧 risk.ts:38 WATCH_WEIGHT=0.25（rs:230）；与 v2 riskV2.WATCH_BLEND_WEIGHT 同值，非新增参数。 */
+const WATCH_WEIGHT = 0.25;
 
 
 export interface WatchPairedPrediction {

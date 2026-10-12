@@ -1,29 +1,50 @@
-// 预测日志（RR10）：把「每日评估」幂等追加进 data/predictions.jsonl——校准闭环的原料
-// （消费端：scripts/calibrate.mjs → src/lib/calibration.ts 对答案；参考项目最大遗憾
-// 「收集了数据却从不对答案」即本卡要堵的洞，BACKLOG RR10 现象）。
-// 本模块纯函数：不读文件、不读钟、不发网络；IO 薄壳在 scripts/log-prediction.mjs
-// （先例 calibrate.mjs，D016 node 直载 .ts）。
-// 行 schema（卡面四字段，序列化顺序即此）：{date, predictedRisk, factorsDigest, fetchedAt}；
-// date=北京日历键（D004 唯一日边界，复用 resetCard.beijingCalendarDateKey）。
-// 数据锁（RUNBOOK §1.5）：日志只追加不修改；脚本与app薄壳共用本核心规则（RR15/D025）。
+// 预测日志（RR10 建立骨架，RR45 切 v2 口径 + §7.1 字段）：把「每日评估」幂等追加进
+// data/predictions.jsonl——校准闭环的原料（消费端：scripts/calibrate.mjs →
+// src/lib/calibration.ts 对答案）。本模块纯函数：不读文件、不读钟、不发网络；
+// IO 薄壳在 scripts/log-prediction.mjs 与 src/data/predictionLog.ts（D016/D025）。
+// 行 schema：前 4 字段 {date, predictedRisk, factorsDigest, fetchedAt} 保持旧字节兼容
+// （calibrationWindows.ts 对账只读这四件），RR16 窗口两件随后；§7.1 v2 字段追加其后
+// （predictionId/inputSnapshotId/trainingDataCutoff/stateBeforePrediction/factorSteps/
+// dataQuality/assumptions/modelVersion）。旧行的 watchComparison 字段不再产出（v2 无
+// watch 融合口径），解析容错照旧。数据锁（RUNBOOK §1.5）：日志只追加不修改。
 
-import { beijingCalendarDateKey } from "./resetCard.ts";
-import type { RiskFactor, ResetRisk } from "./risk.ts";
-import { RESET_RISK_HORIZON_MS } from "./risk.ts";
+import { beijingDayKey, DAY_MS } from "./beijing.ts";
+import type { FactorStep, ResetRiskV2, RiskQuality } from "./riskV2.ts";
 
-/** 同日补行阈值（0-100 分制）。依据：risk.score 输出固定 1 位小数（risk.ts round1），
+/** 同日补行阈值（0-100 分制）。依据：predictedRisk 输出固定 1 位小数（round1），
  *  0.5=显示精度下界——漂移超 0.5 才是可感知变化，≤0.5 视为噪声不补行。AI 裁决 D019。 */
 export const PREDICTION_RISK_CHANGE_THRESHOLD = 0.5;
 
-/** 预测日志行（BACKLOG RR10 卡面四字段）。 */
+/** §7.1：预测时点的周期状态快照（stateBeforePrediction）——留痕「预测时站在什么状态上」。 */
+export interface StateBeforePrediction {
+  remaining: number | null;
+  nextNaturalResetAt: string | null;
+  cardsRemaining: number | null;
+  lastForcedLikeResetAt: string | null;
+  scheduleConfidence: string;
+}
+
+/** 预测日志行（§7.1 七字段 + 兼容旧四字段 + RR16 窗口两件）。 */
 export interface PredictionRecord {
   date: string; // 北京日历键（评估 as_of 所在日）
-  predictedRisk: number; // 0-100，assessResetRisk().score 直传
-  factorsDigest: string; // 因子摘要（digestFactors 生成），人可读对账留痕
+  predictedRisk: number; // 0-100，assessResetRiskV2().probability24h×100（round1）
+  factorsDigest: string; // 因子摘要（digestFactorSteps 生成），人可读对账留痕
   fetchedAt: string; // ISO 串，评估执行时刻（溯源）
-  windowStart?: string; // RR16前瞻评估窗口，旧四字段日志保持原字节
+  windowStart?: string; // RR16 前瞻评估窗口
   windowEnd?: string;
-  watchComparison?: ResetRisk["watchComparison"];
+  /** 旧日志行遗留（v2 前的 watch 融合记录）：解析时保留供 watchCalibration 对账历史，
+   *  RR45 起新行不再产出（v2 口径 watch 恒 reference-only 不融合，D033）。 */
+  watchComparison?: { weight: number; watchPercent: number; baselineRisk: number };
+  // —— §7.1 v2 新字段（RR45 起；类型可选=兼容旧日志行，生产路径由 buildPredictionRecord
+  //     无条件全填，predictions.core.test 锁「产出必含全字段」，强度等价于必填）——
+  predictionId?: string; // 本行唯一 ID：`p-<date>-<evaluatedMs>`（确定性，重放同参同值）
+  inputSnapshotId?: string; // 喂入快照标识（adapters 按 `provider@updatedAt` 构造，D033）
+  trainingDataCutoff?: string | null; // 训练数据最后时刻（riskV2.quality.dataRange.to）
+  stateBeforePrediction?: StateBeforePrediction;
+  factorSteps?: readonly FactorStep[];
+  dataQuality?: RiskQuality;
+  assumptions?: readonly string[];
+  modelVersion?: string;
 }
 
 /** 幂等追加结果：lines=追加后完整日志（输入不被修改）；reason 供脚本输出与人读。 */
@@ -35,19 +56,19 @@ export interface AppendOutcome {
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
-/** 因子摘要：`id=delta` 逗号连接（顺序=factors 数组序；delta 取 1 位小数，与 UI 展示
- *  口径一致——risk.ts RiskFactor 注释）。用途=留痕对账，非判等。 */
-export function digestFactors(factors: readonly RiskFactor[]): string {
-  return factors.map((f) => `${f.id}=${round1(f.delta)}`).join(",");
+/** 因子摘要：`id=delta‰` 逗号连接（v2 factorSteps 概率为 0-1，按千分位留痕）。
+ *  用途=留痕对账，非判等；幂等键（appendPredictionLog 阈值）只看 predictedRisk。 */
+export function digestFactorSteps(steps: readonly FactorStep[]): string {
+  return steps.map((step) => `${step.id}=${Math.round(step.delta * 1000)}`).join(",");
 }
 
 /** 评估 as_of 时刻 → 预测行 date（北京日历键，D004）。 */
 export function predictionDateKey(asOf: Date): string {
-  return beijingCalendarDateKey(asOf.getTime());
+  return beijingDayKey(asOf.getTime());
 }
 
-/** 日志行 → 记录；坏行（非法 JSON / 缺 date / predictedRisk 非Finite）返回 null。
- *  容错口径与 calibrate.mjs readPredictionRows 同源：跳过不修。 */
+/** 日志行 → 记录；坏行（非法 JSON / 缺 date / predictedRisk 非 Finite）返回 null。
+ *  容错口径与 calibrate.mjs readPredictionRows 同源：跳过不修；§7.1 字段缺省容错。 */
 function parseRow(line: string): PredictionRecord | null {
   try {
     const obj = JSON.parse(line);
@@ -57,6 +78,23 @@ function parseRow(line: string): PredictionRecord | null {
         predictedRisk: obj.predictedRisk,
         factorsDigest: typeof obj.factorsDigest === "string" ? obj.factorsDigest : "",
         fetchedAt: typeof obj.fetchedAt === "string" ? obj.fetchedAt : "",
+        ...(typeof obj.windowStart === "string" ? { windowStart: obj.windowStart } : {}),
+        ...(typeof obj.windowEnd === "string" ? { windowEnd: obj.windowEnd } : {}),
+        ...(obj.watchComparison && typeof obj.watchComparison === "object"
+          ? { watchComparison: obj.watchComparison as PredictionRecord["watchComparison"] }
+          : {}),
+        ...(typeof obj.predictionId === "string" ? { predictionId: obj.predictionId } : {}),
+        ...(typeof obj.inputSnapshotId === "string" ? { inputSnapshotId: obj.inputSnapshotId } : {}),
+        ...(obj.trainingDataCutoff === null || typeof obj.trainingDataCutoff === "string"
+          ? { trainingDataCutoff: obj.trainingDataCutoff }
+          : {}),
+        ...(obj.stateBeforePrediction && typeof obj.stateBeforePrediction === "object"
+          ? { stateBeforePrediction: obj.stateBeforePrediction }
+          : {}),
+        ...(Array.isArray(obj.factorSteps) ? { factorSteps: obj.factorSteps } : {}),
+        ...(obj.dataQuality && typeof obj.dataQuality === "object" ? { dataQuality: obj.dataQuality } : {}),
+        ...(Array.isArray(obj.assumptions) ? { assumptions: obj.assumptions } : {}),
+        ...(typeof obj.modelVersion === "string" ? { modelVersion: obj.modelVersion } : {}),
       };
     }
   } catch {
@@ -99,27 +137,61 @@ export function appendPredictionLog(
   return { lines: [...existing], appended: false, reason: "suppressed-noise" };
 }
 
-/** RR15：生产评估→记录。状态与日期检查只在核心，浏览器demo由IO壳禁止写盘。 */
+/** 预测时点的周期状态快照（§7.1 stateBeforePrediction）。字段可空=喂参侧没有该观测。 */
+function snapshotStateBefore(state: {
+  remaining: number | null;
+  nextNaturalResetAt: number | null;
+  cardsRemaining: number | null;
+  lastForcedLikeResetAt: number | null;
+  scheduleConfidence: string;
+}): StateBeforePrediction {
+  return {
+    remaining: state.remaining,
+    nextNaturalResetAt:
+      state.nextNaturalResetAt != null && Number.isFinite(state.nextNaturalResetAt)
+        ? new Date(state.nextNaturalResetAt).toISOString()
+        : null,
+    cardsRemaining: state.cardsRemaining,
+    lastForcedLikeResetAt:
+      state.lastForcedLikeResetAt != null && Number.isFinite(state.lastForcedLikeResetAt)
+        ? new Date(state.lastForcedLikeResetAt).toISOString()
+        : null,
+    scheduleConfidence: state.scheduleConfidence,
+  };
+}
+
+/** RR15：生产评估→记录（RR45 起 v2 输入）。状态与日期检查只在核心，浏览器 demo 由 IO 壳禁止写盘。 */
 export function buildPredictionRecord(input: {
-  risk: ResetRisk | null;
+  risk: ResetRiskV2 | null;
   evaluatedAt: string;
   recordedAt: Date;
   quotaStatus: string;
   resetSourceState: string | null;
+  inputSnapshotId: string;
+  stateBefore: Parameters<typeof snapshotStateBefore>[0];
 }): PredictionRecord | null {
   const evaluatedMs = Date.parse(input.evaluatedAt);
   const recordedMs = input.recordedAt.getTime();
-  // 风险不依赖额度余额：有新鲜公告来源时额度失败仍可记录；旧契约靠quota观测时刻。
+  const percent = input.risk == null ? null : round1(input.risk.probability24h * 100);
+  // 风险不依赖额度余额：有新鲜公告来源时额度失败仍可记录；旧契约靠 quota 观测时刻。
   if ((input.resetSourceState === null ? input.quotaStatus !== "ok" : input.resetSourceState !== "ok")
-    || !input.risk || !Number.isFinite(input.risk.score) || input.risk.score < 0 || input.risk.score > 100
+    || input.risk == null || percent == null || !Number.isFinite(percent) || percent < 0 || percent > 100
     || !Number.isFinite(evaluatedMs) || !Number.isFinite(recordedMs) || evaluatedMs > recordedMs) return null;
+  const cutoff = input.risk.quality.dataRange.to;
   return {
     date: predictionDateKey(new Date(evaluatedMs)),
-    predictedRisk: input.risk.score,
-    factorsDigest: digestFactors(input.risk.factors),
+    predictedRisk: percent,
+    factorsDigest: digestFactorSteps(input.risk.factorSteps),
     fetchedAt: input.recordedAt.toISOString(),
     windowStart: new Date(evaluatedMs).toISOString(),
-    windowEnd: new Date(evaluatedMs + RESET_RISK_HORIZON_MS).toISOString(),
-    ...(input.risk.watchComparison ? { watchComparison: input.risk.watchComparison } : {}),
+    windowEnd: new Date(evaluatedMs + DAY_MS).toISOString(),
+    predictionId: `p-${predictionDateKey(new Date(evaluatedMs))}-${evaluatedMs}`,
+    inputSnapshotId: input.inputSnapshotId,
+    trainingDataCutoff: cutoff != null ? new Date(cutoff).toISOString() : null,
+    stateBeforePrediction: snapshotStateBefore(input.stateBefore),
+    factorSteps: input.risk.factorSteps,
+    dataQuality: input.risk.quality,
+    assumptions: input.risk.assumptions,
+    modelVersion: input.risk.modelVersion,
   };
 }
