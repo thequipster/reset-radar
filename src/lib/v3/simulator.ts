@@ -45,7 +45,7 @@ export function applyCardUse(state: VisibleState, cardId: string, at: number, me
   if (!card || !available(card, at) || state.availableCardCount < 1) return null;
   return {
     ...state, observedAt: at, availableCardCount: state.availableCardCount - 1, lastConfirmedCardUseAt: at,
-    weekly: { ...state.weekly, remaining: 100, resetsAt: at + 7 * DAY_MS },
+    weekly: { ...state.weekly, remaining: 100, resetsAt: weeklyDeadlineAfterCard(at) },
     short: { ...state.short, remaining: 100, resetsAt: mechanisms.shortAfterCard === 'restart_duration' ? at + state.short.durationMins * 60_000 : state.short.resetsAt },
     weeklyGeneration: state.weeklyGeneration + 1, shortGeneration: state.shortGeneration + 1,
     cards: state.cards.map(c => c.localId === cardId ? { ...c, state: 'used' as const } : { ...c }),
