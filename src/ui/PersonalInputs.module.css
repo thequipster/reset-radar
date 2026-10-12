@@ -1,0 +1,133 @@
+.root {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  max-height: 620px;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  scrollbar-width: thin;
+}
+
+.header,
+.cardHeading,
+.fieldRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.header h2 { margin: 0; font-size: 16px; }
+.header p,
+.hint,
+.footer,
+.card p { margin: 4px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.version { color: var(--text-tertiary); font-size: 11px; }
+
+.group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.group legend { margin-bottom: 8px; font-size: 13px; font-weight: 700; }
+.options { display: flex; flex-wrap: wrap; gap: 6px; }
+.options button,
+.cardActions button,
+.editExpiry button,
+.addCard button,
+.fieldRow button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.options button:hover,
+.cardActions button:hover,
+.editExpiry button:hover,
+.addCard button:hover,
+.fieldRow button:hover { border-color: var(--accent-blue); }
+.options .selected { border-color: var(--accent-blue); background: color-mix(in srgb, var(--accent-blue) 16%, var(--bg-card)); }
+.options button:focus-visible,
+.details summary:focus-visible,
+.root input:focus-visible,
+.root select:focus-visible,
+.root button:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+
+.reminders { display: grid; gap: 6px; }
+.reminder,
+.conflict {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 10px;
+  background: var(--warn-dim);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.conflict { border-color: var(--danger); background: var(--danger-dim); }
+
+.details {
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+.details summary { cursor: pointer; font-size: 13px; font-weight: 700; }
+.details[open] { display: grid; gap: 10px; }
+.cardList { display: grid; gap: 8px; }
+.card {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+.cardHeading { font-size: 13px; }
+.cardHeading span { color: var(--text-secondary); font-size: 11px; }
+.cardActions { display: flex; flex-wrap: wrap; gap: 6px; }
+.editExpiry,
+.addCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 1.2fr);
+  align-items: center;
+  gap: 7px 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 12px;
+}
+.root input,
+.root select {
+  min-width: 0;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+.addCard { padding: 10px; border: 1px solid var(--border-subtle); border-radius: 12px; }
+.addCard button { grid-column: 1 / -1; justify-self: start; }
+.fieldRow { flex-wrap: wrap; justify-content: flex-start; }
+.fieldRow label { flex-basis: 100%; font-size: 12px; font-weight: 600; }
+.fieldRow input { flex: 1 1 150px; }
+.error { margin: 0; color: var(--danger); font-size: 12px; }
+.footer { padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+
+@media (prefers-reduced-motion: reduce) {
+  .root *, .root *::before, .root *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}

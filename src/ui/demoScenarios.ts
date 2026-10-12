@@ -33,6 +33,7 @@ function healthyWeeklyWindow() {
   ).toISOString();
   return {
     weeklyWindow: { remainingPercent: 29, resetsAt, windowSeconds: 604_800 },
+    shortWindow: { remainingPercent: 64, resetsAt: new Date(now.getTime()+2*3_600_000).toISOString(), windowSeconds: 5*3_600 },
     rateLimitSnapshot: {
       source: "app-server", usedPercent: 71, windowDurationMins: 10_080,
       resetsAt, observedAt: now.toISOString(),

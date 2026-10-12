@@ -1,0 +1,21 @@
+
+> reset-radar@0.2.0 build
+> tsc && vite build
+
+vite v7.3.7 building client environment for production...
+transforming...
+✓ 89 modules transformed.
+rendering chunks...
+[plugin vite:reporter]
+(!) C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/core.js is dynamically imported by C:/Users/slsjz/Desktop/reset-radar_wt/RR47/src/ui/shellBridge.ts, C:/Users/slsjz/Desktop/reset-radar_wt/RR47/src/ui/shellBridge.ts, C:/Users/slsjz/Desktop/reset-radar_wt/RR47/src/ui/shellBridge.ts, C:/Users/slsjz/Desktop/reset-radar_wt/RR47/src/ui/shellBridge.ts, C:/Users/slsjz/Desktop/reset-radar_wt/RR47/src/ui/shellBridge.ts but also statically imported by C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/dpi.js, C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/event.js, C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/image.js, C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/window.js, C:/Users/slsjz/Desktop/reset-radar_wt/RR47/src/ui/useSnapshots.ts, C:/Users/slsjz/Desktop/reset-radar_wt/RR47/src/ui/useV3Journal.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter]
+(!) C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/event.js is dynamically imported by C:/Users/slsjz/Desktop/reset-radar_wt/RR47/src/ui/shellBridge.ts but also statically imported by C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/window.js, C:/Users/slsjz/Desktop/reset-radar_wt/RR47/src/ui/useSnapshots.ts, dynamic import will not move module into another chunk.
+
+computing gzip size...
+dist/index.html                              0.67 kB │ gzip:   0.48 kB
+dist/assets/v3Planning.worker-C2CdX9Ke.js   15.33 kB
+dist/assets/index-Cz-6xYku.css              27.86 kB │ gzip:   6.05 kB
+dist/assets/window-CBQMuPbC.js              13.49 kB │ gzip:   3.29 kB
+dist/assets/index-D8TPfJaM.js              356.02 kB │ gzip: 115.59 kB
+✓ built in 1.29s

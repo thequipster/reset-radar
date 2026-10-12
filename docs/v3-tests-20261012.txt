@@ -1,0 +1,12 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR47
+
+·····································································································································································································································································································································································································································
+
+ Test Files  47 passed (47)
+      Tests  421 passed (421)
+   Start at  16:43:38
+   Duration  5.89s (tests 41%, import 32%, transform 23%, worker 4%)
+
+    Isolate  47 workers spawned · ~128ms startup each (spawn + environment, per file)
+             at least ~2.87s faster with isolate: false — reuses workers across files instead of one per file

@@ -3,10 +3,9 @@
 // 数据源（TRUTH §1 来源 2）：
 //   GET https://codex-resets.com/api/v1/resets?limit=100&order=desc   （历史事件数组）
 //   GET https://codex-resets.com/api/v1/status                         （latest_reset / stats / active_watch）
-// 清洗规则移植自参考实现 codex-cockpit（MIT）src-tauri/src/reset_forecast.rs 的 sanitize_history
-// （函数体 :103-132；FUTURE_TOLERANCE_MINUTES=5、DUPLICATE_WINDOW_MINUTES=5 定义于 :8-9）：
-//   解析失败丢弃 → 未来容差过滤 → 倒序 → 同类型 5 分钟窗口去重；/status 的 latest_reset 并入再清洗。
-// RR18按regular/banked分别去重，避免发卡事件吞掉额度重置；原始两类都保留，消费者由纯核心筛regular。
+// 清洗：解析失败丢弃 → 未来容差过滤 → 按上游事件 ID 去重 → 倒序。
+// 不按时间接近合并不同 ID：v3 目标是公告事件，近距 regular 也可能是独立事件。
+// 完整性来自遍历所有 next_cursor 页面，最后页必须明确 has_more=false；未完成时拒绝落盘。
 // 星期统计按 D004 全项目唯一日边界（北京零点，UTC+8 固定偏移、无夏令时）。
 
 import { mkdir, rename, writeFile } from 'node:fs/promises';
@@ -19,7 +18,7 @@ const STATUS_URL = 'https://codex-resets.com/api/v1/status';
 const USER_AGENT = 'reset-radar/0.1 (reset history fetcher)';
 const TIMEOUT_MS = 4_000; // 卡面口径：4s 超时
 const FUTURE_TOLERANCE_MIN = 5; // reset_forecast.rs:8
-const DUPLICATE_WINDOW_MIN = 5; // reset_forecast.rs:9
+const MAX_RESET_PAGES = 100;
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000; // D004：北京零点边界
 const WEEKDAY_KEYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -34,7 +33,7 @@ export function parseIsoMs(value) {
 export function normalizeEvent(raw) {
   const src = raw?.source ?? {};
   return {
-    id: typeof raw?.id === 'string' ? raw.id : null,
+    id: typeof raw?.id === 'string' || typeof raw?.id === 'number' ? String(raw.id) : null,
     resetType: typeof raw?.reset_type === 'string' ? raw.reset_type : null,
     announcedAt: typeof raw?.announced_at === 'string' ? raw.announced_at : null,
     text: typeof raw?.text === 'string' ? raw.text : null,
@@ -43,8 +42,7 @@ export function normalizeEvent(raw) {
   };
 }
 
-// sanitize_history 的 TS 移植：丢弃不可解析与超未来容差 → 按 announcedAt 倒序 → 相邻 5 分钟窗口去重
-// （参考 reset_forecast.rs:103-132；去重保留更晚的一条，与参考实现"倒序遍历、跳过与上一保留项过近者"一致）
+// 去重只认事件 ID；同 ID 修订是一条公告，不同 ID 的近时事件均保留。
 export function sanitizeEvents(rawEvents, asOfMs) {
   const toleranceMs = FUTURE_TOLERANCE_MIN * 60_000;
   const parsed = [];
@@ -53,19 +51,50 @@ export function sanitizeEvents(rawEvents, asOfMs) {
     const ms = parseIsoMs(ev.announcedAt);
     if (ms === null) continue; // 解析失败丢弃（filter_map parse_utc）
     if (ms > asOfMs + toleranceMs) continue; // 未来容差过滤（<= as_of+5min 才保留）
-    parsed.push({ ev, ms: new Date(ms) }); // 统一转回标准 ISO（毫秒级），等价参考实现的 to_rfc3339_opts(Millis)
+    parsed.push({ ev, ms: new Date(ms) });
   }
-  parsed.sort((a, b) => b.ms - a.ms); // 倒序（right.cmp(left)）
-  const windowMs = DUPLICATE_WINDOW_MIN * 60_000;
-  const kept = [];
-  const lastByType = new Map();
+  const byId = new Map();
+  const withoutId = [];
   for (const item of parsed) {
-    const prev = lastByType.get(item.ev.resetType);
-    if (prev !== undefined && Math.abs(prev.ms - item.ms) <= windowMs) continue; // 跨类型交错也不打断同类型去重
-    kept.push(item);
-    lastByType.set(item.ev.resetType, item);
+    if (item.ev.id === null) withoutId.push(item);
+    else if (!byId.has(item.ev.id)) byId.set(item.ev.id, item);
   }
-  return kept.map(({ ev, ms }) => ({ ...ev, announcedAt: ms.toISOString() }));
+  return [...byId.values(), ...withoutId].sort((a, b) => b.ms - a.ms)
+    .map(({ ev, ms }) => ({ ...ev, announcedAt: ms.toISOString() }));
+}
+
+/** Fetch every cursor page. Any pagination ambiguity or loop fails closed. */
+export async function fetchAllResetPages(fetchPage = fetchJson) {
+  const pages = [], seenCursors = new Set();
+  let cursor = null;
+  for (let pageIndex = 0; pageIndex < MAX_RESET_PAGES; pageIndex += 1) {
+    const url = new URL(RESETS_URL);
+    if (cursor !== null) url.searchParams.set('cursor', cursor);
+    const page = await fetchPage(url.toString());
+    if (!isObject(page) || !Array.isArray(page.data) || !isObject(page.meta) || !isObject(page.pagination) || typeof page.pagination.has_more !== 'boolean') {
+      throw new TypeError(`invalid resets pagination response at page ${pageIndex + 1}`);
+    }
+    pages.push(page);
+    if (!page.pagination.has_more) {
+      if (page.pagination.next_cursor != null) throw new TypeError(`resets page ${pageIndex + 1} has_more=false with a next_cursor`);
+      const byId = new Map(); const anonymous = [];
+      for (const record of pages.flatMap(x => x.data)) {
+        const id = record?.id;
+        if (typeof id === 'string' || typeof id === 'number') {
+          if (!byId.has(String(id))) byId.set(String(id), record);
+        } else anonymous.push(record);
+      }
+      return {
+        data: [...byId.values(), ...anonymous], meta: pages[0].meta,
+        pagination: { has_more: false, next_cursor: null, complete: true, pages_fetched: pages.length },
+      };
+    }
+    const next = page.pagination.next_cursor;
+    if (typeof next !== 'string' || next.length === 0) throw new TypeError(`resets page ${pageIndex + 1} has_more=true without next_cursor`);
+    if (seenCursors.has(next) || next === cursor) throw new TypeError(`repeated resets cursor at page ${pageIndex + 1}`);
+    seenCursors.add(next); cursor = next;
+  }
+  throw new Error(`resets pagination exceeded ${MAX_RESET_PAGES} pages; refusing incomplete history`);
 }
 
 // 北京日历星期（D004：UTC+8 后取星期；北京无夏令时，固定偏移即严格正确）
@@ -155,7 +184,7 @@ export function buildDocument({ resets, status, fetchedAtIso }) {
 
 async function main() {
   console.log(`[fetch-history] 拉取 ${RESETS_URL}`);
-  const resets = await fetchJson(RESETS_URL);
+  const resets = await fetchAllResetPages();
   console.log(`[fetch-history] 拉取 ${STATUS_URL}`);
   const status = await fetchJson(STATUS_URL);
   const fetchedAtIso = new Date().toISOString();

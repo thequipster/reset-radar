@@ -4,7 +4,7 @@
 import { useCallback, useRef } from "react";
 import type { DashboardViewModel } from "./adapters";
 import type { DockEdge } from "./dockGeometry";
-import { orbReadout, type OrbMetric } from "./orbMetric";
+import { orbReadout, type OrbMetric, type OrbReadout } from "./orbMetric";
 import { ORB_DIAMETER, ORB_SIZE } from "./widgetWindow";
 import styles from "./Orb.module.css";
 
@@ -17,6 +17,7 @@ const DRAG_THRESHOLD = 3;
 
 export interface OrbProps {
   vm: DashboardViewModel | null;
+  readout?: OrbReadout;
   metric: OrbMetric;
   /** 当前贴边的边；null = 自由摆放。 */
   dockEdge: DockEdge | null;
@@ -37,6 +38,7 @@ export interface OrbProps {
 
 export default function Orb({
   vm,
+  readout: providedReadout,
   metric,
   dockEdge,
   popped,
@@ -48,7 +50,7 @@ export default function Orb({
   onPointerLeave,
   orbRef,
 }: OrbProps) {
-  const readout = orbReadout(vm, metric);
+  const readout = providedReadout ?? orbReadout(vm, metric);
   const start = useRef<{ x: number; y: number } | null>(null);
   const latest = useRef<{ x: number; y: number } | null>(null);
   const moved = useRef(false);

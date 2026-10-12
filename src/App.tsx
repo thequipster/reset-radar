@@ -5,25 +5,24 @@
 // RR14 hash 入口延续：#expanded / #peek 起始态；#demo=<场景> 注入演示快照（带演示标识）。
 // RR43 追加：#form=orb|bar 指定收起形态（默认迷你圆），偏好存 localStorage（本地优先）。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buildDashboard } from "./ui/adapters";
+import { buildV3Dashboard, v3OrbReadout } from "./ui/v3Model";
 import {
   AUTO_COLLAPSE_BLUR_DELAY_MS, AUTO_COLLAPSE_IDLE_MS, DOCK_REDOCK_DELAY_MS, PEEK_CLOSE_DELAY_MS,
   PEEK_OPEN_DELAY_MS, escapeEvent, hashSegments, initialDisplayState, initialRestForm,
   nextDisplayState, shouldAutoCollapse, type DisplayEvent, type DisplayState, type RestForm,
 } from "./ui/appState";
-import CompactBar from "./ui/CompactBar";
-import PeekCard from "./ui/PeekCard";
-import DashboardPanel from "./ui/DashboardPanel";
+import DashboardPanel, { V3CompactBar as CompactBar, V3Peek as PeekCard } from "./ui/V3Dashboard";
 import Orb from "./ui/Orb";
 import {
   DOCK_SNAP_DISTANCE, clampVisiblePosition, dockedPosition, nearestDockEdge, poppedPosition, type DockEdge, type Rect,
 } from "./ui/dockGeometry";
 import { nextOrbMetric, type OrbMetric } from "./ui/orbMetric";
-import { RESET_HISTORY_ANNOUNCED_AT, RESET_HISTORY_SOURCE } from "./ui/history";
-import { useUsageObservations, useCardDecisionLog } from "./ui/useUsageObservations";
-import { usePredictionLog } from "./ui/usePredictionLog";
+import { RESET_HISTORY_SOURCE } from "./ui/history";
+import { useV3Journal } from "./ui/useV3Journal";
+import { usePersonalInputs } from "./ui/usePersonalInputs";
+import { useV3Planning } from "./ui/useV3Planning";
+import { DAY_MS } from "./lib/beijing";
 import { useSnapshots } from "./ui/useSnapshots";
-import { useCalibrationSummary } from "./ui/useCalibrationSummary";
 import { ORB_SIZE, closeWidget, targetWidgetSize } from "./ui/widgetWindow";
 import {
   onShellAction, onShellFocusChanged, readShellPrefs, shellGeometry, shellIsVisible, shellQuit,
@@ -41,7 +40,7 @@ const ORB_BOX = { width: ORB_SIZE.width, height: ORB_SIZE.height };
 export default function App() {
   const [display, setDisplay] = useState<DisplayState>(() => initialDisplayState(window.location.hash));
   const [form, setForm] = useState<RestForm>(() => initialRestForm(window.location.hash));
-  const [metric, setMetric] = useState<OrbMetric>(() => readShellPrefs(window.localStorage).metric);
+  const [metric, setMetric] = useState<OrbMetric>(() => window.localStorage.getItem('rr.shell.metric')==null?'remaining':readShellPrefs(window.localStorage).metric==='risk'?'remaining':readShellPrefs(window.localStorage).metric);
   const [dockEdge, setDockEdge] = useState<DockEdge | null>(null);
   const [popped, setPopped] = useState(false);
   const [themePref, setThemePref] = useState<ThemePreference>(() => readThemePreference(window.localStorage));
@@ -53,7 +52,12 @@ export default function App() {
   const [override, setOverride] = useState(themeOverride);
   const resolvedTheme = override ?? resolveTheme(themePref, systemDark);
   const { snapshots, live, phase, readError, subscriptionError, refreshing, refresh } = useSnapshots();
-  const calibration = useCalibrationSummary();
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    let minute: ReturnType<typeof setInterval> | undefined;
+    const start = setTimeout(() => { setClock(Date.now()); minute = setInterval(() => setClock(Date.now()), 60_000); }, 60_000 - Date.now() % 60_000);
+    return () => { clearTimeout(start); if (minute) clearInterval(minute); };
+  }, []);
   const expandButtonRef = useRef<HTMLButtonElement | null>(null);
   const orbRef = useRef<HTMLButtonElement | null>(null);
 
@@ -125,7 +129,7 @@ export default function App() {
     let cancelled = false;
     const prefs: ShellPrefs = readShellPrefs(window.localStorage);
     if (!hasFormSegment) setForm(prefs.form);
-    setMetric(prefs.metric);
+    setMetric(window.localStorage.getItem('rr.shell.metric')==null?'remaining':prefs.metric==='risk'?'remaining':prefs.metric);
     setDockEdge(prefs.dockEdge);
     formRef.current = hasFormSegment ? formRef.current : prefs.form;
     dockEdgeRef.current = prefs.dockEdge;
@@ -321,7 +325,8 @@ export default function App() {
   }, []);
   const onCycleMetric = useCallback(() => {
     setMetric((current) => {
-      const next = nextOrbMetric(current);
+      const candidate = nextOrbMetric(current);
+      const next = candidate==='risk'?'remaining':candidate;
       writeShellPrefs(window.localStorage, { metric: next });
       return next;
     });
@@ -363,7 +368,11 @@ export default function App() {
         return;
       }
       if (action.startsWith("metric:")) {
-        const next = action.slice("metric:".length) as OrbMetric;
+        if(action==='metric:risk'){
+          window.location.hash=hashSegments(window.location.hash).filter(s=>!s.startsWith('tab=')).concat('tab=risk').join('&');
+          activate();return;
+        }
+      const next = action.slice("metric:".length)==='risk'?'remaining':action.slice("metric:".length) as OrbMetric;
         setMetric(next);
         writeShellPrefs(window.localStorage, { metric: next });
       }
@@ -379,28 +388,49 @@ export default function App() {
 
   // 演示场景注入（02-spec §6 末行）：仅替换显示快照并带演示标识，不触数据夹具；
   // empty/loading 场景本身无快照——以空数组和 phase 覆盖表达（不是“无覆盖”）。
-  const scenarioSnapshot = scenario == null ? null : demoScenarioSnapshot(scenario);
+  const scenarioSnapshot = useMemo(() => scenario == null ? null : demoScenarioSnapshot(scenario), [scenario]);
   const scenarioPhase =
     scenario === "empty" ? "empty" : scenario === "loading" ? "initializing" : null;
   const effectiveSnapshots =
     scenarioPhase != null ? [] : scenarioSnapshot != null ? [scenarioSnapshot] : snapshots;
   const effectivePhase = scenarioPhase ?? phase;
   const codex = effectiveSnapshots.find((item) => item.provider === "codex") ?? effectiveSnapshots[0] ?? null;
-  const usage = useUsageObservations(codex, live && !demo);
-  const vm = useMemo(
+  const modelNow = useMemo(() => Date.now(), [clock, codex?.updatedAt]);
+  const personal = usePersonalInputs(demo ? null : codex?.accountKey ?? null, codex?.resetCredits ?? null, modelNow);
+  const journal = useV3Journal(codex, live && !demo);
+  const baseVM = useMemo(
     () =>
       codex != null
-        ? buildDashboard(codex, RESET_HISTORY_ANNOUNCED_AT, new Date(), RESET_HISTORY_SOURCE, calibration.view, usage.samples)
+        ? buildV3Dashboard(codex, RESET_HISTORY_SOURCE, modelNow, personal.state, journal.observations, journal.signalHistory,true)
         : null,
-    [codex, calibration.view, usage.samples],
+    [codex, modelNow, personal.state, journal.observations, journal.signalHistory],
   );
-
-  const decisionLogError = useCardDecisionLog(vm, codex, live && !demo);
-  const predictionLog = usePredictionLog(vm?.prediction ?? null, live && !demo, vm?.updatedAt ?? "");
+  const planningWorker=useV3Planning(baseVM?.planningInput??null);
+  const vm=useMemo(()=>baseVM?{...baseVM,planning:planningWorker.result,recommendation:planningWorker.result?.recommendation??baseVM.recommendation}:null,[baseVM,planningWorker.result]);
+  const [journalWriteError,setJournalWriteError]=useState<string|null>(null);
+  useEffect(() => {
+    if(!live||demo||!vm||!codex||codex.status!=="ok")return;
+    let alive=true;
+    const snapshotId=`${codex.accountKey??'unknown'}@${codex.updatedAt}`;
+    const base={issuedAt:vm.now,windowStart:vm.now,windowEnd:vm.now+DAY_MS,trainingCutoff:vm.platformModel.cutoff,inputSnapshotId:snapshotId,
+      cardLedgerVersion:vm.ledgerVersion,preferenceVersion:vm.preferenceVersion,assumptions:vm.recommendation.assumptions,evidenceQuality:vm.evidenceQuality};
+    const prefix=`v3:${snapshotId}:${vm.now}:${vm.ledgerVersion}:${vm.preferenceVersion}`;
+    void(async()=>{
+      await journal.appendPrediction({...base,id:`${prefix}:platform`,target:'platform_notice',probability:vm.platform.probability24h,modelVersion:'platform-v3:P0',featureContributions:vm.platform.factors});
+      await journal.appendPrediction({...base,id:`${prefix}:platform-shadow`,target:'platform_notice',probability:vm.platform.shadow.probability24h,modelVersion:'platform-v3:P1-shadow',featureContributions:vm.platform.shadowFactors});
+      await journal.appendPrediction({...base,id:`${prefix}:account`,target:'account_external_reset',probability:vm.supply?.accountProbability24h??null,modelVersion:'account-v3:learning',featureContributions:[]});
+      await journal.appendPrediction({...base,id:`${prefix}:demand`,target:'demand',probability:null,modelVersion:'demand-v3:empirical',featureContributions:[vm.demand]});
+      if(vm.planning)await journal.appendPlanning({id:`${prefix}:planning`,predictionId:`${prefix}:platform`,seed:vm.planning.seed,
+        candidates:vm.planning.comparisons.map(c=>({id:c.id,firstAction:c.firstAction,Ltail:c.Ltail,Lmean:c.Lmean,Nspent:c.Nspent,Eexpire:c.Eexpire})),
+        selected:vm.planning.selected,alternatives:vm.planning.selected?.scenarios??[]});
+      if(alive)setJournalWriteError(null);
+    })().catch(e=>{if(alive)setJournalWriteError(String(e));});
+    return()=>{alive=false;};
+  },[vm,codex,live,demo,journal.appendPrediction,journal.appendPlanning]);
 
   return (
     <main
-      data-prediction-log-state={predictionLog.status}
+      data-prediction-log-state={journalWriteError ? "error" : "v3"}
       data-shell-form={form}
       data-shell-dock={dockEdge ?? "free"}
       data-shell-popped={popped ? "true" : "false"}
@@ -423,7 +453,8 @@ export default function App() {
       )}
       {display !== "expanded" && form === "orb" && (
         <Orb
-          vm={vm}
+          vm={null}
+          readout={v3OrbReadout(vm,metric)}
           metric={metric}
           dockEdge={dockEdge}
           popped={popped}
@@ -450,14 +481,13 @@ export default function App() {
       {display === "expanded" && (
         <DashboardPanel
           vm={vm}
+          controller={personal}
           phase={effectivePhase}
           readError={readError}
-          logError={usage.error ?? decisionLogError}
+          logError={journal.error ?? journalWriteError ?? planningWorker.error}
           subscriptionError={subscriptionError}
           refreshing={refreshing}
-          calibration={calibration.view}
           demo={demo}
-          themePreference={themePref}
           activeTheme={resolvedTheme}
           onThemePreference={onThemePreference}
           onRefresh={refresh}

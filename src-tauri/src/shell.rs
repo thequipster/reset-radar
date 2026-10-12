@@ -161,8 +161,8 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
         )
         .item(
             &SubmenuBuilder::new(app, "迷你圆显示")
-                .item(&MenuItem::with_id(app, "metric:pace", "今日建议配速", true, None::<&str>).map_err(|e| e.to_string())?)
-                .item(&MenuItem::with_id(app, "metric:risk", "24h 重置风险", true, None::<&str>).map_err(|e| e.to_string())?)
+                .item(&MenuItem::with_id(app, "metric:pace", "今日周额度预算", true, None::<&str>).map_err(|e| e.to_string())?)
+                .item(&MenuItem::with_id(app, "metric:risk", "查看平台信号参考", true, None::<&str>).map_err(|e| e.to_string())?)
                 .item(&MenuItem::with_id(app, "metric:remaining", "周额度剩余", true, None::<&str>).map_err(|e| e.to_string())?)
                 .build()
                 .map_err(|e| e.to_string())?,
