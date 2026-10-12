@@ -31,8 +31,8 @@ describe('RR51 冷启动与预览提示',()=>{
     expect(source).toContain('target?.scrollIntoView?.');expect(source).toContain('target?.focus()');
   });
   it('数据页区分当前模型、全期回放与在线 verdict，60 日只作回顾节点',()=>{
-    const replayModel={count:25,positiveCount:4,brier:0.18,logLoss:0.61,predictedActualRatio:1.2};
-    const enriched={...vm,platformReference:{activeModel:'D60' as const,replay:{all:{p0:replayModel,p1:replayModel,d60:replayModel,r90:replayModel},recent180:{},recent90:{}}}};
+    const replayModel={count:25,positiveCount:4,brier:0.18,logLoss:0.61,predictedActualRatio:1.2,bins:[]};
+    const enriched={...vm,platformReference:{...vm.platformReference,activeModel:'D60' as const,replay:{...vm.platformReference.replay,all:{p0:replayModel,p1:replayModel,d60:replayModel,r90:replayModel}}}};
     const html=panel({vm:enriched,verdictSummaries:[{modelVersion:'D60',sampleCount:0,positiveCount:0,unknownCount:0,pendingCount:0,brier:null,logLoss:null}]},'data');
     expect(html).toContain('当前参考模型');expect(html).toContain('D60');expect(html).toContain('历史回放 · 全期');expect(html).toContain('线上验证汇总');expect(html).toContain('60 日仅作回顾节点');expect(html).not.toContain('升级至少需要60个');
   });

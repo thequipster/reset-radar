@@ -22,6 +22,7 @@ import { useV3Journal } from "./ui/useV3Journal";
 import { usePersonalInputs } from "./ui/usePersonalInputs";
 import { useV3Planning } from "./ui/useV3Planning";
 import { DAY_MS } from "./lib/beijing";
+import {summarizeVerdicts} from './lib/v3/verdict';
 import { useSnapshots } from "./ui/useSnapshots";
 import { ORB_SIZE, closeWidget, targetWidgetSize } from "./ui/widgetWindow";
 import {
@@ -408,6 +409,7 @@ export default function App() {
   const planningWorker=useV3Planning(baseVM?.planningInput??null);
   const vm=useMemo(()=>baseVM?mergeV31Planning(baseVM,planningWorker.result):null,[baseVM,planningWorker.result]);
   const calibrationV3=useMemo(()=>evaluatePlatformJournal(journal.predictionContent,journal.historyDocument,modelNow),[journal.predictionContent,journal.historyDocument,modelNow]);
+  const verdictSummaries=useMemo(()=>summarizeVerdicts(journal.predictionContent),[journal.predictionContent]);
   const [journalWriteError,setJournalWriteError]=useState<string|null>(null);
   useEffect(() => {
     if(!live||demo||!vm||!codex||codex.status!=="ok")return;
@@ -488,6 +490,7 @@ export default function App() {
           vm={vm}
           controller={personal}
           calibration={calibrationV3}
+          verdictSummaries={verdictSummaries}
           phase={effectivePhase}
           readError={readError}
           logError={journal.error ?? journalWriteError ?? planningWorker.error}
