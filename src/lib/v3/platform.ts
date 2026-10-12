@@ -214,10 +214,12 @@ export function summarizeOnlinePlatformScores(rows: readonly OnlinePlatformScore
     probabilityBins: { p0: bins('p0'), p1: bins('p1') } };
 }
 export function generateRenewalPaths(model: PlatformModel, opts: { now: number; horizonMs: number; count?: number; seed: number; variant?: 'constant_rate' | 'age_piecewise' }): number[][] {
-  const count = opts.count ?? 256, rng = mulberry32(opts.seed), paths: number[][] = [];
+  const count = opts.count ?? 256, paths: number[][] = [];
   const rates = opts.variant === 'age_piecewise' ? model.lambda : model.lambda?.map(() => model.lambda0 ?? 0) as [number, number, number] | null;
   if (!rates) return Array.from({ length: count }, () => []);
   for (let n = 0; n < count; n++) {
+    // 每条路径有固定随机流，延长某一条路径不能挪动后续路径的抽样起点。
+    const rng=mulberry32((opts.seed+Math.imul(n,0x9e3779b9))>>>0);
     const path: number[] = []; let time = opts.now, age = model.lastEventAt === null ? 0 : Math.max(0, (opts.now - model.lastEventAt) / DAY_MS);
     while (time < opts.now + opts.horizonMs) {
       const u = Math.max(Number.MIN_VALUE, 1 - rng()), threshold = -Math.log(u);

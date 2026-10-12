@@ -3,6 +3,12 @@ import { DAY_MS, backtestPlatform, bootstrapWeeklyBrierImprovement, fitPlatformM
 
 const t = (days: number) => days * DAY_MS;
 describe('platform v3', () => {
+  it('extending the planning horizon preserves every shared path before the shorter endpoint',()=>{
+    const model=fitPlatformModel({events:[{id:'a',resetType:'regular',announcedAt:0},{id:'b',resetType:'regular',announcedAt:5*DAY_MS}],coverage:[{from:0,to:10*DAY_MS,complete:true}],trainingCutoff:10*DAY_MS});
+    const short=generateRenewalPaths(model,{now:10*DAY_MS,horizonMs:21*DAY_MS,count:256,seed:42});
+    const long=generateRenewalPaths(model,{now:10*DAY_MS,horizonMs:28*DAY_MS,count:256,seed:42});
+    expect(long.map(path=>path.filter(at=>at<=31*DAY_MS))).toEqual(short);
+  });
   it('a later revision cannot become available earlier just because the event ID was already known',()=>{
     const model=fitPlatformModel({events:[{id:'a',resetType:'regular',announcedAt:DAY_MS,firstSeenAt:DAY_MS,versionSeenAt:4*DAY_MS}],coverage:[],trainingCutoff:3*DAY_MS});
     expect(model.eventCount).toBe(0);

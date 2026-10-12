@@ -124,8 +124,9 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
       ? [{id:'demand-low',multiplier:1,daily:input.dailyRange.low}, {id:'demand-median',multiplier:1,daily:input.dailyRange.median}, {id:'demand-high',multiplier:1,daily:input.dailyRange.high}]
       : [{id:'demand-reference',multiplier:1,daily:input.dailyRange?.median??0}];
   const sampleGroups = demandCases.map(demandCase => {
-    const rng = random(seed); // 各压力组共享同一未来需求抽样，差别仅为指定压力。
-    const samples = Array.from({length:empirical?256:1}, () => {
+    const samples = Array.from({length:empirical?256:1}, (_,path) => {
+      // 需求与平台使用不同随机流；每条路径跨视野和压力组保留同一前缀。
+      const rng=random(((seed^0x44454d41)+Math.imul(path,0x9e3779b9))>>>0);
       const costs = Array.from({length:days+1}, () => empirical ? input.dailySamples![Math.floor(rng()*input.dailySamples!.length)]! : demandCase.daily);
       const todayRange=input.todayRange??input.dailyRange;
       return makeBlocks(input,end,index => index === 0 && input.todayBudget != null ? input.todayBudget*demandCase.multiplier
