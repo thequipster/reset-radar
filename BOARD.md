@@ -47,6 +47,18 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
 
+### [2026-10-12 12:31:34] RR46 | P0 | 🟢已闭环（main ab9b086） | release | S1012-release
+- 用户 QA 六项+审美+正式 GitHub 发布；承接已收工 RR45 成果，独立 ../reset-radar_wt/RR46 / agent/RR46；原 RR45 不改。
+- 四绿/变异红验/双主题视觉/CI 发布验收；本轮最新用户授权普通 push/tag/release，禁止 force。
+- wip=task_logs/RR46_wip.md
+
+
+### [2026-10-12 11:06:00] RR45 | P0 | 🧱🟠在飞（→下轮续作） | ui+data-layer | S1012-1103
+- base main 5555158（含 737c959 v2 五模块）；worktree ../reset-radar_wt/RR45（分支 agent/RR45 @ **4bed01a+8c2cc89+7da82fb**，node_modules junction 在拆前先 rmdir）
+- 本班已落（tsc 剩余错误只在 DashboardPanel/ExpandedCard/测试）：lib 层全收敛（删旧三模块+测试/index 导出 v2 五模块/calibrationWindows+watchCalibration 等价收敛/history+historyEvents/historyPrediction 切 v2/predictions §7.1 七字段/**adapters.ts 全链重写**）；D033 接线口径六则入档；UI 小组件五件切 v2（orbMetric/copySummary/PeekCard/CompactBar/Capsule）
+- →下轮：A=DashboardPanel+ExpandedCard 两件大件改读 v2 → B=测试 8 件重算（口径变化逐条注明）→ C=卡面④日耗观测/⑤§7.3 日志（规格原文未落盘按 D033 设计）/⑥02-spec:166 → D=门禁四绿+变异红验≥3。**详尽续作指引（旧→新映射+消费点行号+测试清单）=task_logs/RR45_wip.md**
+- wip=task_logs/RR45_wip.md
+
 ### [2026-10-12 11:05:00] RR44 | P0 | 🧱🟢已闭环（合入 main 737c959） | core | S1012-1053 MERGE
 - c84f95c→main **737c959** 树恒等✅（`git diff c84f95c HEAD -- src/lib/`=0 字节，9 路径全量对账）；预审四过（探活/diffstat 9文件+3879 对账/patch 164KB 在位且对 main 干净适用 rc0/交集空——主仓工作树仅看板协调文件）；主仓复验 tsc rc0✅ vitest 全量 **386/386 0failed**✅ test:node **38/38**✅（Rust 不适用：未触 src-tauri/）。
 - 顺带拆 RR43 遗留 worktree（S1011-2223 合入 6a2c0fa 后未拆）：node_modules junction 先拆（B09）主仓 node_modules 完好实证，worktree 移除无残留；分支归档 archive/RR43-merged-6a2c0fa。RR44 worktree 同口径拆除，branch 归档 archive/RR44-merged-737c959。RR26=用户参考图保留勿动；RR13/RR21 空壳句柄占用既有遗留。
@@ -559,6 +571,7 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 1. RR45（P0，ui+data-layer：v2 UI 接线 adapters.ts + 删旧三模块与引用收敛 + 日耗观测日志 + §7.1/§7.3 日志 + 02-spec 关窗语义；v2 五模块已入 main 737c959 可直接 import）
 2. RR30（🎣 挖卡，**前置已满足**：用户已 push、CI 首跑 success run 38144186083、v0.1.0 已发布〔HEARTBEAT human-1011 21:57 注〕；与 RR45 异域但单工位串行）
 3. v0.3 维持留点单见 D031 用户门控期；发布动作（push/tag/release）永远留用户
+
 
 
 

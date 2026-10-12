@@ -526,3 +526,12 @@
 - 2026-10-11 21:36:00 RR12 第8轮REVIEW 🟢本轮闭环（会话 S1011-2120，锚卡永续转回🟠）：base main 67494a2 七门全绿（tsc/vitest 272/272〔刷新+README 区间改后复跑同，即落库前终验〕/vite build 1.00s/cargo check 0.44s/node 38/38/check-release 13/校准 fresh 60事件54重置 n=0 如实），artifact 十一件 task_logs/RR12r8_artifacts/；E2E 源码恒等（git diff 03c7069..67494a2 src 为空）复用 r7 同源 exe 自采双主题新图 20261011-r8-expanded-{dark,light}.png（IHDR 920×1380/DPI 192）识图子代理独立复核双图 A–G 全 PASS（RR40 修复持续在位+过期态诚实显示连续二轮实证）；差距 12 条零悬空零新卡（G4 逗号回源证伪复认；G6 README 区间 RR01–RR41→RR01–RR42 按 D032 顺带刷新入批不立卡）；产物批 24文件+1012/−11 落库 main 6f6a991（含收编 RR42 未跟踪 done/patch 两件）。用户门控期维持：RR30 等 CI 首跑、下一班 REVIEW 第 9 轮照 §9.1 全量执行
 
 - 2026-10-11 21:52:00 RR12 第 9 轮 REVIEW 🟢本轮闭环（锚卡永续转回🟠待领）：双班接力 S1011-2133（七门主跑）→S1011-2137（续作收尾+MERGE）。产物批 agent/RR12@13d3b85→cherry-pick 零冲突→main bbfed86（10F +135/−10：校准刷新三件 60事件/54重置 n=0 如实+round9 报告+artifact 五件+done）；合入后主仓全量复跑 tsc rc0+vitest 272/272+node 38/38+check-release 13 OK，树恒等 git diff 13d3b85..bbfed86=0 字节；E2E 源码恒等（67494a2..bbfed86 src/src-tauri 0 字节）继承 r8 双 PASS 审计，本班 Bridge 通道无 pwsh/桌面控制未重采（如实）；差距 7 条零悬空零新卡；RR26 worktree=用户参考图有意保留勿动。勘误：main 21:38:46 历史重写（6f6a991→27d0e8e 树 diff 0 字节，reflog 实证；链上 r7/RR42/r6 sha 同漂），旧 sha 记载内容有效，此后以重写后为准（round9 §5）。patch=task_logs/RR12r9.patch+done 已随批（patch untracked 待 r10 收编）；wip 已删，worktree RR12 已拆，分支归档 archive/RR12r9-merged-bbfed86。→ 无🟠无🟡：REVIEW 第 10 轮（shell 班补双主题新图识图）；RR30 仍🟣等用户 CI 首跑；v0.3 等点单（D031）。
+
+### RR46 | P0 | 发布修卡 | ui+data-layer+release | 用户在线点单 2026-10-12 12:31:34
+- 现象：QA-REPORT 六项界面缺陷；RR45 已收工且 v2 接线未完成。
+- 证据：用户本轮指令与 C:/Users/slsjz/Desktop/reset-radar_qa_20261011/QA-REPORT.md；现有源代码/官方快照。
+- 修向：承接 RR45 已提交成果完成 v2 接线与观测日志；修 QA、双主题审美、验证后正式发布 GitHub。
+- 验证：四绿+变异红验、Rust check、双主题截图独立审查、CI 与 release 产物。
+- 状态：🟠在飞；RR45 前班明确已收工释放槽，原 worktree 保留不改。最新用户在线授权覆盖 RUNBOOK 发布留用户约定，本轮可普通 push/tag/release，绝不 force。
+- 2026-10-12 13:06 RR46 🟡待合入：6d11e4d 与 RR45 三 commit 合批；342 Vitest、38 Node、41 Rust、三处变异、原生十图及五次采集绿。
+- 2026-10-12 RR46 🟢合入 main ab9b086；RR45三commit吸收，原历史保留；树恒等，main门禁复跑。

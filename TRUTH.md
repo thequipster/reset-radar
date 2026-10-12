@@ -199,3 +199,7 @@
 ### 2026-10-11 移植代码雷同疑问与「如实声明」裁决（RR33，用户在线指令）
 - 用户问：仓内内容会不会被别人判作雷同。实测答复：按 MIT 合规与署名口径不算（每个移植文件头注明来源文件+行号、README 致谢带原仓链接与版本、TRUTH §1 登记），但未保留对方版权行是一处瑕疵；若作为「个人原创作品」送评审，resetCard.ts（归一化 77% 行同文）与 codex.rs（约 300 行同文）会被查重工具命中。
 - 用户裁决：如实声明，不重写。落卡 RR33：新增 THIRD_PARTY_NOTICES.md（对方 MIT 全文 + 复用清单），resetCard.ts/codex.rs/planner.ts 补原版权行（Copyright (c) 2026 Quota Float contributors），risk.ts 补声明指引，README 致谢补版权行与声明链接。
+
+### U20261012-release 用户发布裁决
+- 用户明确要求修 C:/Users/slsjz/Desktop/reset-radar_qa_20261011/QA-REPORT.md 六项、负责审美、正式release上传GitHub，并将简单任务交Luna。本次任务授权正常push/tag/release，覆盖默认发布禁令；不force，不改RUNBOOK。QA报告六项为界面修复真值，系统主题移除由报告与用户修复要求直接授权。
+- 本次实测与出处：docs/qa-native-20261012.txt、docs/qa-quota-20261012.md、docs/qa-mutations-20261012.md、docs/release-qa-20261012.md；模型假设见D034。
