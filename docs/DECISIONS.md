@@ -292,3 +292,32 @@
   ——glob 指向不随轮次腐化，新轮报告自动被覆盖到）。**此后 REVIEW 轮不再为状态行轮次滞后立卡**；
   状态行仅在闭环区间变化（新卡闭环）或用户点单时刷新。
 - 门禁影响：无——滚动表述用行内代码非 markdown 链接，check-release 13 条相对链接口径不变。
+
+## D033 RR45：算法 v2 接线口径六则（2026-10-12，S1012-1103）
+
+- 背景：RR45 按 RR44 续作把 UI/数据管线切到 v2 五模块。规格原文（用户对话侧）未落仓，
+  §7.1 字段清单以 BACKLOG 卡面为据；其余接线口径由本会话按 ARCHITECTURE §2（数字与
+  判断只出自 src/lib 纯核心、缺失数据如实标注不伪造）裁决如下：
+- ① VM 单轨切换：卡面「新增 riskV2/paceV2/cardV2 并保留旧字段过渡」在本卡内被③（删旧
+  三模块）收敛——旧字段类型随模块删除不存在，过渡在本卡完成，交付终态=纯 v2 单轨不留
+  双轨债。VM 字段名沿用 risk/dailyPlan/cardPlan，新增顶字段 riskPercent
+  （probability24h×100，round1）作为 UI 全站唯一 0-100 换算点。
+- ② 事件流 scope：resets-history 公开夹具=平台公告执行（scope=global）；实时公告来源
+  ok 时 latestReset(regular)=本账号观测（scope=account，banked 不计，D022/B07），按时间
+  戳去重。historyEvents 下沉 src/lib/history.ts（CLI 管线共用，避免 lib→ui 反向依赖）。
+- ③ watch 恒 reference-only：上游 WatchSignalAssessment 仅 percent/observedAt，无 v2 四
+  项口径证据（targetMatches/windowHours/includesAnnouncedOrNatural），构造 targetMatches
+  =false ⇒ assessWatchComparability 判 reference-only 并列展示不融合；占位字段值不参与
+  判定（短路在先）。旧 watch 融合 golden（ui.reset-status delta=17.5 等）随之重算。
+- ④ 卡过期未知：上游不产出过期时刻（models.rs 裁剪注记），CardState.expiresAt 取
+  Number.MAX_SAFE_INTEGER（候选窗已被 maxCandidateDays≤14 天限制），不伪造真实过期。
+- ⑤ §7.1 字段类型可选、生产必填：PredictionRecord 新字段设可选以兼容旧日志行（数据锁：
+  data/predictions.jsonl 旧行只有旧四字段）；buildPredictionRecord 无条件全填，由
+  predictions.core.test 锁「产出必含全字段」——约束强度等价于类型必填而不破坏存量夹具。
+  watchComparison 降级为旧行遗留字段（解析保留、新行不产出）；watchCalibration 继续
+  对账存量行，WATCH_WEIGHT=0.25 本地常量（旧 risk.ts:38 与 v2 WATCH_BLEND_WEIGHT 同值）。
+- ⑥ 日耗样本：观测日志（卡面④）落地前 estimateDemand([]) 恒 quality=unknown ⇒
+  paceV2.todaySuggested=null（「需求未知」诚实文案）——两件事在同一张卡内自洽。
+- 卡面清单校正：calibration.ts 实测不 import 旧三模块（仅历史注释提及），无需改动；
+  额外被咬住的 calibrationWindows.ts（beijingCalendarDateKey/RESET_RISK_HORIZON_MS）与
+  watchCalibration.ts 已按等价替换/本地常量收敛，属「引用收敛」范围。
