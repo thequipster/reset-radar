@@ -1,0 +1,57 @@
+   Compiling reset-radar v0.2.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR48\src-tauri)
+warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `reset-radar` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.05s
+     Running unittests src\lib.rs (target\debug\deps\reset_radar_lib-251323b23f5ebff5.exe)
+
+running 44 tests
+test build_manifest::manifest_declares_per_monitor_dpi_awareness ... ok
+test build_manifest::manifest_keeps_common_controls_v6_dependency ... ok
+test calibration_summary::tests::missing_file_reads_as_empty_not_error ... ok
+test codex::tests::clamps_remaining_into_0_100 ... ok
+test codex::tests::does_not_mislabel_short_app_server_window_as_weekly ... ok
+test codex::tests::timestamp_converts_unix_seconds_to_rfc3339 ... ok
+test codex::tests::only_timeouts_are_retryable ... ok
+test codex::tests::accepts_snake_case_keys ... ok
+test codex::tests::prefers_rate_limits_by_limit_id_bucket ... ok
+test codex::tests::parses_official_app_server_weekly_snapshot ... ok
+test codex::tests::preserves_specific_app_server_rpc_error ... ok
+test codex::tests::hashes_official_account_id_without_exposing_it ... ok
+test observations::tests::contract_rejects_multiline_invalid_json_and_missing_string_fields ... ok
+test observations::tests::kind_is_a_path_whitelist ... ok
+test platform_history::tests::complete_and_continuing_pages_are_distinct ... ok
+test platform_history::tests::incomplete_or_contradictory_pages_fail_closed ... ok
+test predictions::tests::contract_rejects_multiline_or_invalid_data_without_files ... ok
+test reset_status::tests::live_status_tls_probe ... ignored, manual live TLS probe; run explicitly with --ignored
+test reset_status::tests::parses_status_contract_and_preserves_upstream_fields ... ok
+test reset_status::tests::malformed_envelope_and_missing_or_non_object_data_meta_are_rejected ... ok
+test reset_status::tests::required_keys_and_json_shapes_are_validated ... ok
+test reset_status::tests::scheduled_reset_object_requires_its_contract_fields ... ok
+test calibration_summary::tests::read_failure_is_not_reported_as_missing ... ok
+test reset_status::tests::serialization_uses_camel_case_snapshot_and_announcement_keys ... ok
+test snapshots::tests::legacy_snapshots_without_status_remain_readable ... ok
+test observations::tests::read_errors_are_not_reported_as_empty_logs ... ok
+test predictions::tests::read_failure_is_not_reported_as_empty_history ... ok
+test snapshots::tests::load_missing_file_returns_none ... ok
+test reset_status::tests::successful_null_schedule_replaces_the_previous_plan ... ok
+test reset_status::tests::error_without_saved_data_returns_an_error_snapshot ... ok
+test reset_status::tests::fetch_error_preserves_last_success_fields_and_updates_attempt_state ... ok
+test snapshots::tests::unparsable_fetched_at_defaults_to_24h ... ok
+test reset_status::tests::cached_success_is_reused_until_the_poll_interval_boundary ... ok
+test reset_status::tests::client_build_error_returns_error_snapshot_without_network ... ok
+test observations::tests::busy_lock_is_preserved_and_returns_without_writing ... ok
+test calibration_summary::tests::roundtrip_reads_writer_bytes_verbatim ... ok
+test predictions::tests::busy_lock_does_not_remove_another_writers_lock ... ok
+test snapshots::tests::persist_then_load_roundtrips_with_camel_case_keys ... ok
+test snapshots::tests::load_marks_ok_snapshots_stale ... ok
+test snapshots::tests::source_metadata_roundtrips_independently_of_stale_quota ... ok
+test observations::tests::appends_without_rewriting_existing_bytes_or_unterminated_tail ... ok
+test predictions::tests::cold_read_and_compare_append_roundtrip ... ok
+test predictions::tests::preserves_bad_lines_crlf_and_unterminated_tail_bytes ... ok
+test observations::tests::both_whitelisted_logs_round_trip_to_fixed_paths ... ok
+
+test result: ok. 43 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
