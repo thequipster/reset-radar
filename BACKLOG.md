@@ -535,3 +535,4 @@
 - 状态：🟠在飞；RR45 前班明确已收工释放槽，原 worktree 保留不改。最新用户在线授权覆盖 RUNBOOK 发布留用户约定，本轮可普通 push/tag/release，绝不 force。
 - 2026-10-12 13:06 RR46 🟡待合入：6d11e4d 与 RR45 三 commit 合批；342 Vitest、38 Node、41 Rust、三处变异、原生十图及五次采集绿。
 - 2026-10-12 RR46 🟢合入 main ab9b086；RR45三commit吸收，原历史保留；树恒等，main门禁复跑。
+- 2026-10-12 13:11 RR46 🟢正式发布 v0.2.0：cc502eb，CI38206427872/Release38206430807 success，EXE/MSI两包SHA256下载核验一致；RR45吸收闭环，待领RR30不扩大本卡。

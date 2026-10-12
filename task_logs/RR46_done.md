@@ -11,3 +11,8 @@
 - 待用户清单：无阻塞项。自动化DOM拖拽不能替代混合DPI、多显示器、真实鼠标边界/托盘实机验证，已如实留在QA报告。
 - 发布：正常push main+v0.2.0 tag，等待Release及CI；最终结果按下方追加行记录。
 - RR45原worktree和wip历史保留，本卡吸收其产物；RR46 worktree因正在运行原生QA暂留供复核，关闭进程后拆除。
+
+- 2026-10-12 13:11 最终结果：GitHub正式发布 https://github.com/thequipster/reset-radar/releases/tag/v0.2.0 ；tag cc502eb；CI38206427872/Release38206430807均success，isDraft=false/isPrerelease=false/latest。中文说明已更新。下载EXE SHA256=04fecc218abec83f2609eac2ca7bf2c5d626c95fc55a4626fd6cba8477a7044b、MSI=73c9421e4c229b7731f6fdfead0ba18b89cee16a73d8deb0a0acc4c0410d15bf，两者与SHA256SUMS一致。
+- main复跑实际37文件342/342（worktree归档qa-tests是src/lib+src/ui域36文件337，main全量另含5条治理测试），tsc及release guard通过，发布CI也全量通过。
+- 拆worktree完成登记移除，安全删除junction及忽略构建产物；git报告空目录句柄Permission denied，目录无文件，保留空壳。branch归档archive/RR46-merged-ab9b086。
+- 时间勘误：13:06 MERGE占槽两行是预估戳，实际合入及main门禁13:03–13:04，push/tag13:05；以命令输出与GitHub时间为准。

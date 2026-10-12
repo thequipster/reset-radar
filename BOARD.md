@@ -14,7 +14,7 @@
 **WORK**（有 🟠可领卡）→ **MERGE**（无 🟠 但有 🟡待合入）→ **REVIEW**（都无 → 生成验收
 artifact 逐条审差距立卡）→ 回 WORK。规则细节见 RUNBOOK.md §4/§9。
 
-**当前阶段：WORK（RR44 已合入 main 737c959；RR45 🟠待领〔P0：v2 UI 接线+删旧三模块+日耗观测日志+§7.1/§7.3 日志〕；RR30 前置已满足可领〔human-1011 注：用户已 push+CI 首跑 success run 38144186083+v0.1.0 正式发布〕；无🟡待合）**
+**当前阶段：WORK（RR45 已由 RR46 吸收闭环；RR46 v0.2.0 正式发布成功；RR30 待领；LIGHT/MERGE 均空）**
 （REVIEW 第 8 轮已闭环（S1011-2120）：报告 docs/review-20261011-round8.md——七门全绿
 〔272/272/build 1.00s/cargo 0.44s/node 38/38/check-release 13/校准 fresh 60事件54重置 n=0 如实〕
 +刷新与 README 区间改后复跑三绿=落库前终验+E2E 源码恒等复用 r7 同源 exe 自采双主题新图识图
@@ -46,6 +46,12 @@ RR35 已合入 main a9f244c（S1011-1849 交付+自合入）。下一班建议�
 - MERGE：×1（主仓合入互斥，同一时刻只有一人写主仓代码）
 
 ## 当前状态（置顶条目区——新条目插在最上面，勿动他人条目）
+
+### [2026-10-12 13:11:14] RR46 | 🟢正式发布完成 | release | S1012-release
+- main/tag v0.2.0 = cc502eb；CI 38206427872 与 Release 38206430807 均 success。正式非预发布，EXE/MSI/SHA256SUMS 三附件在位，两安装包下载复算 SHA256 一致。
+- 发布页 https://github.com/thequipster/reset-radar/releases/tag/v0.2.0 ，中文说明已更新。RR45 三 commit 及剩余工作均由 RR46 吸收，历史条目和原 worktree 保留。
+- RR46 worktree 登记已移除，junction安全拆除、主仓依赖保留；空壳目录Windows句柄占用未能删除，无文件残留。分支归档，LIGHT/MERGE释放。
+
 
 ### [2026-10-12 12:31:34] RR46 | P0 | 🟢已闭环（main ab9b086） | release | S1012-release
 - 用户 QA 六项+审美+正式 GitHub 发布；承接已收工 RR45 成果，独立 ../reset-radar_wt/RR46 / agent/RR46；原 RR45 不改。
