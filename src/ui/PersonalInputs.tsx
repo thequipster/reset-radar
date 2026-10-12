@@ -1,5 +1,5 @@
 // RR47 个人输入区：展示台账/需求/偏好并记录用户已完成的操作；不自动触发用卡。
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CardEntryPrecision, PersonalPreference, WorkloadLevel } from "../lib/v3/cards";
 import { beijingDateKey, CARD_BUFFER_MS } from "../lib/v3/cards";
 import type { PersonalInputsController } from "./usePersonalInputs";
@@ -10,11 +10,12 @@ export interface PersonalInputsProps {
   controller: PersonalInputsController;
   now: number;
   onRecordedUse?: () => void;
+  focusSection?: "budget" | "cards" | null;
 }
 
 const WORKLOADS: { value: WorkloadLevel; label: string }[] = [
-  { value: "quiet", label: "比较闲" }, { value: "normal", label: "正常干活" },
-  { value: "busy", label: "可能忙很久" }, { value: "unknown", label: "还不确定" },
+  { value: "quiet", label: "轻用" }, { value: "normal", label: "均衡（默认）" },
+  { value: "busy", label: "较忙" }, { value: "unknown", label: "还不确定" },
 ];
 
 const PREFERENCES: { value: PersonalPreference; label: string }[] = [
@@ -30,7 +31,7 @@ function beijingClock(value: number | null): string {
   }).format(value);
 }
 
-export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: PersonalInputsProps) {
+export function PersonalInputs({ controller, accountKey, now, onRecordedUse, focusSection = null }: PersonalInputsProps) {
   const { state } = controller;
   const [label, setLabel] = useState("");
   const [precision, setPrecision] = useState<CardEntryPrecision>("date");
@@ -39,6 +40,9 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
   const [budget, setBudget] = useState(state.effectiveWeeklyBudgetPercent == null ? "" : String(state.effectiveWeeklyBudgetPercent));
   const [viewTimes, setViewTimes] = useState(state.usualViewTimes.join(", "));
   const [error, setError] = useState<string | null>(null);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const budgetRef = useRef<HTMLInputElement>(null);
+  const cardsRef = useRef<HTMLInputElement>(null);
   const serverCountLabel = state.accountCount == null ? "服务端张数未知" : `服务端 ${state.accountCount} 张`;
 
   useEffect(() => {
@@ -47,6 +51,16 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
     setDrafts({});
     setError(null);
   }, [accountKey, state.version]);
+
+  useEffect(() => {
+    if (!focusSection) return;
+    if (detailsRef.current) detailsRef.current.open = true;
+    const target = focusSection === "budget" ? budgetRef.current : cardsRef.current;
+    requestAnimationFrame(() => {
+      target?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+      target?.focus();
+    });
+  }, [focusSection]);
 
   const addCard = () => {
     try {
@@ -115,6 +129,7 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
             className={state.effectiveWorkloadToday === option.value ? styles.selected : ""}
             onClick={() => controller.setWorkloadToday(option.value)}>{option.label}</button>)}
         </div>
+        <p className={styles.hint}>轻用 / 均衡 / 较忙是每 7 天 50 / 100 / 200 点的策略档，不是个人用量预测。</p>
       </fieldset>
 
       <fieldset className={styles.group}>
@@ -127,7 +142,7 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
         {state.preference == null && <p className={styles.hint}>默认按“别用到一半没额度”提供建议；你可以跳过或随时修改。</p>}
       </fieldset>
 
-      <details className={styles.details}>
+      <details ref={detailsRef} className={styles.details}>
         <summary>卡片台账、查看时段与可选预算</summary>
         <p className={styles.hint}>只填日期，会提醒你在前一天用完；填具体时间可以晚些再决定。</p>
         <p className={styles.hint}>到期时间按北京时间记录。登记和“记录已用”只更新本地台账，不会自动使用真实重置卡。</p>
@@ -163,7 +178,7 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
         </div>
 
         <div className={styles.addCard}>
-          <label htmlFor="personal-card-label">卡片名称</label><input id="personal-card-label" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如：备用重置卡" />
+          <label htmlFor="personal-card-label">卡片名称</label><input ref={cardsRef} id="personal-card-label" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如：备用重置卡" />
           <label htmlFor="personal-card-precision">截止类型</label><select id="personal-card-precision" value={precision} onChange={(event) => setPrecision(event.target.value as CardEntryPrecision)}>
             <option value="date">只知道日期</option><option value="datetime">知道具体时间</option><option value="unknown">尚不清楚</option>
           </select>
@@ -180,7 +195,7 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
         {!state.viewTimesConfirmed && <p className={styles.hint}>09:00、20:00 只是初始建议；确认常用时段后，提醒才会按查看时机安排。</p>}
         <div className={styles.fieldRow}>
           <label htmlFor="personal-week-budget">今天预计周额度用量（百分点，可选）</label>
-          <input id="personal-week-budget" type="number" min="0" step="0.1" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="不清楚可留空" />
+          <input ref={budgetRef} id="personal-week-budget" type="number" min="0" step="0.1" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="不清楚可留空" />
           <button type="button" onClick={saveBudget}>保存预算</button>
         </div>
         {state.effectiveWeeklyBudgetPercent == null && <p className={styles.hint}>未填预算时显示“正在学习”，不会代入固定日耗。</p>}

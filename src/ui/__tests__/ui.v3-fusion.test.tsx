@@ -20,7 +20,7 @@ describe('原设计与v3融合',()=>{
     expect(html).toContain('正在学习你的用量');expect(html.match(/自然补给/g)).toHaveLength(2);expect(html).not.toContain('今日达到最优');
   });
   it('平台卡片保持P0参考与账号未知分离，不变成本人回满概率',()=>{
-    const html=panel('risk');expect(html).toContain(styles.riskCard);expect(html).toContain('本人账号');expect(html).toContain('账号平台补给概率：—');expect(html).toContain('P0 · 参考概率');expect(html).toContain('尚未升级');
+    const html=panel('risk');expect(html).toContain(styles.riskCard);expect(html).toContain('本人账号');expect(html).toContain('账号平台补给概率：—');expect(html).toContain('P0 · 当前概率参考');expect(html).toContain('尚未升级');
   });
   it('无数据仍有刷新入口与缺失说明',()=>{const html=panel('overview',{vm:null});expect(html).toContain('缺失数据不会填成满额');expect(html).toContain('刷新额度');});
   it('用卡页保留工作量、偏好、台账和建议依据',()=>{const html=panel('planner');for(const text of ['今天大概忙不忙','今天你更在意什么','卡片台账','建议方案与计算依据'])expect(html).toContain(text);});
