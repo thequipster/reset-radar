@@ -1,0 +1,1146 @@
+From ee6931e94507d985e1a534bba691b17d8ca4eb78 Mon Sep 17 00:00:00 2001
+From: thequipster <256361972+thequipster@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 20:40:03 +0800
+Subject: [PATCH 1/3] fix: complete v3 demand scenarios and online calibration
+
+---
+ scripts/check-v3-audit-mutations.mjs  | 25 ++++++++
+ scripts/qa-v3-audit.mjs               | 29 +++++++++
+ src-tauri/src/lib.rs                  |  3 +-
+ src-tauri/src/platform_history.rs     | 76 ++++++++++++++++++++++
+ src/App.tsx                           | 22 ++++---
+ src/lib/__tests__/demand.v3.test.ts   | 16 ++++-
+ src/lib/__tests__/journal.v3.test.ts  |  4 ++
+ src/lib/__tests__/planning.v3.test.ts | 37 ++++++++++-
+ src/lib/__tests__/platform.v3.test.ts | 11 ++++
+ src/lib/__tests__/runtime.v3.test.ts  | 49 +++++++++++++++
+ src/lib/__tests__/supply.v3.test.ts   |  6 ++
+ src/lib/v3/demand.ts                  | 16 +++--
+ src/lib/v3/journal.ts                 |  5 +-
+ src/lib/v3/planning.ts                | 66 +++++++++++++++-----
+ src/lib/v3/platform.ts                |  7 ++-
+ src/lib/v3/runtime.ts                 | 90 +++++++++++++++++++++++++++
+ src/lib/v3/simulator.ts               |  3 +-
+ src/lib/v3/supply.ts                  | 15 +++--
+ src/ui/V3Dashboard.tsx                |  7 ++-
+ src/ui/__tests__/ui.v3-model.test.ts  | 20 ++++++
+ src/ui/useV3Journal.ts                | 63 ++++++++++++++++---
+ src/ui/v3Model.ts                     | 33 +++++++---
+ 22 files changed, 538 insertions(+), 65 deletions(-)
+ create mode 100644 scripts/check-v3-audit-mutations.mjs
+ create mode 100644 scripts/qa-v3-audit.mjs
+ create mode 100644 src-tauri/src/platform_history.rs
+ create mode 100644 src/lib/__tests__/runtime.v3.test.ts
+ create mode 100644 src/lib/v3/runtime.ts
+
+diff --git a/scripts/check-v3-audit-mutations.mjs b/scripts/check-v3-audit-mutations.mjs
+new file mode 100644
+index 0000000..e08598f
+--- /dev/null
++++ b/scripts/check-v3-audit-mutations.mjs
+@@ -0,0 +1,25 @@
++// RR48真实行为变异：只在本卡worktree运行，finally逐字恢复。
++import {readFileSync,writeFileSync} from 'node:fs';
++import {spawnSync} from 'node:child_process';
++import assert from 'node:assert/strict';
++assert(/reset-radar_wt[\\/]RR48$/i.test(process.cwd()),'RR48 worktree required');
++const cases=[
++ {file:'src/lib/v3/demand.ts',from:'start >= cutoffDay - 28 * DAY_MS',to:'start >= cutoffDay - 999 * DAY_MS',test:'src/lib/__tests__/demand.v3.test.ts',name:'旧日错误参与需求'},
++ {file:'src/lib/v3/planning.ts',from:"!empirical && input.dailyRange && (input.workload == null || input.workload === 'unknown')",to:'false && input.dailyRange',test:'src/lib/__tests__/planning.v3.test.ts',name:'未知需求只跑中值'},
++ {file:'src/lib/v3/platform.ts',from:"(r.record?.modelVersion ?? '').toLowerCase().includes('p0')",to:"(r.record?.modelVersion ?? '').includes('p0')",test:'src/lib/__tests__/platform.v3.test.ts',name:'在线P0版本无法匹配'},
++ {file:'src/lib/v3/runtime.ts',from:"r.windowEnd>now||!covered?'pending'",to:"r.windowEnd>now?'pending'",test:'src/lib/__tests__/runtime.v3.test.ts',name:'未知覆盖伪造负标签'},
++];
++let report='# RR48 变异验证\n\n';
++for(const c of cases){
++ const original=readFileSync(c.file,'utf8');assert(original.includes(c.from));let red;
++ try{
++  writeFileSync(c.file,original.replace(c.from,c.to));
++  red=spawnSync('pwsh',['-NoProfile','-Command',`npx vitest run ${c.test} --reporter=dot`],{encoding:'utf8'});
++  assert.notEqual(red.status,0);assert((red.stdout+red.stderr).includes('FAIL'));
++ }finally{writeFileSync(c.file,original);}
++ const green=spawnSync('pwsh',['-NoProfile','-Command',`npx vitest run ${c.test} --reporter=dot`],{encoding:'utf8'});
++ assert.equal(green.status,0);
++ report+=`## ${c.name}\n\n${c.from} → ${c.to}\n\nRED\n\n\`\`\`text\n${red.stdout}${red.stderr}\n\`\`\`\n\nRESTORED GREEN\n\n\`\`\`text\n${green.stdout}${green.stderr}\n\`\`\`\n\n`;
++ console.log(`${c.name}: RED -> restored GREEN`);
++}
++writeFileSync('task_logs/RR48_artifacts/mutations.md',report.replace(/\x1b\[[0-9;]*m/g,''));
+diff --git a/scripts/qa-v3-audit.mjs b/scripts/qa-v3-audit.mjs
+new file mode 100644
+index 0000000..445dd4f
+--- /dev/null
++++ b/scripts/qa-v3-audit.mjs
+@@ -0,0 +1,29 @@
++// RR48：原生新命令及数据页只读验收，不修改个人输入。
++import {mkdir,writeFile} from 'node:fs/promises';
++import assert from 'node:assert/strict';
++const pages=await(await fetch('http://127.0.0.1:9348/json/list')).json();
++const page=pages.find(p=>p.type==='page');assert(page);
++const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
++let id=0;const pending=new Map();ws.onmessage=({data})=>{const r=JSON.parse(String(data)),p=pending.get(r.id);if(!p)return;pending.delete(r.id);r.error?p.reject(new Error(JSON.stringify(r.error))):p.resolve(r.result);};
++function call(method,params={}){return new Promise((resolve,reject)=>{const n=++id,timer=setTimeout(()=>reject(new Error(`timeout ${method}`)),45000);pending.set(n,{resolve:r=>{clearTimeout(timer);resolve(r);},reject:e=>{clearTimeout(timer);reject(e);}});ws.send(JSON.stringify({id:n,method,params}));});}
++async function ev(expression){const r=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw new Error(JSON.stringify(r.exceptionDetails));return r.result.value;}
++const pause=ms=>new Promise(r=>setTimeout(r,ms));
++const base=page.url.split(/[?#]/)[0],report=[];
++try{
++ const history=await ev('window.__TAURI_INTERNALS__.invoke("fetch_platform_history")');
++ assert(Array.isArray(history.events));assert(history.events.length>0);assert.equal(history.upstream.pagination.has_more,false);assert.equal(history.upstream.pagination.next_cursor,null);
++ assert(Date.parse(history.coverageThrough)<=Date.parse(history.fetchedAt));
++ await writeFile('task_logs/RR48_artifacts/native-history.json',JSON.stringify(history,null,2)+'\n');
++ report.push(`完整分页原生命令成功：${history.events.length}公告，regular=${history.events.filter(e=>e.resetType==='regular').length}，pages=${history.upstream.pagination.pages_fetched}，覆盖截止和抓取完成分别保存`);
++ await mkdir('docs/screenshots',{recursive:true});
++ for(const theme of ['dark','light']){
++  await call('Page.navigate',{url:'about:blank'});await call('Page.navigate',{url:`${base}?theme=${theme}#expanded&tab=data&demo=healthy`});await pause(1800);
++  const text=await ev('document.body.innerText');assert(text.includes('正式 P0 Brier'));assert(text.includes('等待可评估样本'));assert(text.includes('最近账号状态变化'));
++  const bounds=await ev('(()=>{const p=document.querySelector("[role=tabpanel]");return {horizontal:p.scrollWidth>p.clientWidth,client:p.clientHeight,scroll:p.scrollHeight};})()');
++  assert.equal(bounds.horizontal,false);assert(bounds.client>0);
++  const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
++  await writeFile(`docs/screenshots/20261012-rr48-data-${theme}.png`,Buffer.from(shot.data,'base64'));
++  report.push(`${theme}原生数据页：无水平溢出，内容可滚动，零样本指标null显示，截图已保存`);
++ }
++ await writeFile('task_logs/RR48_artifacts/native-qa.txt',report.join('\n')+'\n');console.log(report.join('\n'));
++}finally{ws.close();}
+diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+index fc3a84a..8cf4aa4 100644
+--- a/src-tauri/src/lib.rs
++++ b/src-tauri/src/lib.rs
+@@ -7,6 +7,7 @@ mod codex;
+ mod models;
+ mod snapshots;
+ mod reset_status;
++mod platform_history;
+ mod predictions;
+ mod observations;
+ mod calibration_summary;
+@@ -130,7 +131,7 @@ pub fn run() {
+             Ok(())
+         })
+         .invoke_handler(tauri::generate_handler![
+-            get_snapshots, refresh_snapshots, read_observation_log, append_observation_log, read_prediction_log, append_prediction_log, read_calibration_summary,
++            get_snapshots, refresh_snapshots, platform_history::fetch_platform_history, read_observation_log, append_observation_log, read_prediction_log, append_prediction_log, read_calibration_summary,
+             shell::shell_geometry, shell::shell_set_bounds, shell::shell_set_visible, shell::shell_is_visible, shell::shell_quit
+         ])
+         .run(tauri::generate_context!())
+diff --git a/src-tauri/src/platform_history.rs b/src-tauri/src/platform_history.rs
+new file mode 100644
+index 0000000..b42db99
+--- /dev/null
++++ b/src-tauri/src/platform_history.rs
+@@ -0,0 +1,76 @@
++//! v3运行时完整公告历史。来源：TRUTH B07 / v3 §3.2，分页契约与fetch-history.mjs一致。
++use std::{collections::HashSet, time::Duration};
++use serde_json::{json, Value};
++use chrono::{SecondsFormat, Utc};
++
++fn page_cursor(page: &Value) -> Result<Option<String>, String> {
++    if !page.get("data").is_some_and(Value::is_array) || !page.get("meta").is_some_and(Value::is_object) {
++        return Err("history page missing data/meta".into());
++    }
++    let p = page.get("pagination").ok_or("history missing pagination")?;
++    match p.get("has_more").and_then(Value::as_bool) {
++        Some(false) if p.get("next_cursor").is_none_or(Value::is_null) => Ok(None),
++        Some(true) => p.get("next_cursor").and_then(Value::as_str).filter(|s| !s.is_empty())
++            .map(|s| Some(s.to_owned())).ok_or("history next cursor missing".into()),
++        _ => Err("ambiguous history pagination".into()),
++    }
++}
++
++#[tauri::command]
++pub async fn fetch_platform_history() -> Result<Value, String> {
++    // 4s单页上游超时沿用reset_status；总计30s和100页为有限资源保护，不是数据完整性事实。
++    tokio::time::timeout(Duration::from_secs(30), fetch_all()).await
++        .map_err(|_| "platform history total timeout".to_owned())?
++}
++
++async fn fetch_all() -> Result<Value, String> {
++    // 翻页期间可能新增头部公告；完成时刻不能当作已完整观察到的截止。
++    let coverage_through=Utc::now().to_rfc3339_opts(SecondsFormat::Millis,true);
++    let client=reqwest::Client::builder().timeout(Duration::from_secs(4)).build().map_err(|e|e.to_string())?;
++    let mut cursor:Option<String>=None;
++    let mut cursors=HashSet::new();
++    let mut ids=HashSet::new();
++    let mut events=Vec::new();
++    for index in 0..100 {
++        let mut request=client.get("https://codex-resets.com/api/v1/resets")
++            .query(&[("limit","100"),("order","desc")]);
++        if let Some(ref c)=cursor {request=request.query(&[("cursor",c)]);}
++        let page:Value=request.send().await.map_err(|e|e.to_string())?.error_for_status()
++            .map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?;
++        let next=page_cursor(&page)?;
++        for raw in page["data"].as_array().ok_or("history data invalid")? {
++            let id=match &raw["id"] {Value::String(s)=>s.clone(),Value::Number(n)=>n.to_string(),_=>return Err("history event lacks ID".into())};
++            let at=raw["announced_at"].as_str().ok_or("history event lacks announced_at")?;
++            chrono::DateTime::parse_from_rfc3339(at).map_err(|e|e.to_string())?;
++            let kind=raw["reset_type"].as_str().ok_or("history event lacks reset_type")?;
++            if ids.insert(id.clone()) {
++                events.push(json!({"id":id,"resetType":kind,"announcedAt":at,"text":raw["text"],
++                    "source":raw["source"],"relatedEventIds":raw["related_event_ids"].as_array().cloned().unwrap_or_default()}));
++            }
++        }
++        if let Some(next)=next {
++            if !cursors.insert(next.clone()) {return Err("history pagination cursor loop".into());}
++            cursor=Some(next);
++        } else {
++            return Ok(json!({"fetchedAt":Utc::now().to_rfc3339_opts(SecondsFormat::Millis,true),"coverageThrough":coverage_through,"events":events,
++                "upstream":{"pagination":{"has_more":false,"next_cursor":null,"pages_fetched":index+1}}}));
++        }
++    }
++    Err("history pagination exceeded 100 pages; incomplete history rejected".into())
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn complete_and_continuing_pages_are_distinct() {
++        assert_eq!(page_cursor(&json!({"data":[],"meta":{},"pagination":{"has_more":false,"next_cursor":null}})).unwrap(),None);
++        assert_eq!(page_cursor(&json!({"data":[],"meta":{},"pagination":{"has_more":true,"next_cursor":"next"}})).unwrap(),Some("next".into()));
++    }
++    #[test]
++    fn incomplete_or_contradictory_pages_fail_closed() {
++        for p in [json!({}),json!({"has_more":true}),json!({"has_more":false,"next_cursor":"next"})] {
++            assert!(page_cursor(&json!({"data":[],"meta":{},"pagination":p})).is_err());
++        }
++    }
++}
+diff --git a/src/App.tsx b/src/App.tsx
+index 3cd2e25..2efe687 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -17,7 +17,7 @@ import {
+   DOCK_SNAP_DISTANCE, clampVisiblePosition, dockedPosition, nearestDockEdge, poppedPosition, type DockEdge, type Rect,
+ } from "./ui/dockGeometry";
+ import { nextOrbMetric, type OrbMetric } from "./ui/orbMetric";
+-import { RESET_HISTORY_SOURCE } from "./ui/history";
++import { evaluatePlatformJournal } from './lib/v3/runtime';
+ import { useV3Journal } from "./ui/useV3Journal";
+ import { usePersonalInputs } from "./ui/usePersonalInputs";
+ import { useV3Planning } from "./ui/useV3Planning";
+@@ -395,38 +395,41 @@ export default function App() {
+     scenarioPhase != null ? [] : scenarioSnapshot != null ? [scenarioSnapshot] : snapshots;
+   const effectivePhase = scenarioPhase ?? phase;
+   const codex = effectiveSnapshots.find((item) => item.provider === "codex") ?? effectiveSnapshots[0] ?? null;
+-  const modelNow = useMemo(() => Date.now(), [clock, codex?.updatedAt]);
+-  const personal = usePersonalInputs(demo ? null : codex?.accountKey ?? null, codex?.resetCredits ?? null, modelNow);
+   const journal = useV3Journal(codex, live && !demo);
++  const modelNow = useMemo(() => Date.now(), [clock, codex?.updatedAt,journal.historyDocument]);
++  const personal = usePersonalInputs(demo ? null : codex?.accountKey ?? null, codex?.resetCredits ?? null, modelNow);
+   const baseVM = useMemo(
+     () =>
+       codex != null
+-        ? buildV3Dashboard(codex, RESET_HISTORY_SOURCE, modelNow, personal.state, journal.observations, journal.signalHistory,true)
++        ? buildV3Dashboard(codex, journal.historyDocument, modelNow, personal.state, journal.observations, journal.signalHistory,true,journal.accountSnapshots)
+         : null,
+-    [codex, modelNow, personal.state, journal.observations, journal.signalHistory],
++    [codex, modelNow, personal.state, journal.observations, journal.signalHistory,journal.historyDocument,journal.accountSnapshots],
+   );
+   const planningWorker=useV3Planning(baseVM?.planningInput??null);
+   const vm=useMemo(()=>baseVM?{...baseVM,planning:planningWorker.result,recommendation:planningWorker.result?.recommendation??baseVM.recommendation}:null,[baseVM,planningWorker.result]);
++  const calibrationV3=useMemo(()=>evaluatePlatformJournal(journal.predictionContent,journal.historyDocument,modelNow),[journal.predictionContent,journal.historyDocument,modelNow]);
+   const [journalWriteError,setJournalWriteError]=useState<string|null>(null);
+   useEffect(() => {
+     if(!live||demo||!vm||!codex||codex.status!=="ok")return;
+     let alive=true;
+-    const snapshotId=`${codex.accountKey??'unknown'}@${codex.updatedAt}`;
++    const snapshotId=`v3-${codex.accountKey??'unknown'}-${codex.rateLimitSnapshot?.observedAt??codex.updatedAt}`;
++    const historySnapshotId=`platform-history:${(journal.historyDocument as {fetchedAt?:string})?.fetchedAt??'unknown'}`;
+     const base={issuedAt:vm.now,windowStart:vm.now,windowEnd:vm.now+DAY_MS,trainingCutoff:vm.platformModel.cutoff,inputSnapshotId:snapshotId,
+-      cardLedgerVersion:vm.ledgerVersion,preferenceVersion:vm.preferenceVersion,assumptions:vm.recommendation.assumptions,evidenceQuality:vm.evidenceQuality};
+-    const prefix=`v3:${snapshotId}:${vm.now}:${vm.ledgerVersion}:${vm.preferenceVersion}`;
++      cardLedgerVersion:vm.ledgerVersion,preferenceVersion:vm.preferenceVersion,assumptions:vm.recommendation.assumptions,evidenceQuality:vm.evidenceQuality,platformHistorySnapshotId:historySnapshotId};
++    const prefix=`v3:${snapshotId}:${historySnapshotId}:${vm.now}:${vm.ledgerVersion}:${vm.preferenceVersion}`;
+     void(async()=>{
+       await journal.appendPrediction({...base,id:`${prefix}:platform`,target:'platform_notice',probability:vm.platform.probability24h,modelVersion:'platform-v3:P0',featureContributions:vm.platform.factors});
+       await journal.appendPrediction({...base,id:`${prefix}:platform-shadow`,target:'platform_notice',probability:vm.platform.shadow.probability24h,modelVersion:'platform-v3:P1-shadow',featureContributions:vm.platform.shadowFactors});
+       await journal.appendPrediction({...base,id:`${prefix}:account`,target:'account_external_reset',probability:vm.supply?.accountProbability24h??null,modelVersion:'account-v3:learning',featureContributions:[]});
+       await journal.appendPrediction({...base,id:`${prefix}:demand`,target:'demand',probability:null,modelVersion:'demand-v3:empirical',featureContributions:[vm.demand]});
++      if(vm.accountKey)await journal.appendAccountMapping(vm.accountKey,vm.mapping,vm.now);
+       if(vm.planning)await journal.appendPlanning({id:`${prefix}:planning`,predictionId:`${prefix}:platform`,seed:vm.planning.seed,
+         candidates:vm.planning.comparisons.map(c=>({id:c.id,firstAction:c.firstAction,Ltail:c.Ltail,Lmean:c.Lmean,Nspent:c.Nspent,Eexpire:c.Eexpire})),
+         selected:vm.planning.selected,alternatives:vm.planning.selected?.scenarios??[]});
+       if(alive)setJournalWriteError(null);
+     })().catch(e=>{if(alive)setJournalWriteError(String(e));});
+     return()=>{alive=false;};
+-  },[vm,codex,live,demo,journal.appendPrediction,journal.appendPlanning]);
++  },[vm,codex,live,demo,journal.appendPrediction,journal.appendPlanning,journal.appendAccountMapping,journal.historyDocument]);
+ 
+   return (
+     <main
+@@ -482,6 +485,7 @@ export default function App() {
+         <DashboardPanel
+           vm={vm}
+           controller={personal}
++          calibration={calibrationV3}
+           phase={effectivePhase}
+           readError={readError}
+           logError={journal.error ?? journalWriteError ?? planningWorker.error}
+diff --git a/src/lib/__tests__/demand.v3.test.ts b/src/lib/__tests__/demand.v3.test.ts
+index 7efc50b..ad25a76 100644
+--- a/src/lib/__tests__/demand.v3.test.ts
++++ b/src/lib/__tests__/demand.v3.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, it } from "vitest";
+-import { fitDemandModel, type DemandDay, type WorkloadChoice } from "../v3/demand";
++import { fitDemandModel, selectDemandDays, type DemandDay, type WorkloadChoice } from "../v3/demand";
+ 
+ const dateForIndex = (i: number) => new Date(Date.parse("2026-09-03T00:00:00Z") + (i - 1) * 86_400_000).toISOString().slice(0, 10);
+ const day = (i: number, patch: Partial<DemandDay> = {}): DemandDay => ({
+@@ -23,6 +23,20 @@ const day = (i: number, patch: Partial<DemandDay> = {}): DemandDay => ({
+ });
+ 
+ describe("v3 demand fit", () => {
++  it('同日改为不确定会清除旧忙闲标签，重复修改不增加标签样本数',()=>{
++    const days=Array.from({length:7},(_,i)=>day(i+1));
++    const choices:WorkloadChoice[]=days.map(d=>({dateKey:d.dateKey,workload:'busy'}));
++    choices.push({dateKey:days[0]!.dateKey,workload:'busy'},{dateKey:days[1]!.dateKey,workload:'unknown'});
++    const result=fitDemandModel(days,choices,Date.parse('2026-10-01T00:00:00Z'));
++    expect(result.choiceCount).toBe(6);expect(result.workloadGroups.busy.fallbackToAll).toBe(true);
++  });
++  it("规划样本与训练一致：短窗重置不抹去完整周耗，旧日和今日不参与", () => {
++    const cutoff = Date.parse("2026-10-01T00:00:00+08:00");
++    const days = [day(0), day(1, { crossedReset: true, shortCrossedReset: true }),
++      day(2, { weeklyComplete: false }), day(29), day(30)];
++    expect(selectDemandDays(days, cutoff).map(d => d.dateKey)).toEqual([dateForIndex(1)]);
++    expect(fitDemandModel(days, [], cutoff).sampleDays).toBe(1);
++  });
+   it("没有有效日时保持需求和短窗配对未知，不填固定日耗", () => {
+     const result = fitDemandModel([], [], Date.parse("2026-10-01T00:00:00Z"));
+     expect(result.sampleDays).toBe(0);
+diff --git a/src/lib/__tests__/journal.v3.test.ts b/src/lib/__tests__/journal.v3.test.ts
+index 09c41de..752fedd 100644
+--- a/src/lib/__tests__/journal.v3.test.ts
++++ b/src/lib/__tests__/journal.v3.test.ts
+@@ -8,6 +8,10 @@ const input = () => ({ id: "p-1", issuedAt: 100, target: "platform_notice" as co
+   evidenceQuality: ["observed"], });
+ 
+ describe("v3 frozen prediction journal", () => {
++  it('a different watch identity starts a new episode without requiring a null refresh',()=>{
++    const old=nextSignalVersion(null,{id:'watch-a'},'2026-10-12T01:00:00Z')!;
++    expect(nextSignalVersion(old,{id:'watch-b'},'2026-10-12T02:00:00Z')).toMatchObject({change:'first_seen',firstSeenAt:'2026-10-12T02:00:00Z'});
++  });
+   it("freezes all target, version and cutoff inputs needed to reproduce a forecast", () => {
+     const source = input();
+     const row = freezePrediction(source);
+diff --git a/src/lib/__tests__/planning.v3.test.ts b/src/lib/__tests__/planning.v3.test.ts
+index ad3c8e7..1b146b8 100644
+--- a/src/lib/__tests__/planning.v3.test.ts
++++ b/src/lib/__tests__/planning.v3.test.ts
+@@ -1,8 +1,8 @@
+ import { describe, expect, it } from 'vitest';
+ import { DAY_MS, HOUR_MS } from '../beijing';
+-import { simulatePolicy, type AccountState, type DemandBlock, type Mechanisms, type WorldPath } from '../v3/simulator';
++import { simulatePolicy, NEVER_USE, type AccountState, type DemandBlock, type Mechanisms, type WorldPath } from '../v3/simulator';
+ import type { ResetCard } from '../v3/cards';
+-import { allocateDailyBudget, comparePolicies, type PolicyComparison } from '../v3/planning';
++import { allocateDailyBudget, comparePolicies, planActions, scenarioActionSensitivity, type ScenarioMetric, type PlanningInput, type PolicyComparison } from '../v3/planning';
+ 
+ const fixed: Mechanisms = { shortAfterCard: 'keep_deadline', weeklyContinuation: 'fixed_duration', shortContinuation: 'fixed_duration' };
+ const account = (patch: Partial<AccountState> = {}): AccountState => ({ observedAt: 0,
+@@ -18,6 +18,39 @@ const world = (demand: DemandBlock[], end: number, reviews: number[] = [0]): Wor
+   ({ start: 0, end, demand, platform: [], reviews });
+ 
+ describe('v3 planning/simulator behavioral acceptance', () => {
++  it('uniform work first becomes insufficient when the remaining resource actually runs out',()=>{
++    const result=simulatePolicy(account({weekly:{remaining:20,resetsAt:DAY_MS,durationMins:10080}}),[],NEVER_USE,
++      world([block(0,10*HOUR_MS,40)],10*HOUR_MS),fixed,forecast);
++    expect(result.firstInsufficientAt).toBe(5*HOUR_MS);
++  });
++  it('surface scenario action reversals even when a robust aggregate still selects one action',()=>{
++    const metric=(id:string,loss:number,spent:number):ScenarioMetric=>({id,lossMean:loss,lossTail:loss,spent,expired:0,missedSafeDeadline:0,consumedWeekly:0,deltaLoss:0,deltaConsumedWeekly:0,deltaCardsExpired:0,firstActionAt:spent?0:null,shortWindowEvaluated:false,shortageFraction:Number(loss>0),estimateError:0});
++    const candidate=(firstAction:string|null,losses:number[]):PolicyComparison=>({id:firstAction??'wait',firstAction,parameters:{quantile:.5,horizonHours:24,expiryLeadHours:0,useForShort:false},dominated:false,Ltail:Math.max(...losses),Lmean:Math.max(...losses),Eexpire:0,Nspent:firstAction?1:0,
++      scenarios:losses.map((loss,i)=>metric(`mechanism-${i}`,loss,firstAction?1:0))});
++    const candidates=[candidate(null,[0,2]),candidate('c1',[1,0])];
++    expect(comparePolicies(candidates,'service')!.firstAction).toBe('c1');
++    expect(scenarioActionSensitivity(candidates,'service')).toBe(true);
++    expect(scenarioActionSensitivity([candidate(null,[0,0]),candidate('c1',[1,1])],'service')).toBe(false);
++  });
++  const planningInput = (patch: Partial<PlanningInput> = {}): PlanningInput => ({now: 0, account: account(), cards: [], reviews: [0],
++    preference: 'service', dailyRange: {low: 5, median: 10, high: 20, p95: 30}, sampleDays: 3,
++    supplyScenarios: [], inputSnapshotId: 'demand-regression', workload: 'unknown', ...patch});
++  it('未知工作量的初步范围分别评估低中高，不能只使用中值', () => {
++    const result = planActions(planningInput());
++    const metrics = result.selected!.scenarios.filter(s => s.id.includes('mechanism-0'));
++    expect(metrics).toHaveLength(3);
++    expect(new Set(metrics.map(s => s.consumedWeekly)).size).toBe(3);
++    expect(metrics.map(s => s.id)).toEqual(expect.arrayContaining([
++      expect.stringContaining('demand-low'), expect.stringContaining('demand-median'), expect.stringContaining('demand-high')]));
++  });
++  it('已有经验分布也保留手填0.5/1/2压力分组，不能混入同一概率样本', () => {
++    const result = planActions(planningInput({sampleDays: 7, dailySamples: [5, 6, 7, 8, 9, 10, 11], todayBudget: 30}));
++    const metrics = result.selected!.scenarios.filter(s => s.id.includes('mechanism-0'));
++    expect(metrics).toHaveLength(3);
++    expect(metrics.map(s => s.id)).toEqual(expect.arrayContaining([
++      expect.stringContaining('pressure-0'), expect.stringContaining('pressure-1'), expect.stringContaining('pressure-2')]));
++    expect(new Set(metrics.map(s => s.consumedWeekly)).size).toBe(3);
++  });
+   it('D23 does not keep an expiring candidate alive across a natural deadline', () => {
+     const expiry = DAY_MS;
+     const w = world([block(0, DAY_MS, 20), block(DAY_MS, 2 * DAY_MS, 80)], 2 * DAY_MS, [0, expiry]);
+diff --git a/src/lib/__tests__/platform.v3.test.ts b/src/lib/__tests__/platform.v3.test.ts
+index c11cfc5..efa159b 100644
+--- a/src/lib/__tests__/platform.v3.test.ts
++++ b/src/lib/__tests__/platform.v3.test.ts
+@@ -3,6 +3,17 @@ import { DAY_MS, backtestPlatform, bootstrapWeeklyBrierImprovement, fitPlatformM
+ 
+ const t = (days: number) => days * DAY_MS;
+ describe('platform v3', () => {
++  it('a later revision cannot become available earlier just because the event ID was already known',()=>{
++    const model=fitPlatformModel({events:[{id:'a',resetType:'regular',announcedAt:DAY_MS,firstSeenAt:DAY_MS,versionSeenAt:4*DAY_MS}],coverage:[],trainingCutoff:3*DAY_MS});
++    expect(model.eventCount).toBe(0);
++  });
++  it('scores the exact uppercase version names emitted by the live v3 journal', () => {
++    const summary=summarizeOnlinePlatformScores(['P0','P1-shadow'].map((version,i)=>({group:'primary_daily',groupDate:'2026-10-12',
++      outcome:'positive' as const,record:{target:'platform_notice',issuedAt:101,trainingCutoff:100,probability:i===0?.2:.3,modelVersion:`platform-v3:${version}`}})));
++    expect(summary.matchedCount).toBe(1);
++    expect(summary.brierP0).toBeCloseTo(.64);
++    expect(summary.brierP1).toBeCloseTo(.49);
++  });
+   it('counts every regular including text, deduplicates IDs, and excludes banked records', () => {
+     const events = Array.from({ length: 54 }, (_, i) => ({ id: `r${i}`, resetType: 'regular', announcedAt: t(i), text: 'official notice', source: 'official' }));
+     events.push({ ...events[10], text: 'revised' }, { id: 'b', resetType: 'banked', announcedAt: t(70), text: 'banked', source: 'official' });
+diff --git a/src/lib/__tests__/runtime.v3.test.ts b/src/lib/__tests__/runtime.v3.test.ts
+new file mode 100644
+index 0000000..ede8e29
+--- /dev/null
++++ b/src/lib/__tests__/runtime.v3.test.ts
+@@ -0,0 +1,49 @@
++import {describe,expect,it} from 'vitest';
++import {archivePlatformHistory,evaluatePlatformJournal} from '../v3/runtime';
++import {DAY_MS} from '../beijing';
++const start=Date.parse('2026-10-12T09:00:00+08:00');
++const history=(complete=true)=>({fetchedAt:new Date(start+2*DAY_MS).toISOString(),events:[
++  {id:'old',resetType:'regular',announcedAt:new Date(start-DAY_MS).toISOString()},
++  {id:'new',resetType:'regular',announcedAt:new Date(start+DAY_MS).toISOString()}],
++  upstream:{pagination:{has_more:!complete,next_cursor:complete?null:'next'}}});
++const journal=(group='primary_daily')=>['P0','P1-shadow'].map((version,i)=>JSON.stringify({kind:'prediction',group,groupDate:'2026-10-12',
++  record:{id:version,issuedAt:start,trainingCutoff:start,windowStart:start,windowEnd:start+DAY_MS,target:'platform_notice',modelVersion:`platform-v3:${version}`,probability:i?.3:.2}})).join('\n');
++describe('v3 runtime archival and calibration',()=>{
++  it('finishing pagination after a window ends does not backfill unobserved tail coverage',()=>{
++    const doc={...history(),coverageThrough:new Date(start+DAY_MS-1).toISOString()};
++    const result=evaluatePlatformJournal(journal(),doc,start+2*DAY_MS);
++    expect(result.pending).toBe(1);expect(result.matchedCount).toBe(0);
++  });
++  it('scores frozen live P0/P1 using later complete coverage and (start,end] notice boundaries',()=>{
++    const content=journal(),result=evaluatePlatformJournal(content,history(),start+2*DAY_MS);
++    expect(result.matchedCount).toBe(1);expect(result.positiveCount).toBe(1);
++    expect(result.brierP0).toBeCloseTo(.64);expect(result.improvement).toBeCloseTo(.15);
++    expect(content).toBe(journal());expect(result.upgradeEvidenceReady).toBe(false);
++  });
++  it('never scores a negative from partial pagination or an unfinished forecast window',()=>{
++    for(const [doc,now] of [[history(false),start+2*DAY_MS],[history(),start+DAY_MS/2]] as const){
++      const result=evaluatePlatformJournal(journal(),doc,now);
++      expect(result.matchedCount).toBe(0);expect(result.brierP0).toBeNull();expect(result.pending).toBe(1);
++    }
++  });
++  it('temporary and old-version rows do not inflate primary daily score',()=>{
++    const result=evaluatePlatformJournal(journal('temporary')+'\n'+JSON.stringify({kind:'prediction',record:{target:'platform_notice',modelVersion:'risk-v2'}}),history(),start+2*DAY_MS);
++    expect(result.temporaryRows).toBe(2);expect(result.matchedCount).toBe(0);
++  });
++  it('appending a user-card operation never censors platform predictions',()=>{
++    const result=evaluatePlatformJournal(journal()+'\n'+JSON.stringify({kind:'card_use',at:start+100}),history(),start+2*DAY_MS);
++    expect(result.matchedCount).toBe(1);expect(result.censored).toBe(0);
++  });
++  it('archives firstSeen and revisions without inventing historical availability or mutating old snapshots',()=>{
++    const old=history();old.events=old.events.slice(0,1);
++    const doc=archivePlatformHistory(history(),old);
++    expect(doc.events[0]!.firstSeenAt).toBeNull();expect(doc.events[1]!.firstSeenAt).toBe(doc.fetchedAt);
++    const revised={...doc,events:doc.events.map(e=>({...e,text:'revision'})),fetchedAt:new Date(start+3*DAY_MS).toISOString()};
++    expect(archivePlatformHistory(revised,doc).events[1]!.firstSeenAt).toBe(doc.fetchedAt);
++    const changedTime={...revised,events:revised.events.map(e=>({...e,announcedAt:new Date(start+DAY_MS/2).toISOString()}))};
++    const archived=archivePlatformHistory(changedTime,doc);
++    expect(archived.events[1]!.firstSeenAt).toBe(doc.fetchedAt);
++    expect(archived.events[1]!.versionSeenAt).toBe(revised.fetchedAt);
++    expect(old.events).toHaveLength(1);expect(()=>archivePlatformHistory(history(false),old)).toThrow(/分页/);
++  });
++});
+diff --git a/src/lib/__tests__/supply.v3.test.ts b/src/lib/__tests__/supply.v3.test.ts
+index e8fc587..57431bd 100644
+--- a/src/lib/__tests__/supply.v3.test.ts
++++ b/src/lib/__tests__/supply.v3.test.ts
+@@ -6,6 +6,12 @@ const state = { observedAt: 0, weekly: { remaining: 50, resetsAt: 10 * DAY_MS, d
+ const forecast = { target: 'platform_notice' as const, probability24h: 0.12, probabilities: [], model: 'constant_rate' as const, shadow: { model: 'age_piecewise' as const, probability24h: 0.2, probabilities: [] }, globalRatePerDay: 0.13, ageDays: 4, factors: [], shadowFactors: [], training: { eventCount: 54, completedGapCount: 53, exposureDays: 100 }, status: 'reference' as const };
+ 
+ describe('supply scenarios v3', () => {
++  it('keeps all explicitly linked announcement versions under one schedule incident',()=>{
++    const incidents=normalizeSupplyIncidents({scheduleSnapshots:[{id:'s',relatedEventIds:['r1','r2']}],
++      platformEvents:[{id:'r1',resetType:'regular',announcedAt:100},{id:'r2',resetType:'regular',announcedAt:200},{id:'other',resetType:'regular',announcedAt:200}]});
++    expect(incidents.map(i=>i.id).sort()).toEqual(['other','s']);
++    expect(incidents.find(i=>i.id==='s')!.versionHistory).toHaveLength(3);
++  });
+   it('retains schedule versions, cancellation and first-seen time without inventing schedule certainty', () => {
+     const incidents = normalizeSupplyIncidents({ scheduleSnapshots: [
+       { id: 's1', version: 1, firstSeenAt: 100, scheduledFor: 1000, status: 'scheduled' },
+diff --git a/src/lib/v3/demand.ts b/src/lib/v3/demand.ts
+index 601308c..1689760 100644
+--- a/src/lib/v3/demand.ts
++++ b/src/lib/v3/demand.ts
+@@ -67,15 +67,20 @@ function emptyScenario(): WorkloadScenario {
+   return { value: null, low: null, high: null, source: "learning" };
+ }
+ 
++/** 训练和行动规划共用同一组完整周需求日；短窗证据另行筛选。 */
++export function selectDemandDays(observations: readonly DemandDay[], cutoff: number): DemandDay[] {
++  const cutoffDay = beijingDayFloor(cutoff);
++  return observations.filter(day => isValidDay(day, cutoffDay))
++    .sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-28);
++}
++
+ export function fitDemandModel(
+   observations: readonly DemandDay[],
+   choices: readonly WorkloadChoice[],
+   cutoff: number,
+   config: { weeklyBudget?: number } = {},
+ ): DemandModel {
+-  const cutoffDay = beijingDayFloor(cutoff);
+-  const eligible = observations.filter((day) => isValidDay(day, cutoffDay))
+-    .sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-28);
++  const eligible = selectDemandDays(observations, cutoff);
+   const eligibleDates = new Set(eligible.map((day) => day.dateKey));
+   const weeklyValues = eligible.map((day) => day.weeklyCost as number);
+   const weekly = weeklyValues.length > 0 ? distribution(weeklyValues) : null;
+@@ -84,8 +89,7 @@ export function fitDemandModel(
+     !day.shortCrossedReset && !day.shortEstimated)
+     .map((day) => day.shortCost as number);
+   const shortWindowPaired = shortValues.length >= 7 ? distribution(shortValues) : null;
+-  const choiceByDate = new Map(choices.filter((choice) => choice.workload !== "unknown")
+-    .map((choice) => [choice.dateKey, choice.workload]));
++  const choiceByDate = new Map(choices.map((choice) => [choice.dateKey, choice.workload]));
+   const workloadGroups = {} as DemandModel["workloadGroups"];
+   const workload = {} as DemandModel["workload"];
+ 
+@@ -120,7 +124,7 @@ export function fitDemandModel(
+   return {
+     status: eligible.length >= 7 ? "estimated" : eligible.length > 0 ? "preliminary" : "learning",
+     sampleDays: eligible.length,
+-    choiceCount: choices.filter((choice) => choice.workload !== "unknown" && eligibleDates.has(choice.dateKey)).length,
++    choiceCount: [...choiceByDate].filter(([date,choice])=>choice!=='unknown'&&eligibleDates.has(date)).length,
+     weekly, shortWindowPaired, workload, workloadGroups, budgetScenarios,
+     thresholds: { preliminary: 7, established: 14, rollingDays: 28, workloadGroup: 7 },
+   };
+diff --git a/src/lib/v3/journal.ts b/src/lib/v3/journal.ts
+index c48a0c6..eb85dee 100644
+--- a/src/lib/v3/journal.ts
++++ b/src/lib/v3/journal.ts
+@@ -10,6 +10,7 @@ export interface PredictionRecordV3 {
+   modelVersion: string;
+   trainingCutoff: number;
+   inputSnapshotId: string;
++  platformHistorySnapshotId?: string;
+   cardLedgerVersion: string;
+   preferenceVersion: string;
+   featureContributions: unknown[];
+@@ -43,7 +44,9 @@ export function nextSignalVersion<T>(
+ ): SignalVersion<T> | null {
+   if (previous && JSON.stringify(previous.value) === JSON.stringify(value)) return null;
+   if (!previous && value == null) return null;
+-  const newEpisode = previous == null || previous.value == null;
++  const identity=(v:T|null):unknown=>v&&typeof v==='object'?'id' in v?v.id:null:null;
++  const newEpisode = previous == null || previous.value == null ||
++    (value!=null&&identity(value)!=null&&identity(previous.value)!=null&&identity(value)!==identity(previous.value));
+   return {
+     observedAt,
+     firstSeenAt: newEpisode ? observedAt : previous.firstSeenAt,
+diff --git a/src/lib/v3/planning.ts b/src/lib/v3/planning.ts
+index 66cd34a..73c1e94 100644
+--- a/src/lib/v3/planning.ts
++++ b/src/lib/v3/planning.ts
+@@ -21,6 +21,7 @@ export interface PolicyComparison { id: string; firstAction: string | null; para
+ export interface PlanningInput {
+   now: number; account: AccountState; cards: readonly ResetCard[]; reviews: readonly number[];
+   preference: Preference; dailyRange: { low: number; median: number; high: number; p95: number } | null;
++  todayRange?: {low:number;median:number;high:number;p95:number}|null;
+   dailySamples?: readonly number[]; todayBudget?: number | null; workload?: 'light' | 'normal' | 'busy' | 'unknown';
+   sampleDays: number; supplyScenarios: readonly SupplyScenario[]; platformModel?: PlatformModel | null;
+   inputSnapshotId: string; inventoryConflict?: boolean;
+@@ -28,7 +29,7 @@ export interface PlanningInput {
+   explicitDemand?: readonly DemandBlock[];
+ }
+ export interface PlanningOutput { recommendation: Recommendation; comparisons: PolicyComparison[]; horizons: { days: number; firstAction: string | null }[]; seed: number; modelVersion: string; assumptions: string[]; selected: PolicyComparison | null; alternative?: PolicyComparison|null }
+-export const MODEL_VERSION = 'decision-v3.1';
++export const MODEL_VERSION = 'decision-v3.2';
+ export function seedFromSnapshot(id: string): number {
+   let n = 2166136261; for (const c of `${id}:${MODEL_VERSION}`) n = Math.imul(n ^ c.charCodeAt(0), 16777619); return n >>> 0;
+ }
+@@ -97,14 +98,42 @@ export function comparePolicies(candidates: readonly PolicyComparison[], prefere
+   return [...best].sort((a,b) => { const ka=keys(a), kb=keys(b); for(let i=0;i<ka.length;i++){if(ka[i]!==kb[i])return ka[i]!<kb[i]!?-1:1;} return (a.firstCardDeadline??Infinity)-(b.firstCardDeadline??Infinity)||a.id.localeCompare(b.id); })[0]!;
+ }
+ 
++/** 无经验权重的机制不能被最差值汇总隐藏：分别重选首个动作并报告反转。 */
++export function scenarioActionSensitivity(candidates:readonly PolicyComparison[],preference:Preference):boolean {
++  const ids=[...new Set(candidates.flatMap(c=>c.scenarios.map(s=>s.id)))];
++  const actions=new Set<string|null>();
++  for(const id of ids){
++    const scoped=candidates.flatMap(c=>{
++      const s=c.scenarios.find(s=>s.id===id);
++      return s?[{...c,scenarios:[s],Ltail:s.lossTail,Lmean:s.lossMean,Eexpire:s.expired,Nspent:s.spent}]:[];
++    });
++    const selected=comparePolicies(scoped,preference);
++    if(selected)actions.add(selected.firstAction);
++  }
++  return actions.size>1;
++}
++
+ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { selected: PolicyComparison | null; comparisons: PolicyComparison[] } {
+-  const end = input.now + days * DAY_MS, rng = random(seed);
++  const end = input.now + days * DAY_MS;
+   const empirical = (input.dailySamples?.length ?? 0) >= 7;
+-  const count = empirical ? 256 : input.todayBudget != null ? 3 : 1;
+-  const samples = Array.from({ length: count }, (_, path) => {
+-    const costs = Array.from({ length: days + 1 }, () => empirical ? input.dailySamples![Math.floor(rng()*input.dailySamples!.length)]! : input.dailyRange?.median ?? input.todayBudget ?? 0);
+-    const multiplier = empirical ? 1 : [0.5, 1, 2][path] ?? 1;
+-    return makeBlocks(input, end, index => index === 0 && input.todayBudget != null ? input.todayBudget * multiplier : index === 0 && input.workload === 'light' ? input.dailyRange!.low : index === 0 && input.workload === 'busy' ? input.dailyRange!.high : costs[index]!);
++  // 手填倍率是无权重压力，未来经验抽样在每个压力组内独立计分，不能混成概率。
++  // 未建立经验分布且忙闲未知时，保留低/中/高全路径，避免中值掩盖较忙缺口。
++  const demandCases = input.todayBudget != null
++    ? [0.5, 1, 2].map((multiplier, i) => ({id:`pressure-${i}`,multiplier,daily:input.dailyRange?.median??0}))
++    : !empirical && input.dailyRange && (input.workload == null || input.workload === 'unknown')
++      ? [{id:'demand-low',multiplier:1,daily:input.dailyRange.low}, {id:'demand-median',multiplier:1,daily:input.dailyRange.median}, {id:'demand-high',multiplier:1,daily:input.dailyRange.high}]
++      : [{id:'demand-reference',multiplier:1,daily:input.dailyRange?.median??0}];
++  const sampleGroups = demandCases.map(demandCase => {
++    const rng = random(seed); // 各压力组共享同一未来需求抽样，差别仅为指定压力。
++    const samples = Array.from({length:empirical?256:1}, () => {
++      const costs = Array.from({length:days+1}, () => empirical ? input.dailySamples![Math.floor(rng()*input.dailySamples!.length)]! : demandCase.daily);
++      const todayRange=input.todayRange??input.dailyRange;
++      return makeBlocks(input,end,index => index === 0 && input.todayBudget != null ? input.todayBudget*demandCase.multiplier
++        : index === 0 && input.workload === 'light' && todayRange ? todayRange.low
++        : index === 0 && input.workload === 'busy' && todayRange ? todayRange.high
++        : index === 0 && input.workload === 'normal' && input.todayRange ? input.todayRange.median : costs[index]!);
++    });
++    return {id:demandCase.id,samples};
+   });
+   // 额外平台过程属于独立敏感性机制，所有策略复用相同seed/path；不等价本账号概率。
+   const background = input.platformModel ? generateRenewalPaths(input.platformModel,{now:input.now,horizonMs:days*DAY_MS,count:256,seed}) : [];
+@@ -117,11 +146,10 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
+   ];
+   // 无权重手填压力各自单列，不能平均成概率；有概率的背景过程始终256条共享路径。
+   const worlds = scenarios.flatMap(sc => mechanisms.flatMap((mechanism, mi) => {
+-    const groups=empirical?[samples]:samples.map(sample=>[sample]);
+-    return groups.map((group,gi)=>{
++    return sampleGroups.map(({samples:group,id})=>{
+       const probabilistic=empirical||sc.source==='platform_background'&&input.platformModel?.lambda0!=null;
+       const grouped=probabilistic&&!empirical?Array.from({length:256},()=>group[0]!):group;
+-      return {id:`${sc.id}:mechanism-${mi}${empirical?'':`:pressure-${gi}`}`,mechanism,probabilistic,
++      return {id:`${sc.id}:mechanism-${mi}:${id}`,mechanism,probabilistic,
+         paths:grouped.map((demand,path)=>({start:input.now,end,demand,reviews:input.reviews,platform:[...scenarioEvents(sc,input.now,end),...(sc.source==='platform_background'?(background[path]??[]).map((at,i)=>({at,incidentId:`background-${path}-${i}`,weekly:true,short:false,reanchorWeekly:false})):[])]}as WorldPath))};
+     });
+   }));
+@@ -135,7 +163,11 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
+       const horizonMs = parameters.horizonHours===0 ? nextReviewDelay(input.reviews,input.now) : parameters.horizonHours*HOUR_MS;
+       const daily = input.dailyRange ? parameters.quantile===0.5?input.dailyRange.median:parameters.quantile===0.8?input.dailyRange.high:input.dailyRange.p95 : input.todayBudget ?? 0;
+       const forecastAt=(at:number,state:Readonly<VisibleState>):DemandForecast=>{
+-        const blocks=makeBlocks({...input,now:at,todayBudget:beijingDayFloor(at)===beijingDayFloor(input.now)?input.todayBudget:null},Math.min(end,at+horizonMs),()=>daily);
++        const today = beijingDayFloor(at)===beijingDayFloor(input.now);
++        const todayRange=input.todayRange??input.dailyRange;
++        const todayDaily=todayRange?parameters.quantile===0.5?todayRange.median:parameters.quantile===0.8?todayRange.high:todayRange.p95:daily;
++        const blocks=makeBlocks({...input,now:at,todayBudget:today?input.todayBudget:null},Math.min(end,at+horizonMs),index=>
++          index===0&&today?input.todayBudget??todayDaily:daily);
+         return {weeklyCost:blocks.reduce((s,b)=>s+b.weeklyCost,0),shortCost:blocks.every(b=>b.shortCost!=null)?blocks.reduce((s,b)=>s+(b.shortCost??0),0):null,nextKnownSupplyAt:state.weekly.resetsAt,blocks};
+       };
+       const results=w.paths.map(path=>simulatePolicy(input.account,input.cards,makePolicy(parameters,firstAction,input.now,w.mechanism),path,w.mechanism,forecastAt));
+@@ -178,17 +210,19 @@ export function planActions(input: PlanningInput): PlanningOutput {
+   const chosenCard=input.cards.find(c=>c.localId===selected?.firstAction);
+   const positive=selected!=null&&selected.scenarios.every(s=>s.deltaLoss>0||s.deltaLoss>=0&&s.deltaConsumedWeekly>0);
+   const reverses=selected?.scenarios.some(s=>s.deltaLoss<0)??false;
+-  const uncertain=input.inventoryConflict||input.sampleDays<7||input.dailyRange==null||changes||reverses;
++  const mechanismReversal=scenarioActionSensitivity(result.comparisons,input.preference);
++  const uncertain=input.inventoryConflict||input.sampleDays<7||input.dailyRange==null||changes||reverses||mechanismReversal;
+   const firstAction=selected?.firstAction??null;
+-  const makeBudget=(daily:number)=>allocateDailyBudget(input.account,makeBlocks(input,input.account.weekly.resetsAt,()=>daily),input.now)?.today??null;
+-  const low=makeBudget(input.dailyRange?.low??input.todayBudget! * 0.5),high=makeBudget(input.dailyRange?.high??input.todayBudget! * 2);
++  const budgetForToday=(daily:number)=>allocateDailyBudget(input.account,makeBlocks(input,input.account.weekly.resetsAt,index=>index===0?daily:input.dailyRange?.median??daily),input.now)?.today??null;
++  const todayRange=input.todayRange??input.dailyRange;
++  const low=budgetForToday(input.todayBudget!=null?input.todayBudget*0.5:todayRange?.low??0),high=budgetForToday(input.todayBudget!=null?input.todayBudget*2:todayRange?.high??0);
+   const recommendation:Recommendation={...basic,status:!selected?'not_applicable':firstAction&&positive&&!uncertain?'act_now':uncertain?'conditional':'wait',
+     action:firstAction?'use_card':'keep_card',cardId:firstAction,
+     lastSafeActionAt:chosenCard?.safeDeadlineAt==null?null:chosenCard.safeDeadlineAt-30*60_000,
+     weeklyBudgetToday:low==null||high==null?null:{low,high},shortWindowEvaluated:selected?.scenarios.every(s=>s.shortWindowEvaluated)??false,
+     reasons:!selected?['没有可执行的用卡方案。']:firstAction?['该用卡方案与先等待、永远不用卡共同比较；收益以实际满足需求计算。']:['当前先不用卡；后续仍在查看时段重新决定。'],
+-    assumptions:[...assumptions,...(hadReversal?['较短视野曾改变首个动作，已延长至42天复算。']:[]),...(input.dailyRange==null?['仅评估手填今天工作量0.5/1/2倍压力，未来需求未知，不作长期强建议。']:[])],
+-    counterfactuals:result.comparisons,sensitivity:changes||reverses?'changes_with_assumptions':uncertain?'unknown':'stable'};
++    assumptions:[...assumptions,...(mechanismReversal?['不同机制或需求压力下首个动作反转；当前仅给条件建议，到账或需求确认后再决定。']:[]),...(hadReversal?['较短视野曾改变首个动作，已延长至42天复算。']:[]),...(input.dailyRange==null?['仅评估手填今天工作量0.5/1/2倍压力，未来需求未知，不作长期强建议。']:[])],
++    counterfactuals:result.comparisons,sensitivity:changes||reverses||mechanismReversal?'changes_with_assumptions':uncertain?'unknown':'stable'};
+   const alternative=comparePolicies(result.comparisons.filter(c=>c.firstAction!==firstAction),input.preference);
+   return {recommendation,comparisons:result.comparisons,horizons,seed,modelVersion:MODEL_VERSION,assumptions,selected,alternative};
+ }
+diff --git a/src/lib/v3/platform.ts b/src/lib/v3/platform.ts
+index e4337dc..9be19f4 100644
+--- a/src/lib/v3/platform.ts
++++ b/src/lib/v3/platform.ts
+@@ -42,7 +42,8 @@ function normalizeEvents(inputs: readonly RegularEventInput[], cutoff: number):
+     if (raw.resetType !== 'regular') continue;
+     const at = asTime(raw.announcedAt);
+     const seen = asTime(raw.firstSeenAt);
+-    if (at === null || at > cutoff || (seen !== null && seen > cutoff)) continue;
++    const versionSeen=asTime(raw.versionSeenAt);
++    if (at === null || at > cutoff || (seen !== null && seen > cutoff) || (versionSeen!==null&&versionSeen>cutoff)) continue;
+     const id = raw.id == null ? `anonymous:${at}:${anonymous++}` : String(raw.id);
+     const source = raw.source ?? raw.sourceType;
+     const event = { id, announcedAt: at, firstSeenAt: seen, source,
+@@ -190,8 +191,8 @@ export function summarizeOnlinePlatformScores(rows: readonly OnlinePlatformScore
+   const matched: { label: 0 | 1; p0: number; p1: number }[] = [];
+   let pending = 0, censored = 0, unknown = 0, missingPair = 0;
+   for (const group of groups.values()) {
+-    const p0row = group.find(r => r.p0 != null || r.probabilityP0 != null || (r.record?.modelVersion ?? '').includes('p0'));
+-    const p1row = group.find(r => r.p1 != null || r.probabilityP1 != null || (r.record?.modelVersion ?? '').includes('p1'));
++    const p0row = group.find(r => r.p0 != null || r.probabilityP0 != null || (r.record?.modelVersion ?? '').toLowerCase().includes('p0'));
++    const p1row = group.find(r => r.p1 != null || r.probabilityP1 != null || (r.record?.modelVersion ?? '').toLowerCase().includes('p1'));
+     const p0 = p0row?.p0 ?? p0row?.probabilityP0 ?? p0row?.probability ?? p0row?.record?.probability;
+     const p1 = p1row?.p1 ?? p1row?.probabilityP1 ?? (p0row === p1row ? null : p1row?.probability ?? p1row?.record?.probability) ?? group.find(r => r.probabilityP1 != null)?.probabilityP1;
+     const outcome = group.map(r => r.outcome ?? r.label).find(x => x != null) ?? null;
+diff --git a/src/lib/v3/runtime.ts b/src/lib/v3/runtime.ts
+new file mode 100644
+index 0000000..0a523aa
+--- /dev/null
++++ b/src/lib/v3/runtime.ts
+@@ -0,0 +1,90 @@
++// v3在线历史及标签：只消费完整分页证据；不以latest_reset推断期间没有其他公告。
++import {beijingDayStart, DAY_MS} from '../beijing';
++import {fitPlatformModel, summarizeOnlinePlatformScores, bootstrapWeeklyBrierImprovement,
++  type RegularEventInput, type OnlinePlatformScoreRow, type MatchedPlatformScore} from './platform';
++import type {PredictionRecordV3} from './journal';
++
++export interface PlatformHistoryDocument {
++  fetchedAt:string; coverageThrough?:string; events:RegularEventInput[];
++  upstream:{pagination:{has_more:false;next_cursor:null;pages_fetched?:number}};
++}
++export function completeHistoryDocument(value:unknown):value is PlatformHistoryDocument {
++  const d=value as Partial<PlatformHistoryDocument>|null;
++  return !!d&&Number.isFinite(Date.parse(d.fetchedAt??''))&&Array.isArray(d.events)&&
++    (d.coverageThrough==null||Number.isFinite(Date.parse(d.coverageThrough))&&Date.parse(d.coverageThrough)<=Date.parse(d.fetchedAt??''))&&
++    d.events.every(e=>e&&typeof e==='object'&&['string','number'].includes(typeof e.id)&&
++      typeof e.resetType==='string'&&Number.isFinite(typeof e.announcedAt==='number'?e.announcedAt:Date.parse(String(e.announcedAt))))&&
++    d.upstream?.pagination?.has_more===false&&d.upstream.pagination.next_cursor==null;
++}
++
++/** 第一次本机读到的新ID保留真实抓取时间；旧归档缺firstSeen时不伪造历史可用性。 */
++export function archivePlatformHistory(raw:unknown,previous:unknown):PlatformHistoryDocument {
++  if(!completeHistoryDocument(raw))throw new Error('平台历史缺完整分页或有效事件证据');
++  const prior=new Map(completeHistoryDocument(previous)?previous.events.map(e=>[String(e.id),e]):[]);
++  return {...raw,events:raw.events.map(e=>{
++    const old=prior.get(String(e.id));
++    return {...e,firstSeenAt:old?old.firstSeenAt??null:raw.fetchedAt,
++      versionSeenAt:old&&JSON.stringify({...old,firstSeenAt:undefined,versionSeenAt:undefined})===JSON.stringify({...e,firstSeenAt:undefined,versionSeenAt:undefined})?old.versionSeenAt??null:raw.fetchedAt};
++  })};
++}
++
++/** 冻结预测保持原字节；成熟标签根据后来完整归档派生，不回写旧输入。 */
++export function evaluatePlatformJournal(content:string,history:unknown,now:number){
++  const records:Array<OnlinePlatformScoreRow&{record:PredictionRecordV3}>=[];
++  const ids=new Set<string>();
++  for(const line of content.split(/\r?\n/)){
++    try{
++      const row=JSON.parse(line);
++      const r=row.record as PredictionRecordV3;
++      if(row.kind!=='prediction'||r?.target!=='platform_notice'||!/^platform-v3:P[01](?:-shadow)?$/.test(r.modelVersion)||
++        typeof r.id!=='string'||ids.has(r.id)||![r.issuedAt,r.trainingCutoff,r.windowStart,r.windowEnd].every(Number.isFinite)||
++        r.windowEnd<=r.windowStart||r.trainingCutoff>r.issuedAt||r.issuedAt>now)continue;
++      ids.add(r.id);records.push({...row,record:r});
++    }catch{/* 损坏、旧版本或非预测行不产生可评分样本。 */}
++  }
++  const complete=completeHistoryDocument(history)&&Date.parse(history.fetchedAt)<=now;
++  const fetchedAt=complete?Date.parse(history.coverageThrough??history.fetchedAt):null;
++  const rawEvents=complete?history.events:[];
++  const times=rawEvents.filter(e=>e.resetType==='regular').map(e=>typeof e.announcedAt==='number'?e.announcedAt:Date.parse(String(e.announcedAt)));
++  const start=times.length?Math.min(...times):null;
++  const events=fitPlatformModel({events:rawEvents,coverage:[],trainingCutoff:now}).events;
++  const rows=records.map(row=>{
++    const r=row.record;
++    const covered=fetchedAt!=null&&start!=null&&start<=r.windowStart&&fetchedAt>=r.windowEnd;
++    const outcome=r.windowEnd>now||!covered?'pending' as const:
++      events.some(e=>e.announcedAt>r.windowStart&&e.announcedAt<=r.windowEnd)?'positive' as const:'negative' as const;
++    return {...row,outcome};
++  });
++  const summary=summarizeOnlinePlatformScores(rows);
++  const primary=rows.filter(r=>r.group==='primary_daily');
++  const paired:MatchedPlatformScore[]=[];
++  const seen=new Set<string>();
++  for(const row of primary){
++    const r=row.record,key=`${row.groupDate}|${r.issuedAt}|${r.trainingCutoff}`;
++    if(seen.has(key)||r.modelVersion!=='platform-v3:P0'||!['positive','negative'].includes(row.outcome))continue;
++    const shadow=primary.find(p=>p.groupDate===row.groupDate&&p.record.issuedAt===r.issuedAt&&p.record.trainingCutoff===r.trainingCutoff&&p.record.modelVersion==='platform-v3:P1-shadow');
++    if(r.probability==null||shadow?.record.probability==null||!Number.isFinite(r.probability)||!Number.isFinite(shadow.record.probability))continue;
++    const day=beijingDayStart(row.groupDate??'');if(day==null)continue;
++    const weekday=new Date(day+8*3_600_000).getUTCDay();
++    paired.push({week:day-((weekday+6)%7)*DAY_MS,label:row.outcome==='positive'?1:0,p0:r.probability,p1:shadow.record.probability});seen.add(key);
++  }
++  const weeklyBootstrap=bootstrapWeeklyBrierImprovement(paired);
++  const positiveCount=paired.filter(r=>r.label===1).length;
++  const improvement=summary.brierP0==null||summary.brierP1==null?null:summary.brierP0-summary.brierP1;
++  return {...summary,positiveCount,improvement,weeklyBootstrap,coverageEnd:fetchedAt,
++    issuedCount:records.length,temporaryRows:rows.filter(r=>r.group==='temporary').length,
++    // 只给验证资格，不自动改正式模型；升级须冻结版本并保留回滚。
++    upgradeEvidenceReady:summary.matchedCount>=60&&positiveCount>=10&&improvement!=null&&improvement>0&&
++      weeklyBootstrap.blockCount>=2&&weeklyBootstrap.lower!=null&&weeklyBootstrap.lower>0};
++}
++export type PlatformCalibrationV3=ReturnType<typeof evaluatePlatformJournal>;
++
++export function latestArchivedHistory(content:string,fallback:unknown):unknown {
++  let latest=fallback;
++  for(const line of content.split(/\r?\n/))try{
++    const row=JSON.parse(line);
++    if(row.kind==='platform_history'&&completeHistoryDocument(row.document)&&
++      (!completeHistoryDocument(latest)||Date.parse(row.document.fetchedAt)>Date.parse(latest.fetchedAt)))latest=row.document;
++  }catch{/* 单条损坏不能抹去可用的完整历史。 */}
++  return latest;
++}
+diff --git a/src/lib/v3/simulator.ts b/src/lib/v3/simulator.ts
+index e2dae5a..bfa4ddf 100644
+--- a/src/lib/v3/simulator.ts
++++ b/src/lib/v3/simulator.ts
+@@ -122,7 +122,8 @@ export function simulatePolicy(initial: AccountState, cards: readonly ResetCard[
+       const short = block.shortCost == null ? null : Math.max(0, block.shortCost * fraction);
+       const served = Math.min(1, week > 0 ? state.weekly.remaining / week : 1,
+         short != null && short > 0 ? state.short.remaining / short : 1);
+-      if (served < 1 && firstInsufficientAt == null) firstInsufficientAt = Math.max(at, block.start);
++      // 段内按均匀工作推进；余额能支持的前半段不能误报成从段起点就不足。
++      if (served < 1 && firstInsufficientAt == null) firstInsufficientAt = Math.max(at, block.start) + duration * served;
+       loss += block.weight * fraction * (1 - served);
+       consumedWeekly += week * served; state.weekly.remaining = Math.max(0, state.weekly.remaining - week * served);
+       if (short != null) { consumedShort += short * served; state.short.remaining = Math.max(0, state.short.remaining - short * served); }
+diff --git a/src/lib/v3/supply.ts b/src/lib/v3/supply.ts
+index 27efcd0..9c0e26f 100644
+--- a/src/lib/v3/supply.ts
++++ b/src/lib/v3/supply.ts
+@@ -22,7 +22,7 @@ export type SupplyScenario = {
+   assumptions: string[]; events: { at: number; kind: 'weekly_reset' | 'short_reset' | 'platform_incident' | 'scheduled_weekly_supply' | 'scheduled_short_supply'; incidentId?: string; certainty: 'observed' | 'conditional' }[];
+   resultingDeadlines: { weekly: number | null; short: number | null }; accountProbability24h: null;
+ };
+-export type AccountObservationSnapshot = AccountState & { linkedIncidentIds?: readonly string[] };
++export type AccountObservationSnapshot = AccountState & { linkedIncidentIds?: readonly string[];candidateIncidentIds?:readonly string[] };
+ export type CardUseOperation = { id: string; occurredAt: number; confirmed: boolean; linkedIncidentIds?: readonly string[] };
+ export type IncidentExecutionWindow = { incidentId: string; from: number; to: number; basis: 'observed_execution_window' };
+ export type AccountMappingStatus = 'hit' | 'miss' | 'unobservable' | 'ambiguous';
+@@ -64,7 +64,7 @@ export function normalizeSupplyIncidents(input: {
+     const incident: SupplyIncident = { id, kind: item.kind, status, firstSeenAt: time(firstSeenAt), announcedAt: time(announcedAt),
+       scheduledFor: time(scheduledFor), cancelledAt: time(cancelledAt), version: Number.isFinite(r.version) ? r.version : 1,
+       source: r.source ?? r.sourceUrl ?? r.sourceType, text: typeof r.text === 'string' ? r.text : undefined,
+-      relatedIds: Array.isArray(r.relatedEventIds) ? r.relatedEventIds.map(String) : [], raw: item.raw,
++      relatedIds: Array.isArray(r.relatedEventIds??r.relatedIds) ? (r.relatedEventIds??r.relatedIds).map(String) : [], raw: item.raw,
+       versionHistory: [{ version: Number.isFinite(r.version) ? r.version : 1, firstSeenAt: time(firstSeenAt), status,
+         announcedAt: time(announcedAt), scheduledFor: time(scheduledFor), cancelledAt: time(cancelledAt) }] };
+     const old = byId.get(id);
+@@ -80,7 +80,12 @@ export function normalizeSupplyIncidents(input: {
+   // Explicit relation, never same-day/time proximity, merges regular records into schedule incidents.
+   for (const schedule of incidents.filter(x => x.kind === 'scheduled')) {
+     const related = incidents.filter(x => x.kind === 'regular' && (schedule.relatedIds.includes(x.id) || x.relatedIds.includes(schedule.id)));
+-    if (related.length) incidents.splice(incidents.indexOf(related[0]), 1);
++    for(const regular of related){
++      schedule.versionHistory.push(...regular.versionHistory);
++      schedule.relatedIds=[...new Set([...schedule.relatedIds,regular.id,...regular.relatedIds])];
++      if(schedule.announcedAt==null)schedule.announcedAt=regular.announcedAt;
++      incidents.splice(incidents.indexOf(regular),1);
++    }
+   }
+   return incidents.sort((a, b) => (a.firstSeenAt ?? a.announcedAt ?? Infinity) - (b.firstSeenAt ?? b.announcedAt ?? Infinity));
+ }
+@@ -126,7 +131,7 @@ export function classifyAccountObservations(input: {
+     const cardOps = operations.filter(op => op.confirmed && op.occurredAt > previous.observedAt && op.occurredAt <= current.observedAt);
+     const linkedIds = new Set([...(current.linkedIncidentIds ?? []), ...cardOps.flatMap(op => op.linkedIncidentIds ?? [])]);
+     const relevantWindows = windows.filter(w => w.from < current.observedAt && w.to > previous.observedAt);
+-    const ids = new Set([...linkedIds, ...relevantWindows.map(w => w.incidentId)]);
++    const ids = new Set([...linkedIds, ...(current.candidateIncidentIds??[]), ...relevantWindows.map(w => w.incidentId)]);
+     if (ids.size === 0) ids.add(''); // retain an account observation even without an incident candidate
+     const completeCoveredWindow = (id: string) => {
+       const w = windows.find(x => x.incidentId === id);
+@@ -226,7 +231,7 @@ export function buildSupplyScenarios(input: {
+     events: [...events.map(e => ({ ...e })), { at: input.mechanismConfig?.nextReviewAt??now+DAY_MS, kind: 'platform_incident', incidentId: watch.id, certainty: 'conditional' },
+       {at:input.mechanismConfig?.nextReviewAt??now+DAY_MS,kind:'scheduled_weekly_supply',incidentId:watch.id,certainty:'conditional'},
+       ...(short?[{at:input.mechanismConfig?.nextReviewAt??now+DAY_MS,kind:'scheduled_short_supply' as const,incidentId:watch.id,certainty:'conditional' as const}]:[])],
+-    resultingDeadlines: { weekly: state.weekly.resetsAt, short: state.short.resetsAt }, accountProbability24h: null });
++    resultingDeadlines: { weekly: reanchor?(input.mechanismConfig?.nextReviewAt??now+DAY_MS)+7*DAY_MS:state.weekly.resetsAt, short: short?null:state.short.resetsAt }, accountProbability24h: null });
+   if(input.mechanismConfig?.includePlatformBackground&&bgP!==null){
+     const deterministic=scenarios.filter(s=>s.source==='scheduled'||s.source==='watch');
+     for(const scenario of deterministic)scenarios.push({...scenario,id:`${scenario.id}:with-platform-background`,source:'platform_background',title:`${scenario.title} + 历史总过程敏感性`,assumptions:[...scenario.assumptions,'同时考虑历史全部regular过程，不称作排期之外的发生率，不与未到账机制情景平均。']});
+diff --git a/src/ui/V3Dashboard.tsx b/src/ui/V3Dashboard.tsx
+index ba475bc..c8b2078 100644
+--- a/src/ui/V3Dashboard.tsx
++++ b/src/ui/V3Dashboard.tsx
+@@ -6,6 +6,7 @@ import { PANEL_TABS, initialPanelTab } from './panelTabs';
+ import { RadarLogo, SunIcon, MoonIcon, ChevronUp, CloseIcon, RefreshIcon, GripDots, SpeakerIcon, CheckIcon, SparkleIcon, SlidersIcon, ShieldIcon, PulseIcon, BarChartIcon, CardStackIcon, CalendarIcon, DatabaseIcon, ChevronDown, ChevronRight, ClockIcon, CopyIcon } from './icons';
+ import { beijingFull, beijingShort, percentWhole, creditsLabel } from './format';
+ import { ProgressRing } from './viz';
++import type {PlatformCalibrationV3} from '../lib/v3/runtime';
+ import styles from './DashboardPanel.module.css';
+ import extra from './V3Dashboard.module.css';
+ import compact from './CompactBar.module.css';
+@@ -13,6 +14,7 @@ import peek from './PeekCard.module.css';
+ 
+ export interface V3PanelProps {
+   vm:V3DashboardModel|null; controller:PersonalInputsController;
++  calibration?:PlatformCalibrationV3;
+   phase:string; readError:string|null; logError?:string|null;subscriptionError:boolean;refreshing:boolean;demo:boolean;
+   activeTheme:'light'|'dark';onThemePreference:(theme:'light'|'dark')=>void;onRefresh:()=>void;onCollapse:()=>void;onClose:()=>void;
+ }
+@@ -86,7 +88,10 @@ export default function V3Dashboard(props:V3PanelProps){
+       {tab==='data'&&<>
+         <Section icon={<DatabaseIcon size={13}/>}>观测与验证</Section>
+         <div className={styles.metricGrid}>{[{label:'完整需求日',value:`${vm.demand.sampleDays} 天`},{label:'regular 公告',value:`${vm.platform.training.eventCount} 条`},{label:'完整间隔',value:`${vm.platform.training.completedGapCount} 段`},{label:'正式模型',value:'P0 · 参考'}].map(item=><div className={styles.metricMini} key={item.label}><span className={styles.metricMiniLabel}>{item.label}</span><strong className={styles.metricMiniValue}>{item.value}</strong></div>)}</div><p className={styles.mutedNote}>个人完整周需求日少于7日仅初步范围，14日起显示常规经验分位。</p>
+-        <p>v3 在线固定日预测正在积累；P0 正式参考，P1 / watch 保持影子。旧版本日志保留原 target 和 modelVersion，不算作 v3 成绩。</p>
++        <details className={extra.expander}><summary>最近账号状态变化</summary><p>余额与截止变化会保留执行区间；仅靠时间接近无法确认是平台补给，来源未知时不记为未命中。</p>{vm.mapping.filter(m=>m.incidentId!=null||m.knownClassification!=='unobservable').slice(-10).map((m,i)=><p key={i}>{beijingFull(new Date(m.interval.fromExclusive).toISOString())} – {beijingFull(new Date(m.interval.toInclusive).toISOString())}：{m.knownClassification==='natural_reset'?'自然补给候选':m.knownClassification==='card_use'?'已记录用卡干预':m.status==='ambiguous'?'来源歧义':m.status==='hit'?'已确认平台命中':m.status==='miss'?'可辨识未命中':'不可观测'}。{m.reason}</p>)}</details>
++        <p>v3 在线固定日预测：{props.calibration?.matchedCount??0} 个可评估，正例 {props.calibration?.positiveCount??0}；等待完整覆盖 {props.calibration?.pending??0}，未知 {props.calibration?.unknown??0}，缺配对 {props.calibration?.missingPair??0}。P0 正式参考，P1 保持影子。</p>
++        <dl className={extra.details}><dt>正式 P0 Brier</dt><dd>{props.calibration?.brierP0?.toFixed(4)??'等待可评估样本'}</dd><dt>影子 P1 Brier</dt><dd>{props.calibration?.brierP1?.toFixed(4)??'等待可评估样本'}</dd><dt>P1 相对改善</dt><dd>{props.calibration?.improvement?.toFixed(4)??'尚不可比较'}</dd><dt>完整周分块</dt><dd>{props.calibration?.weeklyBootstrap.blockCount??0} 周；改善区间 {props.calibration?.weeklyBootstrap.lower?.toFixed(4)??'—'} – {props.calibration?.weeklyBootstrap.upper?.toFixed(4)??'—'}</dd><dt>历史覆盖截至</dt><dd>{props.calibration?.coverageEnd!=null?beijingFull(new Date(props.calibration.coverageEnd).toISOString()):'未取得完整覆盖'}</dd></dl>
++        <details className={extra.expander}><summary>概率分组与评分边界</summary>{props.calibration?.probabilityBins.p0.map(bin=><p key={bin.from}>{pct(bin.from)} – {pct(bin.to)}：{bin.count} 个样本，平均预测 {pct(bin.meanProbability)}，实际公告比例 {pct(bin.eventRate)}</p>)}<p>临时预测 {props.calibration?.temporaryRows??0} 条单列，不加入固定日主成绩；旧日志不计入 v3。区间按完整周重采样，样本少时不能证明改进。</p></details>
+         <p>升级至少需要60个可评估固定日预测、10个正例、周分块改善证据；watch 另需30个可分辨 episode。</p>
+         <dl className={extra.details}><dt>快照</dt><dd>{vm.updatedAt}</dd><dt>卡台账版本</dt><dd>{vm.ledgerVersion}</dd><dt>输入版本</dt><dd>{vm.preferenceVersion}</dd><dt>模拟种子</dt><dd>{vm.planning?.seed??'未运行'}</dd><dt>模型</dt><dd>{vm.planning?.modelVersion??'platform-v3'}</dd></dl>
+         <p className={styles.mutedNote}>日耗、平台信号版本和各次预测均只追加到本机日志；演示不会写生产预测记录。</p>
+diff --git a/src/ui/__tests__/ui.v3-model.test.ts b/src/ui/__tests__/ui.v3-model.test.ts
+index 9916d69..aca4ec2 100644
+--- a/src/ui/__tests__/ui.v3-model.test.ts
++++ b/src/ui/__tests__/ui.v3-model.test.ts
+@@ -5,10 +5,30 @@ import {emptyPersonalInputs,reconcileCardCount} from '../../lib/v3/cards';
+ import {normalizeSignalVersions} from '../../lib/v3/inputs';
+ import {DAY_MS} from '../../lib/beijing';
+ import type {PersonalInputsState} from '../usePersonalInputs';
++import type {UsageObservation} from '../../lib/v3/observations';
++import {normalizeProviderSnapshotV3} from '../useV3Journal';
+ const now=Date.parse('2026-10-12T10:00:00+08:00');
+ const history={events:Array.from({length:54},(_,i)=>({id:String(i),resetType:'regular',announcedAt:new Date(now-(54-i)*DAY_MS).toISOString(),text:'official announcement'})),fetchedAt:new Date(now).toISOString(),upstream:{pagination:{has_more:false,next_cursor:null}}};
+ const snapshot=()=>({...demoSnapshot(),updatedAt:new Date(now).toISOString(),rateLimitSnapshot:null});
+ describe('v3运行接线语义',()=>{
++ it('快照日志也按窗口时长归一化，调换字段不污染用量历史',()=>{
++   const s={...snapshot(),accountKey:'test-account'};
++   const normalized=normalizeProviderSnapshotV3(s);
++   const swapped=normalizeProviderSnapshotV3({...s,weeklyWindow:s.shortWindow,shortWindow:s.weeklyWindow});
++   expect(swapped?.weekly).toEqual(normalized?.weekly);expect(swapped?.short).toEqual(normalized?.short);
++ });
++ it('学到足够忙闲标签后仅改变今天的预测；未来保持全体分布',()=>{
++   const s={...snapshot(),accountKey:'test-account'};
++   const midnight=Date.parse('2026-10-12T00:00:00+08:00');
++   const observations:UsageObservation[]=Array.from({length:14},(_,i)=>({id:String(i),accountKey:s.accountKey,fromAt:midnight-(14-i)*DAY_MS,toAt:midnight-(13-i)*DAY_MS,sourceVersion:'test',short:null,
++     weekly:{generation:'g',previousGeneration:'g',nextGeneration:'g',knownConsumption:i<7?10:80,coverageMs:DAY_MS,crossedReset:false,isLowerBound:false,capacityConstrained:false}}));
++   const personal={...emptyPersonalInputs(s.accountKey),reconciliation:reconcileCardCount([],0),effectiveWorkloadToday:'busy' as const,effectiveWeeklyBudgetPercent:null,reminders:[],accountCount:0,
++     inputVersions:Array.from({length:7},(_,i)=>({version:i,changedAt:midnight-(14-i)*DAY_MS,field:'workloadToday' as const,before:null,after:{localDate:new Date(midnight-(14-i)*DAY_MS+8*3_600_000).toISOString().slice(0,10),level:'busy'}}))}satisfies PersonalInputsState;
++   const vm=buildV3Dashboard(s,history,now,personal,observations,[],true);
++   expect(vm.planningInput!.todayRange?.high).toBe(10);
++   expect(vm.planningInput!.dailyRange?.high).toBe(80);
++   expect(vm.planningInput!.dailySamples).toHaveLength(14);
++ });
+  it('54条带官方text保留53完整间隔，正式目标是P而A未知',()=>{const vm=buildV3Dashboard(snapshot(),history,now);expect(vm.platform.training.eventCount).toBe(54);expect(vm.platform.training.completedGapCount).toBe(53);expect(vm.platform.probability24h).toBeGreaterThan(0);expect(vm.supply?.accountProbability24h).toBeNull();expect(vm.recommendation.weeklyBudgetToday).toBeNull();});
+  it('窗口依时长识别，调换primary位置不交换资源单位',()=>{const s=snapshot();const swapped={...s,weeklyWindow:s.shortWindow,shortWindow:s.weeklyWindow};expect(normalizeAccount(swapped)?.weekly.durationMins).toBe(10080);expect(normalizeAccount(swapped)?.short.durationMins).toBe(300);});
+  it('个人偏好和卡修改不改变P；未录入有效期不制造14天',()=>{const s=snapshot();const personal={...emptyPersonalInputs(null),reconciliation:reconcileCardCount([],3),effectiveWorkloadToday:null,effectiveWeeklyBudgetPercent:null,reminders:[],accountCount:3}satisfies PersonalInputsState;const a=buildV3Dashboard(s,history,now,personal);const b=buildV3Dashboard(s,history,now,{...personal,preference:'save-cards',version:1});expect(a.platform).toEqual(b.platform);expect(b.planning?.selected).toBeNull();expect(personal.reconciliation.placeholderCount).toBe(3);});
+diff --git a/src/ui/useV3Journal.ts b/src/ui/useV3Journal.ts
+index 338c72a..9725956 100644
+--- a/src/ui/useV3Journal.ts
++++ b/src/ui/useV3Journal.ts
+@@ -4,6 +4,10 @@ import { buildUsageObservations, type SnapshotV3, type UsageObservation } from "
+ import { freezePlanning, freezePrediction, nextSignalVersion, predictionGroupAt, type PlanningJournalRecord, type PredictionRecordV3 } from "../lib/v3/journal";
+ import type { ProviderSnapshot } from "./types";
+ import type { ResetStatusSnapshot } from "../lib/resetStatus";
++import {archivePlatformHistory, latestArchivedHistory} from '../lib/v3/runtime';
++import {RESET_HISTORY_SOURCE} from './history';
++import {normalizeAccount} from '../lib/v3/inputs';
++import type {AccountObservationSnapshot,AccountObservationInterval} from '../lib/v3/supply';
+ 
+ type LogRead = { path: string; content: string };
+ type AppendResult = "appended" | "conflict" | "busy";
+@@ -16,13 +20,15 @@ export function normalizeProviderSnapshotV3(snapshot: ProviderSnapshot): Snapsho
+     window?.resetsAt && Number.isFinite(Date.parse(window.resetsAt)) && Number.isFinite(window.remainingPercent)
+       ? { generation: window.resetsAt, usedPercent: Math.max(0, Math.min(100, 100 - window.remainingPercent)) }
+       : null;
++  const normalized=normalizeAccount(snapshot);
++  const normalizedWindow=(window:NonNullable<typeof normalized>['weekly']):SnapshotV3['weekly']=>({generation:new Date(window.resetsAt).toISOString(),usedPercent:100-window.remaining});
+   return {
+     id: `v3-${accountKey}-${observedAt}`,
+     observedAt,
+     accountKey,
+     sourceVersion: `${snapshot.provider}:${snapshot.rateLimitSnapshot?.source ?? "provider"}`,
+-    weekly: toWindow(snapshot.weeklyWindow),
+-    short: toWindow(snapshot.shortWindow),
++    weekly: normalized?normalizedWindow(normalized.weekly):toWindow(snapshot.weeklyWindow),
++    short: normalized?normalizedWindow(normalized.short):toWindow(snapshot.shortWindow),
+     schemaVersion: 3,
+     rawSnapshot: snapshot,
+   };
+@@ -49,8 +55,12 @@ async function appendOnce(kind: "usage" | "cards", row: { id: string; observedAt
+ 
+ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean) {
+   const [observations, setObservations] = useState<UsageObservation[]>([]);
++  const [accountSnapshots,setAccountSnapshots]=useState<AccountObservationSnapshot[]>([]);
+   const [signalHistory, setSignalHistory] = useState<PlatformSignalHistory[]>([]);
+   const [error, setError] = useState<string | null>(null);
++  const [historyError,setHistoryError]=useState<string|null>(null);
++  const [historyDocument,setHistoryDocument]=useState<unknown>(RESET_HISTORY_SOURCE);
++  const [predictionContent,setPredictionContent]=useState('');
+   const activeAccount = useRef<string | null>(snapshot?.accountKey ?? null);
+   const writer = useRef<Promise<unknown>>(Promise.resolve());
+   const enqueueWrite = useCallback(<T,>(operation: () => Promise<T>): Promise<T> => {
+@@ -70,11 +80,15 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
+         if (row?.schemaVersion === 3 && row.rawSnapshot && typeof row.id === "string" && typeof row.observedAt === "string" && typeof row.accountKey === "string") snapshots.push(row);
+       } catch { /* tolerate a damaged JSONL row */ }
+     }
+-    if (activeAccount.current === accountKey) setObservations(
+-      accountKey == null ? [] : buildUsageObservations(snapshots.filter((row) => row.accountKey === accountKey)),
+-    );
++    if (activeAccount.current === accountKey){
++      const scoped=accountKey==null?[]:snapshots.filter(row=>row.accountKey===accountKey);
++      setObservations(buildUsageObservations(scoped));
++      setAccountSnapshots(scoped.flatMap(row=>{const normalized=normalizeAccount(row.rawSnapshot as ProviderSnapshot);return normalized?[normalized]:[]}));
++    }
+     const cardLog = await read("cards");
+     setSignalHistory(readSignalHistory(cardLog.content));
++    setPredictionContent(cardLog.content);
++    setHistoryDocument(latestArchivedHistory(cardLog.content,RESET_HISTORY_SOURCE));
+   }, []);
+ 
+   const appendSnapshot = useCallback(async (input: ProviderSnapshot) => {
+@@ -86,7 +100,7 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
+ 
+   const appendSignals = useCallback(async (input: ProviderSnapshot) => {
+     const status = input.resetStatus;
+-    if (!status || input.status !== "ok" || status.status !== "ok" || !status.fetchedAt) return;
++    if (!status || status.status !== "ok" || !status.fetchedAt) return;
+     const observedAt = status.fetchedAt;
+     if (!Number.isFinite(Date.parse(observedAt))) return;
+     const currentValues = [status.scheduledReset ?? null, status.activeWatch ?? null] as const;
+@@ -94,11 +108,11 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
+     await enqueueWrite(async () => {
+       const history = readSignalHistory((await read("cards")).content);
+       // A repeated/stale provider cache is not a newly observed signal version.
+-      if (history.some((entry) => entry.observedAt === observedAt)) return;
+       for (let i = 0; i < signalKinds.length; i += 1) {
+         const signalKind = signalKinds[i]!;
+         const value = currentValues[i];
+         const prior = history.filter((entry) => entry.signalKind === signalKind).at(-1);
++        if(prior&&Date.parse(prior.observedAt)>=Date.parse(observedAt))continue;
+         const version = nextSignalVersion(prior ?? null, value, observedAt);
+         if (!version) continue;
+         const row = { id: `signal-${signalKind}-${observedAt}-${encodeURIComponent(JSON.stringify(value))}`,
+@@ -133,21 +147,50 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
+     await enqueueWrite(() => appendOnce("cards", { id: record.id, observedAt: new Date().toISOString(), kind: "planning", record }));
+   }, [enqueueWrite]);
+ 
++  const appendAccountMapping=useCallback(async(accountKey:string,rows:readonly AccountObservationInterval[],observedAt:number)=>{
++    await enqueueWrite(async()=>{
++      for(const row of rows){
++        if(row.incidentId==null&&row.knownClassification==='unobservable')continue;
++        const id=`mapping:${accountKey}:${row.interval.fromExclusive}:${row.interval.toInclusive}:${row.incidentId??'unknown'}:${row.knownClassification}:${row.evidence.confirmedCardUseIds.join(',')}`;
++        await appendOnce('cards',{id,observedAt:new Date(observedAt).toISOString(),kind:'account_mapping',accountKey,record:row});
++      }
++    });
++  },[enqueueWrite]);
++
+   useEffect(() => {
+     activeAccount.current = snapshot?.accountKey ?? null;
+-    if (!enabled) { setObservations([]); setError(null); return; }
++    if (!enabled) { setObservations([]);setAccountSnapshots([]); setError(null);setHistoryError(null); setPredictionContent(''); setHistoryDocument(RESET_HISTORY_SOURCE); return; }
+     let alive = true;
+     void (async () => {
+       try {
+-        if (snapshot?.status === "ok") { await appendSnapshot(snapshot); await appendSignals(snapshot); }
++        if (snapshot?.status === "ok") await appendSnapshot(snapshot);
+         else await refresh(snapshot?.accountKey ?? null);
++        if(snapshot)await appendSignals(snapshot);
+         if (alive) setError(null);
+       } catch (cause) { if (alive) setError(String(cause)); }
+     })();
+     return () => { alive = false; };
+   }, [enabled, snapshot?.updatedAt, snapshot?.accountKey, appendSnapshot, appendSignals, refresh]);
+ 
+-  return { observations, signalHistory, error, refresh, appendSnapshot, appendPrediction, appendPlanning };
++  // 跟随已有15分钟status节流，一次新成功status拉完整分页；失败不延长历史覆盖。
++  useEffect(()=>{
++    if(!enabled||snapshot?.resetStatus?.status!=='ok'||!snapshot.resetStatus.fetchedAt)return;
++    let alive=true;
++    void(async()=>{
++      const raw=await invoke<unknown>('fetch_platform_history');
++      if(!alive)return;
++      await enqueueWrite(async()=>{
++        if(!alive)return;
++        const log=await read('cards');
++        const document=archivePlatformHistory(raw,latestArchivedHistory(log.content,RESET_HISTORY_SOURCE));
++        await appendOnce('cards',{id:`platform-history:${document.fetchedAt}`,observedAt:document.fetchedAt,kind:'platform_history',document});
++      });
++      if(alive){await refresh();setHistoryError(null);}
++    })().catch(cause=>{if(alive)setHistoryError(`平台完整历史刷新失败，未新增覆盖：${String(cause)}`);});
++    return()=>{alive=false;};
++  },[enabled,snapshot?.resetStatus?.fetchedAt,snapshot?.resetStatus?.status,enqueueWrite,refresh]);
++
++  return { observations,accountSnapshots, signalHistory, historyDocument,predictionContent,error:error??historyError, refresh, appendSnapshot, appendPrediction, appendPlanning,appendAccountMapping };
+ }
+ 
+ export interface PlatformSignalHistory {
+diff --git a/src/ui/v3Model.ts b/src/ui/v3Model.ts
+index caca804..22ccfb5 100644
+--- a/src/ui/v3Model.ts
++++ b/src/ui/v3Model.ts
+@@ -2,9 +2,9 @@
+ import { beijingDayKey, DAY_MS } from '../lib/beijing';
+ import { emptyPersonalInputs, reconcileCardCount, createResetCard, computeLastActionAt } from '../lib/v3/cards';
+ import { fitPlatformModel, predictPlatform, type RegularEventInput } from '../lib/v3/platform';
+-import { buildSupplyScenarios } from '../lib/v3/supply';
++import { buildSupplyScenarios,classifyAccountObservations,type AccountObservationSnapshot } from '../lib/v3/supply';
+ import { aggregateUsageDays, type UsageObservation } from '../lib/v3/observations';
+-import { fitDemandModel, type WorkloadChoice } from '../lib/v3/demand';
++import { fitDemandModel, selectDemandDays, type WorkloadChoice } from '../lib/v3/demand';
+ import { planActions, type PlanningOutput, type Recommendation, type PlanningInput } from '../lib/v3/planning';
+ import {normalizeAccount,buildReviewTimes,normalizeSignalVersions} from '../lib/v3/inputs';
+ import type { PersonalInputsState } from './usePersonalInputs';
+@@ -14,11 +14,11 @@ import type { OrbReadout, OrbMetric } from './orbMetric';
+ 
+ export {normalizeAccount,buildReviewTimes} from '../lib/v3/inputs';
+ function rawHistory(document:unknown):{events:RegularEventInput[];fetchedAt:number;complete:boolean}{
+-  const doc=document as {events?:RegularEventInput[];fetchedAt?:string;upstream?:{pagination?:{has_more?:boolean;next_cursor?:unknown}};coverage?:{complete?:boolean}};
+-  return {events:Array.isArray(doc?.events)?doc.events:[],fetchedAt:Date.parse(doc?.fetchedAt??''),complete:doc?.upstream?.pagination?.has_more===false&&doc.upstream.pagination.next_cursor==null};
++  const doc=document as {events?:RegularEventInput[];fetchedAt?:string;coverageThrough?:string;upstream?:{pagination?:{has_more?:boolean;next_cursor?:unknown}};coverage?:{complete?:boolean}};
++  return {events:Array.isArray(doc?.events)?doc.events:[],fetchedAt:Date.parse(doc?.coverageThrough??doc?.fetchedAt??''),complete:doc?.upstream?.pagination?.has_more===false&&doc.upstream.pagination.next_cursor==null};
+ }
+ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unknown,now:number,personal?:PersonalInputsState,
+-  observations:readonly UsageObservation[]=[],signalHistory:readonly PlatformSignalHistory[]=[],deferPlanning=false){
++  observations:readonly UsageObservation[]=[],signalHistory:readonly PlatformSignalHistory[]=[],deferPlanning=false,accountSnapshots:readonly AccountObservationSnapshot[]=[]){
+   const history=rawHistory(historyDocument),events=[...history.events];
+   const status=snapshot.resetStatus;
+   const latest=status?.latestReset;
+@@ -33,7 +33,8 @@ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unkno
+   const data=personal??{...emptyPersonalInputs(snapshot.accountKey??null),reconciliation:reconcileCardCount([],snapshot.resetCredits),effectiveWorkloadToday:null,reminders:[],accountCount:snapshot.resetCredits};
+   const scopedObservations=observations.filter(o=>o.accountKey===snapshot.accountKey);
+   const days=aggregateUsageDays(scopedObservations,now);
+-  const choices:WorkloadChoice[]=data.inputVersions.filter(v=>v.field==='workloadToday'&&v.after!=null).map(v=>{
++  const choices:WorkloadChoice[]=data.inputVersions.filter(v=>v.field==='workloadToday').map(v=>{
++    if(v.after==null)return {dateKey:beijingDayKey(v.changedAt),workload:'unknown'};
+     const c=v.after as {localDate:string;level:string};return {dateKey:c.localDate,workload:c.level==='quiet'?'light':c.level as WorkloadChoice['workload']};
+   });
+   const budget=data.weeklyBudgetPercent?.localDate===beijingDayKey(now)?data.weeklyBudgetPercent.value:null;
+@@ -43,16 +44,30 @@ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unkno
+   const watchSnapshots=normalizeSignalVersions(signalHistory,'active_watch');
+   if(status?.scheduledReset&&!scheduleSnapshots.length) scheduleSnapshots.push({...status.scheduledReset,firstSeenAt:status.fetchedAt??snapshot.updatedAt,version:1});
+   if(status?.activeWatch&&!watchSnapshots.length) watchSnapshots.push({...status.activeWatch,id:`watch:${status.fetchedAt}`,firstSeenAt:status.fetchedAt??snapshot.updatedAt,version:1});
+-  const supply=account?buildSupplyScenarios({accountState:account,platformForecast:platform,scheduleSnapshots,watchSnapshots,now,mechanismConfig:{horizonMs:42*DAY_MS,includePlatformBackground:true,nextReviewAt:reviews[1]??null}}):null;
++  const supply=account?buildSupplyScenarios({accountState:account,platformForecast:platform,scheduleSnapshots,watchSnapshots,platformEvents:events,now,mechanismConfig:{horizonMs:42*DAY_MS,includePlatformBackground:true,nextReviewAt:reviews[1]??null}}):null;
++  const uniqueSnapshots=[...new Map([...accountSnapshots,...(account?[account]:[])].filter(s=>s.observedAt<=now).map(s=>[s.observedAt,s])).values()].sort((a,b)=>a.observedAt-b.observedAt);
++  const mappingSnapshots=uniqueSnapshots.map((s,i)=>({...s,candidateIncidentIds:supply?.incidents.filter(incident=>incident.kind!=='watch'&&
++    [incident.announcedAt,incident.firstSeenAt,incident.scheduledFor].some(at=>at!=null&&at>(uniqueSnapshots[i-1]?.observedAt??s.observedAt)&&at<=s.observedAt)).map(incident=>incident.id)}));
++  const mapping=classifyAccountObservations({snapshots:mappingSnapshots,incidents:supply?.incidents??[],
++    cardOperations:data.useRecords.map(op=>{
++      const previous=uniqueSnapshots.filter(s=>s.observedAt<op.recordedAt).at(-1),current=uniqueSnapshots.find(s=>s.observedAt>=op.recordedAt);
++      const corroborated=previous&&current&&current.availableCardCount<previous.availableCardCount&&
++        current.weekly.resetsAt!==previous.weekly.resetsAt&&
++        (current.weekly.remaining>previous.weekly.remaining||current.short.remaining>previous.short.remaining||
++          Math.abs(current.weekly.resetsAt-(op.recordedAt+7*DAY_MS))<=15*60_000);
++      return {id:op.id,occurredAt:op.recordedAt,confirmed:op.status==='user-recorded'&&!!corroborated};
++    })});
+   const cards=data.reconciliation.cards.flatMap(c=>c.card?[c.card]:[]);
+   for(let i=0;i<data.reconciliation.placeholderCount;i++)cards.push({...createResetCard({localId:`unknown-${i}`,label:'有效期待补充',enteredExpiry:null,entryPrecision:'unknown',now}),confirmedAt:null});
+   const daily=demand.weekly;
+   const workload=data.effectiveWorkloadToday==='quiet'?'light':data.effectiveWorkloadToday??'unknown';
++  const learnedToday=workload==='unknown'?null:demand.workloadGroups[workload];
+   const preference=data.preference==='save-cards'?'save':data.preference==='use-expiring'?'expiry':'service';
+   let planning:PlanningOutput|null=null;
+   const planningInput:PlanningInput|null=account?{now,account,cards,reviews,preference,workload,
+     dailyRange:daily?{low:daily.p20,median:daily.median,high:daily.p80,p95:daily.p95}:null,
+-    dailySamples:days.filter(d=>d.weeklyComplete&&!d.weeklyLowerBound&&!d.crossedReset&&!d.estimated&&!d.capacityConstrained).map(d=>d.weeklyCost!).slice(-28),
++    todayRange:learnedToday&&!learnedToday.fallbackToAll?{low:learnedToday.p20,median:learnedToday.median,high:learnedToday.p80,p95:learnedToday.p95}:null,
++    dailySamples:selectDemandDays(days,now).map(d=>d.weeklyCost!),
+     todayBudget:budget,sampleDays:demand.sampleDays,supplyScenarios:supply?.scenarios??[],platformModel,inputSnapshotId:`${snapshot.accountKey??'demo'}@${snapshot.updatedAt}`,
+     inventoryConflict:data.reconciliation.status==='conflict'||snapshot.resetCredits==null}:null;
+   if(planningInput&&!deferPlanning)planning=planActions(planningInput);
+@@ -62,7 +77,7 @@ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unkno
+   return {provider:snapshot.provider,status:snapshot.status,message:snapshot.message,plan:snapshot.plan,updatedAt:snapshot.updatedAt,now,
+     accountKey:snapshot.accountKey??null,account,remainingPercent:account?.weekly.remaining??snapshot.weeklyWindow?.remainingPercent??null,
+     shortRemainingPercent:account?.short.remaining??snapshot.shortWindow?.remainingPercent??null,resetCredits:snapshot.resetCredits,
+-    platformModel,platform,supply,demand,planning,planningInput,recommendation,personal:data,
++    platformModel,platform,supply,mapping,demand,planning,planningInput,recommendation,personal:data,
+     ledgerVersion:`card-v${data.cardVersions.length}`,preferenceVersion:`preference-v${data.version}`,
+     evidenceQuality:[...(coverage.length?[]:['平台历史覆盖不完整，概率可能不可评估。']),'历史firstSeenAt缺失时只作公告时间理想化参考。',`历史覆盖截至 ${Number.isFinite(history.fetchedAt)?new Date(history.fetchedAt).toISOString():'未知'}`],
+   };
+-- 
+2.52.0.windows.1
+

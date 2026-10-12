@@ -1,0 +1,66 @@
+From bd4a5032a0633db6d3b3cfe717f4dc1ddba6eb4c Mon Sep 17 00:00:00 2001
+From: thequipster <256361972+thequipster@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 20:44:42 +0800
+Subject: [PATCH 2/3] fix: preserve shared random paths when extending planning
+ horizons
+
+---
+ src/lib/__tests__/platform.v3.test.ts | 6 ++++++
+ src/lib/v3/planning.ts                | 5 +++--
+ src/lib/v3/platform.ts                | 4 +++-
+ 3 files changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/src/lib/__tests__/platform.v3.test.ts b/src/lib/__tests__/platform.v3.test.ts
+index efa159b..a290746 100644
+--- a/src/lib/__tests__/platform.v3.test.ts
++++ b/src/lib/__tests__/platform.v3.test.ts
+@@ -3,6 +3,12 @@ import { DAY_MS, backtestPlatform, bootstrapWeeklyBrierImprovement, fitPlatformM
+ 
+ const t = (days: number) => days * DAY_MS;
+ describe('platform v3', () => {
++  it('extending the planning horizon preserves every shared path before the shorter endpoint',()=>{
++    const model=fitPlatformModel({events:[{id:'a',resetType:'regular',announcedAt:0},{id:'b',resetType:'regular',announcedAt:5*DAY_MS}],coverage:[{from:0,to:10*DAY_MS,complete:true}],trainingCutoff:10*DAY_MS});
++    const short=generateRenewalPaths(model,{now:10*DAY_MS,horizonMs:21*DAY_MS,count:256,seed:42});
++    const long=generateRenewalPaths(model,{now:10*DAY_MS,horizonMs:28*DAY_MS,count:256,seed:42});
++    expect(long.map(path=>path.filter(at=>at<=31*DAY_MS))).toEqual(short);
++  });
+   it('a later revision cannot become available earlier just because the event ID was already known',()=>{
+     const model=fitPlatformModel({events:[{id:'a',resetType:'regular',announcedAt:DAY_MS,firstSeenAt:DAY_MS,versionSeenAt:4*DAY_MS}],coverage:[],trainingCutoff:3*DAY_MS});
+     expect(model.eventCount).toBe(0);
+diff --git a/src/lib/v3/planning.ts b/src/lib/v3/planning.ts
+index 73c1e94..4da3377 100644
+--- a/src/lib/v3/planning.ts
++++ b/src/lib/v3/planning.ts
+@@ -124,8 +124,9 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
+       ? [{id:'demand-low',multiplier:1,daily:input.dailyRange.low}, {id:'demand-median',multiplier:1,daily:input.dailyRange.median}, {id:'demand-high',multiplier:1,daily:input.dailyRange.high}]
+       : [{id:'demand-reference',multiplier:1,daily:input.dailyRange?.median??0}];
+   const sampleGroups = demandCases.map(demandCase => {
+-    const rng = random(seed); // 各压力组共享同一未来需求抽样，差别仅为指定压力。
+-    const samples = Array.from({length:empirical?256:1}, () => {
++    const samples = Array.from({length:empirical?256:1}, (_,path) => {
++      // 需求与平台使用不同随机流；每条路径跨视野和压力组保留同一前缀。
++      const rng=random(((seed^0x44454d41)+Math.imul(path,0x9e3779b9))>>>0);
+       const costs = Array.from({length:days+1}, () => empirical ? input.dailySamples![Math.floor(rng()*input.dailySamples!.length)]! : demandCase.daily);
+       const todayRange=input.todayRange??input.dailyRange;
+       return makeBlocks(input,end,index => index === 0 && input.todayBudget != null ? input.todayBudget*demandCase.multiplier
+diff --git a/src/lib/v3/platform.ts b/src/lib/v3/platform.ts
+index 9be19f4..8643868 100644
+--- a/src/lib/v3/platform.ts
++++ b/src/lib/v3/platform.ts
+@@ -214,10 +214,12 @@ export function summarizeOnlinePlatformScores(rows: readonly OnlinePlatformScore
+     probabilityBins: { p0: bins('p0'), p1: bins('p1') } };
+ }
+ export function generateRenewalPaths(model: PlatformModel, opts: { now: number; horizonMs: number; count?: number; seed: number; variant?: 'constant_rate' | 'age_piecewise' }): number[][] {
+-  const count = opts.count ?? 256, rng = mulberry32(opts.seed), paths: number[][] = [];
++  const count = opts.count ?? 256, paths: number[][] = [];
+   const rates = opts.variant === 'age_piecewise' ? model.lambda : model.lambda?.map(() => model.lambda0 ?? 0) as [number, number, number] | null;
+   if (!rates) return Array.from({ length: count }, () => []);
+   for (let n = 0; n < count; n++) {
++    // 每条路径有固定随机流，延长某一条路径不能挪动后续路径的抽样起点。
++    const rng=mulberry32((opts.seed+Math.imul(n,0x9e3779b9))>>>0);
+     const path: number[] = []; let time = opts.now, age = model.lastEventAt === null ? 0 : Math.max(0, (opts.now - model.lastEventAt) / DAY_MS);
+     while (time < opts.now + opts.horizonMs) {
+       const u = Math.max(Number.MIN_VALUE, 1 - rng()), threshold = -Math.log(u);
+-- 
+2.52.0.windows.1
+
