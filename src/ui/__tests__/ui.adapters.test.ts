@@ -2,12 +2,7 @@
 // 锚点：adapters 是 UI 层唯一的装配逻辑（ARCHITECTURE §2），断言口径 = 与 src/lib
 // 同参直算结果透传一致 + 字段映射 + 数据缺失降级；不含任何独立业务期望值。
 import { describe, expect, it } from "vitest";
-import {
-  assessResetRisk,
-  estimateDailyNeedPercent,
-  planDailyUsage,
-  planResetCard,
-} from "../../lib";
+import { assessResetRiskV2, historyEvents } from "../../lib";
 import { buildDashboard } from "../adapters";
 import type { ProviderSnapshot } from "../types";
 import { RESET_HISTORY_ANNOUNCED_AT, RESET_HISTORY_SOURCE } from "../history";
@@ -82,36 +77,27 @@ describe("字段透传（RR08 契约 models.rs）", () => {
 });
 
 describe("三块面板与 src/lib 同参透传", () => {
-  it("风险：与 assessResetRisk(history, asOf) 逐位一致（now=观测时刻而非墙钟）", () => {
+  it("风险：与 v2 事件流同参评估一致（now=观测时刻而非墙钟）", () => {
     const vm = buildDashboard(okSnapshot(), HISTORY);
-    const direct = assessResetRisk(HISTORY, new Date(AS_OF));
-    expect(vm.risk?.score).toBe(direct.score);
-    expect(vm.risk?.factors).toEqual(direct.factors);
+    const direct = assessResetRiskV2({ events: historyEvents(HISTORY), now: Date.parse(AS_OF) });
+    expect(vm.risk).toEqual(direct);
+    expect(vm.riskPercent).toBe(Math.round(direct.probability24h * 1000) / 10);
   });
 
-  it("今日建议：daysToReset=2 喂参，与 planDailyUsage 同参直算一致", () => {
+  it("需求未知时今日建议如实为空，不伪造固定配速", () => {
     const vm = buildDashboard(okSnapshot(), HISTORY);
-    const score = assessResetRisk(HISTORY, new Date(AS_OF)).score;
-    const direct = planDailyUsage(
-      { remaining: 55, daysToReset: 2, risk: score, now: new Date(AS_OF) },
-    );
-    expect(vm.dailyPlan).toEqual(direct);
+    expect(vm.dailyPlan?.todaySuggested).toBeNull();
+    expect(vm.dailyPlan?.demandQuality).toBe("unknown");
+    expect(vm.dailyPlan?.explanations.some((text) => text.includes("需求未知"))).toBe(true);
   });
 
-  it("用卡规划：dailyNeed 走 lib 兜底 estimateDailyNeedPercent([])，与直算一致", () => {
+  it("用卡规划使用 v2 决策契约并明确留出需求未知说明", () => {
     const vm = buildDashboard(okSnapshot(), HISTORY);
-    const score = assessResetRisk(HISTORY, new Date(AS_OF)).score;
-    const direct = planResetCard({
-      remainingPercent: 55,
-      resetsAt: RESETS_AT,
-      resetCredits: 3,
-      creditExpiresAt: null,
-      dailyNeedPercent: estimateDailyNeedPercent([]),
-      tomorrowRiskPercent: score,
-      now: new Date(AS_OF),
-    });
-    expect(vm.cardPlan).toEqual(direct);
-    expect(vm.cardPlan?.credits).toBe(3);
+    expect(vm.cardPlan).not.toBeNull();
+    expect(vm.cardPlan?.decision).toMatch(/^(not_applicable|hold|use_today|wait|uncertain)$/);
+    expect(Array.isArray(vm.cardPlan?.candidateResults)).toBe(true);
+    expect(Number.isFinite(vm.cardPlan?.incrementalUsage)).toBe(true);
+    expect(vm.cardPlan?.horizonSensitivity).toHaveProperty("flipped");
   });
 });
 

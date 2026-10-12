@@ -6,7 +6,7 @@ import type { DashboardViewModel } from "./adapters";
 export type OrbMetric = "pace" | "risk" | "remaining";
 
 export const ORB_METRICS: readonly { key: OrbMetric; label: string; hint: string }[] = [
-  { key: "pace", label: "今日建议配速", hint: "今天照这个量用，重置前刚好花完" },
+  { key: "pace", label: "今日建议配速", hint: "基于历史用量安排今天的额度" },
   { key: "risk", label: "24h 重置风险", hint: "未来 24 小时被强制重置的概率" },
   { key: "remaining", label: "周额度剩余", hint: "本周配额还剩多少" },
 ];
@@ -90,7 +90,7 @@ export function orbReadout(vm: DashboardViewModel | null, metric: OrbMetric): Or
     metric,
     value,
     unit,
-    title: `${meta.label} ${shown}（${meta.hint}）`,
+    title: `${meta.label} ${shown}（${!hasValue && metric === "pace" ? "需求样本积累中；点击打开悬浮条" : meta.hint}）`,
     percent,
     band,
     hasValue,

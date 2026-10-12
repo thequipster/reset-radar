@@ -4,14 +4,14 @@ import { describe, expect, it } from "vitest";
 import { DEMO_SCENARIOS, demoScenarioSnapshot, demoSnapshot, parseDemoScenario } from "../demoScenarios";
 
 describe("parseDemoScenario", () => {
-  it("识别六场景；支持组合段（#expanded&demo=empty）；非法值 null", () => {
+  it("识别演示场景；支持组合段（#expanded&demo=empty）；非法值 null", () => {
     for (const scenario of DEMO_SCENARIOS) {
       expect(parseDemoScenario(`#demo=${scenario}`)).toBe(scenario);
       expect(parseDemoScenario(`#expanded&demo=${scenario}`)).toBe(scenario);
     }
     expect(parseDemoScenario("")).toBeNull();
     expect(parseDemoScenario("#expanded")).toBeNull();
-    expect(parseDemoScenario("#demo=healthy")).toBeNull();
+    expect(parseDemoScenario("#demo=healthy")).toBe("healthy");
     expect(parseDemoScenario("#xdemo=empty")).toBeNull(); // 前缀相似不误匹配
     expect(parseDemoScenario("#demo=empty&")).toBe("empty"); // 尾空段不吞场景
   });

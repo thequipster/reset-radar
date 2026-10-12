@@ -1,0 +1,17 @@
+RR46 Rust verification notes — 2026-10-12
+
+Intermediate failure preserved:
+- A cargo check/test compile during concurrent edits failed in codex.rs with E0004 (the guarded match did not exhaustively cover AppServerReadError::Other) and E0277 (the timeout future had already unwrapped the Value, so response? was invalid).
+- This was an intermediate source state, not a runtime/test assertion failure. The match now handles both variants explicitly, and the already-unwrapped response is returned directly.
+
+Final verification after those fixes:
+- `cargo check --tests`: passed.
+- `cargo test --lib codex::tests::`: 9 passed, 0 failed.
+- `cargo test --lib`: 41 passed, 0 failed, 1 ignored (manual live TLS probe).
+- The known GNU linker warning about multiple non-default manifests remains (TRUTH.md B08); the test binary started and all executed tests passed.
+
+Final bounded-retry adjustment recheck:
+- Timeout wrapper now caps the complete two-attempt operation at 30 seconds (15 seconds per attempt); only `AppServerReadError::Timeout` enters the retry path.
+- `cargo check --tests`: passed.
+- `cargo test --lib`: 41 passed, 0 failed, 1 ignored (manual live TLS probe).
+- The same known GNU duplicate-manifest warning was emitted; no test failed.

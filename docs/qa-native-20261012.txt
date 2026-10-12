@@ -1,0 +1,10 @@
+PASS: orb → bar → expanded; native shell resized
+PASS: native geometry + DOM pointerup fallback docks on release, no follow-up click
+PASS: native geometry + DOM pointercancel fallback docks on release, no follow-up click
+PASS: native geometry + DOM lostpointercapture fallback docks on release, no follow-up click
+PASS: left dock center=0; expanded inside work area 460×690
+PASS: right dock center=1536; expanded inside work area 460×690
+PASS: top dock center=0; expanded inside work area 460×690
+PASS: bottom dock center=912; expanded inside work area 460×690
+PASS: demo navigation leaves production prediction log byte-identical
+PASS: four pages × two themes captured; two explicit theme buttons

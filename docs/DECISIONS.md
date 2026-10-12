@@ -321,3 +321,12 @@
 - 卡面清单校正：calibration.ts 实测不 import 旧三模块（仅历史注释提及），无需改动；
   额外被咬住的 calibrationWindows.ts（beijingCalendarDateKey/RESET_RISK_HORIZON_MS）与
   watchCalibration.ts 已按等价替换/本地常量收敛，属「引用收敛」范围。
+
+
+## D034 RR46 正式发布前收尾（2026-10-12，用户在线）
+- 用户明确点单 QA 修复、整体审美与正式 release 上传 GitHub，并指定简单任务用 Luna。该在线指令覆盖本次 RUNBOOK 的发布留用户约定；仅普通 push/tag/release，不 force，不重写已有 tag。
+- RR45 前班已收工释放 LIGHT。为遵守一次一卡，新增发布卡 RR46 从其已提交 7da82fb 继承成果收尾；原 RR45 worktree 不碰，交付后记录被 RR46 吸收。版本定 0.2.0（既有0.1.0已发布，v2接口与交互属于功能版本），package/lock/Tauri/Cargo 同步。
+- 本机日耗记录只写真实成功额度观测，官方 accountId 只保存 SHA-256。缺身份或缺完整日不猜需求；跨午夜差量按采样时长线性分配是观测近似。完整日须跨两个北京午夜且间隔≤15分钟（现有后台刷新5分钟的三倍）；缺采、回满、周期变更的日不计入。没看到耗尽不声明 exhausted=false，需求仍是下界。
+- 用卡日志只追加真实成功快照的模型结果；所有 #demo 场景均禁止写预测/观测/建议生产日志。演示截图明确标记，不作为真实额度证据。
+- 窗口改用操作系统工作区（Tauri Monitor::work_area），72圆窗下限与真实尺寸一致；两级点击是圆→条→面板，收起回圆。保留既有托盘菜单功能。
+- 截图发现的低风险红字、环心对比不足、候选图空态同卡修复。无需新增位图，现有品牌SVG与主题token已足够。

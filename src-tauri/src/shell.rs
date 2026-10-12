@@ -78,8 +78,10 @@ fn geometry<R: Runtime>(window: &WebviewWindow<R>) -> Result<ShellGeometry, Stri
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "no monitor available".to_string())?;
     let monitor_scale = safe_scale(monitor.scale_factor());
-    let monitor_position = monitor.position();
-    let monitor_size = monitor.size();
+    // RR46 使用可用工作区，底部面板不会覆盖任务栏。Tauri Monitor::work_area。
+    let work_area = monitor.work_area();
+    let monitor_position = &work_area.position;
+    let monitor_size = &work_area.size;
     Ok(ShellGeometry {
         x: position.x as f64 / scale,
         y: position.y as f64 / scale,

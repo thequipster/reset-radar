@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "reset-radar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "app.resetradar.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -16,7 +16,7 @@
         "title": "重置雷达 reset-radar",
         "width": 460,
         "height": 76,
-        "minWidth": 80,
+        "minWidth": 72,
         "minHeight": 32,
         "maxWidth": 760,
         "maxHeight": 1200,

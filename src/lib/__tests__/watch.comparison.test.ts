@@ -1,7 +1,6 @@
 // RR16 合成数据：只验证纯函数，不读写 data/ 生产预测日志。
 import { describe, expect, it } from "vitest";
 import { compareWatchPredictions, joinProspectivePredictions } from "../watchCalibration.ts";
-import { WATCH_WEIGHT } from "../risk.ts";
 import type { PredictionRecord } from "../predictions.ts";
 
 const row = (over: Partial<PredictionRecord> = {}): PredictionRecord => ({
@@ -11,7 +10,7 @@ const row = (over: Partial<PredictionRecord> = {}): PredictionRecord => ({
   fetchedAt: "2026-10-08T00:00:00.000Z",
   windowStart: "2026-10-08T00:00:00.000Z",
   windowEnd: "2026-10-09T00:00:00.000Z",
-  watchComparison: { weight: WATCH_WEIGHT, watchPercent: 85, baselineRisk: 20 },
+  watchComparison: { weight: 0.25, watchPercent: 85, baselineRisk: 20 },
   ...over,
 });
 
@@ -52,7 +51,7 @@ describe("compareWatchPredictions 前瞻同样本校准", () => {
   it("跳过非法元数据、非严格事前时刻及四字段旧行；空样本分数为 null", () => {
     const invalid = row({ watchComparison: { weight: 0.2, watchPercent: 50, baselineRisk: 50 } });
     const afterStart = row({ fetchedAt: "2026-10-08T00:00:00.001Z" });
-    const malformed = row({ watchComparison: { weight: WATCH_WEIGHT, watchPercent: Number.NaN, baselineRisk: 50 } });
+    const malformed = row({ watchComparison: { weight: 0.25, watchPercent: Number.NaN, baselineRisk: 50 } });
     const old: PredictionRecord = { date: "2026-10-08", predictedRisk: 50, factorsDigest: "", fetchedAt: "2026-10-08T00:00:00Z" };
     const result = compareWatchPredictions([invalid, afterStart, malformed, old], [], new Date("2026-10-10T00:00:00Z"));
     expect(result.pairedSamples).toBe(0);

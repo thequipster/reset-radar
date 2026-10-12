@@ -18,6 +18,7 @@ import {
   estimateDemand,
   planPaceV2,
   type PacePlanV2,
+  type DailyUsageSample,
   planResetCardV2,
   type ResetCardDecisionV2,
   splitObservationSegments,
@@ -143,6 +144,7 @@ export function buildDashboard(
   now: Date = new Date(),
   historyDocument?: unknown,
   calibrationSummary?: CalibrationSummaryView,
+  usageSamples: readonly DailyUsageSample[] = [],
 ): DashboardViewModel {
   const observedAt =
     snapshot.rateLimitSnapshot?.observedAt ?? snapshot.updatedAt;
@@ -198,8 +200,8 @@ export function buildDashboard(
           remaining: remaining as number,
           nextNaturalResetAt: resetsAtMs,
           assumedAnnouncementAt: Number.isFinite(interventionAtMs) ? interventionAtMs : null,
-          demand: estimateDemand([], modelAsOfMs),
-          survivalAt: survivalAtFromCurve(risk.survivalCurve),
+          demand: estimateDemand(usageSamples, modelAsOfMs),
+          survivalAt: (at) => survivalAtFromCurve(risk.survivalCurve)(at - modelAsOfMs),
         })
       : null;
 
@@ -218,7 +220,7 @@ export function buildDashboard(
             id: `card-${index + 1}`,
             expiresAt: Number.MAX_SAFE_INTEGER,
           })),
-          demand: estimateDemand([], modelAsOfMs),
+          demand: estimateDemand(usageSamples, modelAsOfMs),
           rateTable,
           announcements:
             Number.isFinite(interventionAtMs) ? [{ at: interventionAtMs }] : [],

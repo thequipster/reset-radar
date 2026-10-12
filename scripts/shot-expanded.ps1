@@ -40,7 +40,7 @@ $ok = [RR14Probe]::SetProcessDpiAwarenessContext([IntPtr](-4))
 
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$Port"
 $wd = Split-Path $ExePath
-$proc = Start-Process -FilePath $ExePath -WorkingDirectory $wd -PassThru
+$proc = Start-Process -FilePath $ExePath -WorkingDirectory $wd -WindowStyle Hidden -PassThru
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $null
 
 # 等 CDP HTTP 端点就绪（webview 起来才有）

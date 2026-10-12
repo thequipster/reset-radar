@@ -1,8 +1,8 @@
 // RR43 域测试：贴边停靠几何（纯函数）。窗口/屏幕坐标一律逻辑像素，DPI 换算不进本层。
 import { describe, expect, it } from "vitest";
 import {
-  DOCK_SNAP_DISTANCE, DOCK_VISIBLE, KEEP_ON_SCREEN, dockedPosition, edgeDistances, isDockedAt,
-  nearestDockEdge, orbShift, orbShiftSign, poppedPosition, type Rect,
+  DOCK_SNAP_DISTANCE, KEEP_ON_SCREEN, dockedPosition, edgeDistances, isDockedAt,
+  nearestDockEdge, poppedPosition, clampVisiblePosition, type Rect,
 } from "../dockGeometry";
 
 const MONITOR: Rect = { x: 0, y: 0, width: 1920, height: 1080 };
@@ -48,23 +48,23 @@ describe("nearestDockEdge（是否该吸附）", () => {
   });
 });
 
-describe("dockedPosition（贴边只露一条）", () => {
-  it("四条边各留 DOCK_VISIBLE，其余推出屏幕外", () => {
+describe("dockedPosition（圆心压边线，露出半圆）", () => {
+  it("四条边窗口中心都落在屏幕边线上", () => {
     expect(dockedPosition("left", MONITOR, SIZE, { x: 200, y: 300 })).toEqual({
-      x: 0 - 72 + DOCK_VISIBLE,
+      x: -36,
       y: 300,
     });
     expect(dockedPosition("right", MONITOR, SIZE, { x: 200, y: 300 })).toEqual({
-      x: 1920 - DOCK_VISIBLE,
+      x: 1920 - 36,
       y: 300,
     });
     expect(dockedPosition("top", MONITOR, SIZE, { x: 200, y: 300 })).toEqual({
       x: 200,
-      y: 0 - 72 + DOCK_VISIBLE,
+      y: -36,
     });
     expect(dockedPosition("bottom", MONITOR, SIZE, { x: 200, y: 300 })).toEqual({
       x: 200,
-      y: 1080 - DOCK_VISIBLE,
+      y: 1080 - 36,
     });
   });
 
@@ -73,6 +73,21 @@ describe("dockedPosition（贴边只露一条）", () => {
     const high = dockedPosition("right", MONITOR, SIZE, { x: 100, y: 9999 });
     expect(low.y).toBe(KEEP_ON_SCREEN);
     expect(high.y).toBe(1080 - 72 - KEEP_ON_SCREEN);
+  });
+});
+
+describe("clampVisiblePosition（展开前收回工作区）", () => {
+  it("将下缘展开位置完整夹回屏幕内", () => {
+    expect(clampVisiblePosition({ x: 329, y: 1681 }, MONITOR, { width: 460, height: 690 }))
+      .toEqual({ x: 329, y: 390 });
+  });
+
+  it("支持非零工作区原点并保证完整可见", () => {
+    expect(clampVisiblePosition({ x: -999, y: 9999 }, MONITOR, SIZE))
+      .toEqual({ x: 0, y: 1008 });
+    const second: Rect = { x: -1920, y: -200, width: 1280, height: 1024 };
+    expect(clampVisiblePosition({ x: 900, y: -900 }, second, SIZE))
+      .toEqual({ x: -712, y: -200 });
   });
 });
 
@@ -98,19 +113,5 @@ describe("poppedPosition（鼠标靠近弹回）", () => {
     expect(again).toEqual(docked);
     expect(isDockedAt(edge, { ...again, ...SIZE }, MONITOR)).toBe(true);
     expect(isDockedAt(edge, { ...popped, ...SIZE }, MONITOR)).toBe(false);
-  });
-});
-
-describe("orbShift（贴边后圆心落在可见带中线 → 正好半个圆）", () => {
-  it("位移量 = (窗口 - 可见)/2；圆心 = 可见宽度的一半", () => {
-    expect(orbShift(72)).toBe(24);
-    expect(72 / 2 - orbShift(72)).toBe(DOCK_VISIBLE / 2);
-  });
-
-  it("位移方向：left 往右推、right 往左推，上下同理", () => {
-    expect(orbShiftSign("left")).toEqual({ x: 1, y: 0 });
-    expect(orbShiftSign("right")).toEqual({ x: -1, y: 0 });
-    expect(orbShiftSign("top")).toEqual({ x: 0, y: 1 });
-    expect(orbShiftSign("bottom")).toEqual({ x: 0, y: -1 });
   });
 });

@@ -45,10 +45,10 @@ export function demoSnapshot(): ProviderSnapshot {
   return baseSnapshot(healthyWeeklyWindow());
 }
 
-export type DemoScenario = "empty" | "error" | "stale" | "credits-zero" | "credits-unknown" | "loading";
+export type DemoScenario = "healthy" | "empty" | "error" | "stale" | "credits-zero" | "credits-unknown" | "loading";
 
 export const DEMO_SCENARIOS: readonly DemoScenario[] = [
-  "empty", "error", "stale", "credits-zero", "credits-unknown", "loading",
+  "healthy", "empty", "error", "stale", "credits-zero", "credits-unknown", "loading",
 ];
 
 /** hash → 演示场景（组合段 #demo=empty / #expanded&demo=empty）；无匹配 null。 */
@@ -65,6 +65,7 @@ export function parseDemoScenario(hash: string): DemoScenario | null {
 export function demoScenarioSnapshot(scenario: DemoScenario): ProviderSnapshot | null {
   const now = new Date().toISOString();
   switch (scenario) {
+    case "healthy": return demoSnapshot();
     case "empty":
       return null; // 空数组：组件显示空态
     case "error":

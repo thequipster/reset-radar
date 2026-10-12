@@ -35,6 +35,11 @@ describe("resolveTheme", () => {
     expect(resolveTheme("system", true)).toBe("dark");
     expect(resolveTheme("system", false)).toBe("light");
   });
+
+  it.each(["dark", "light"] as const)("显式 %s 主题不受系统主题影响", (preference) => {
+    expect(resolveTheme(preference, true)).toBe(preference);
+    expect(resolveTheme(preference, false)).toBe(preference);
+  });
 });
 
 describe("本地记忆（localStorage）", () => {
@@ -42,7 +47,8 @@ describe("本地记忆（localStorage）", () => {
     const store = memoryStore({ [THEME_STORAGE_KEY]: "light" });
     expect(readThemePreference(store)).toBe("light");
     expect(writeThemePreference(store, "system")).toBe(true);
-    expect(readThemePreference(store)).toBe("system");
+    expect(readThemePreference(store)).toBe("dark"); // 旧 system 记忆迁移到深色默认
+    expect(readThemePreference(memoryStore({ [THEME_STORAGE_KEY]: "system" }))).toBe("dark");
     expect(readThemePreference(memoryStore())).toBe("dark"); // 默认=图3 深色主参考
     expect(readThemePreference(memoryStore({ [THEME_STORAGE_KEY]: "neon" }))).toBe("dark");
     // 抛错存储（如隐私模式配额）：读写都不炸。

@@ -20,3 +20,6 @@ Thumbs.db
 
 # tauri-build 生成的 schema（参考项目同款做法，不入库）
 src-tauri/gen/
+
+# 本机发布验收产物（正式安装包由 GitHub Actions 构建）
+release-qa/

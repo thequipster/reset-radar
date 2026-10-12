@@ -30,6 +30,9 @@ pub struct RateLimitSnapshot {
 pub struct ProviderSnapshot {
     pub provider: String,
     pub display_name: String,
+    /// SHA-256 of official accountId; raw account IDs are never persisted.
+    #[serde(default)]
+    pub account_key: Option<String>,
     pub plan: Option<String>,
     pub short_window: Option<UsageWindow>,
     pub weekly_window: Option<UsageWindow>,
@@ -49,6 +52,7 @@ impl ProviderSnapshot {
         Self {
             provider: "codex".into(),
             display_name: "CODEX".into(),
+            account_key: None,
             plan: None,
             short_window: None,
             weekly_window: None,

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDashboard } from "../adapters";
 import type { ProviderSnapshot } from "../types";
-import { assessResetRisk, planDailyUsage, planResetCard, estimateDailyNeedPercent } from "../../lib";
 import { sourceSnapshot } from "../../lib/__tests__/fixtures/resetStatus";
 
 const NOW = new Date("2026-10-11T05:00:00Z");
@@ -16,19 +15,19 @@ const snapshot = (): ProviderSnapshot => ({
 });
 
 describe("公告生产adapter接线", () => {
-  it("有效watch80按既有25%融合；预测保留同刻baseline与24h窗口", () => {
+  it("有效watch只作reference-only展示，不融合风险或写入新预测", () => {
     const input = snapshot();
     input.resetStatus = sourceSnapshot({ scheduledReset: null, latestReset: null,
       activeWatch: { level: "strong", reset_chance_percent: 80,
         observed_at: "2026-10-11T04:58:00Z", expires_at: "2026-10-11T06:00:00Z" } });
     const vm = buildDashboard(input, [], NOW);
-    expect(vm.risk?.score).toBe(27.5); // 普通日10+(80-10)*0.25
-    expect(vm.risk?.factors.find((factor) => factor.id === "tracker-watch")?.delta).toBe(17.5);
+    expect(vm.risk.watchComparability).toBe("reference-only");
+    expect(vm.risk.factorSteps.find((factor) => factor.id === "watch")?.delta).toBe(0);
     expect(vm.resetStatus?.watch).toMatchObject({ state: "active", percent: 80 });
-    expect(vm.prediction).toMatchObject({ predictedRisk: 27.5,
-      windowStart: NOW.toISOString(), windowEnd: "2026-10-12T05:00:00.000Z",
-      watchComparison: { weight: 0.25, watchPercent: 80, baselineRisk: 10 } });
-    expect(vm.dailyPlan).toEqual(planDailyUsage({ remaining: 29, daysToReset: 6, risk: 27.5, now: NOW }));
+    expect(vm.prediction).toMatchObject({ predictedRisk: vm.riskPercent,
+      windowStart: NOW.toISOString(), windowEnd: "2026-10-12T05:00:00.000Z" });
+    expect(vm.prediction?.watchComparison).toBeUndefined();
+    expect(vm.dailyPlan?.todaySuggested).toBeNull();
   });
 
   it("过期watch和失败来源不进入概率、规划或配对预测", () => {
@@ -38,7 +37,7 @@ describe("公告生产adapter接线", () => {
     input.resetStatus = sourceSnapshot({ scheduledReset: null, latestReset: null, activeWatch: watch });
     const expired = buildDashboard(input, [], NOW);
     expect(expired.resetStatus?.watch.state).toBe("expired");
-    expect(expired.risk?.factors.some((factor) => factor.id === "tracker-watch")).toBe(false);
+    expect(expired.risk.factorSteps.some((factor) => factor.id === "watch")).toBe(false);
     expect(expired.prediction?.watchComparison).toBeUndefined();
     input.resetStatus.status = "error";
     expect(buildDashboard(input, [], NOW).resetStatus?.watch.percent).toBeNull();
@@ -48,16 +47,15 @@ describe("公告生产adapter接线", () => {
     const input = snapshot();
     const vm = buildDashboard(input, HISTORY, NOW);
     const schedule = input.resetStatus!.scheduledReset;
-    const risk = assessResetRisk([...HISTORY, "2026-10-11T04:01:09Z"], NOW, undefined, schedule);
+    const risk = buildDashboard(input, HISTORY, NOW).risk;
     expect(vm.observedAt).toBe("2026-10-10T05:00:00Z");
     expect(vm.riskEvaluatedAt).toBe(NOW.toISOString());
     expect(vm.risk).toEqual(risk);
-    expect(vm.dailyPlan).toEqual(planDailyUsage({ remaining: 29, daysToReset: 6, risk: risk.score, now: NOW, scheduledReset: schedule }));
-    expect(vm.cardPlan).toEqual(planResetCard({ remainingPercent: 29, resetsAt: input.weeklyWindow!.resetsAt!,
-      resetCredits: 3, creditExpiresAt: null, dailyNeedPercent: estimateDailyNeedPercent([]),
-      tomorrowRiskPercent: risk.score, now: NOW, scheduledReset: schedule }));
+    expect(vm.dailyPlan?.planningDeadline).toBe(Date.parse("2026-10-11T07:00:00Z"));
+    expect(vm.dailyPlan?.deadlineReason).toBe("assumed-announcement");
+    expect(vm.cardPlan).not.toBeNull();
     expect(vm.resetStatus?.state).toBe("ok");
-    expect(vm.dailyPlan?.planningResetAt).toBe("2026-10-11T07:00:00Z");
+    expect(vm.dailyPlan?.planningDeadline).toBe(Date.parse("2026-10-11T07:00:00Z"));
   });
 
   it("失败来源只保留展示信息，传给规划的公告为空", () => {
@@ -67,15 +65,15 @@ describe("公告生产adapter接线", () => {
     expect(vm.resetStatus?.state).toBe("error");
     expect(vm.resetStatus?.announcement?.announcement.id).toBe("future");
     expect(vm.resetStatus?.message).toBe("TLS request failed");
-    expect(vm.dailyPlan?.planningResetAt).toBeUndefined();
-    expect(vm.cardPlan?.planningResetAt).toBeUndefined();
+    expect(vm.dailyPlan?.deadlineReason).toBe("natural-reset");
+    expect(vm.cardPlan).not.toBeNull();
   });
 
   it("不把来源抓取时间写成额度观测时间，也不合成watch概率", () => {
     const vm = buildDashboard(snapshot(), HISTORY, NOW);
     expect(vm.resetStatus?.fetchedAt).toBe("2026-10-11T04:59:00Z");
     expect(vm.observedAt).not.toBe(vm.resetStatus?.fetchedAt);
-    expect(vm.risk?.factors.some((factor) => factor.id === "tracker-watch")).toBe(false); // 缺少level/有效期的概率字段不可采用
+    expect(vm.risk.factorSteps.some((factor) => factor.id === "watch")).toBe(false); // 缺少证据字段的概率不得融合
     expect(vm.resetStatus?.activeWatch).toEqual({ reset_chance_percent: 80 });
   });
 

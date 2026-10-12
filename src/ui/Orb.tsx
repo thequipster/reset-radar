@@ -1,9 +1,9 @@
 // RR43 迷你圆形态：比胶囊更小的圆形悬浮，只显示一个最关键的数字
 // （默认今日建议配速；托盘菜单 / 右键可切到 24h 重置风险、周额度剩余）。
 // 数字一律来自 adapters 视图模型（ARCHITECTURE §2），本组件只做展示与拖拽/贴边交互。
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import type { DashboardViewModel } from "./adapters";
-import { DOCK_VISIBLE, orbShift, orbShiftSign, type DockEdge } from "./dockGeometry";
+import type { DockEdge } from "./dockGeometry";
 import { orbReadout, type OrbMetric } from "./orbMetric";
 import { ORB_DIAMETER, ORB_SIZE } from "./widgetWindow";
 import styles from "./Orb.module.css";
@@ -50,14 +50,41 @@ export default function Orb({
 }: OrbProps) {
   const readout = orbReadout(vm, metric);
   const start = useRef<{ x: number; y: number } | null>(null);
+  const latest = useRef<{ x: number; y: number } | null>(null);
   const moved = useRef(false);
+  const pointerId = useRef<number | null>(null);
   const docked = dockEdge != null && !popped;
-
-  // 贴边时把圆推向可见一侧，使圆心落在可见带中线 → 屏幕上只剩一个半圆。
-  const shift = docked && dockEdge != null ? orbShift(ORB_SIZE.width, DOCK_VISIBLE) : 0;
-  const sign = dockEdge != null ? orbShiftSign(dockEdge) : { x: 0, y: 0 };
-  const shiftTransform =
-    shift === 0 ? undefined : `translate3d(${shift * sign.x}px, ${shift * sign.y}px, 0)`;
+  const finishDragRef = useRef<(event: { pointerId: number; screenX: number; screenY: number; type?: string }, canceled?: boolean) => void>(() => {});
+  const onWindowUp = useCallback((event: PointerEvent) => finishDragRef.current(event), []);
+  const onWindowCancel = useCallback((event: PointerEvent) => finishDragRef.current(event, true), []);
+  const onWindowBlur = useCallback(() => {
+    if (start.current == null || pointerId.current == null) return;
+    finishDragRef.current({
+      pointerId: pointerId.current,
+      screenX: latest.current?.x ?? start.current.x,
+      screenY: latest.current?.y ?? start.current.y,
+      type: "blur",
+    }, true);
+  }, []);
+  const finishDrag = (event: { pointerId: number; screenX: number; screenY: number; type?: string }, canceled = false) => {
+    if (start.current == null || pointerId.current !== event.pointerId) return;
+    const origin = start.current;
+    start.current = null;
+    pointerId.current = null;
+    window.removeEventListener("pointerup", onWindowUp);
+    window.removeEventListener("pointercancel", onWindowCancel);
+    window.removeEventListener("blur", onWindowBlur);
+    const point = canceled
+      ? latest.current ?? { x: event.screenX, y: event.screenY }
+      : { x: event.screenX, y: event.screenY };
+    const dx = point.x - origin.x;
+    const dy = point.y - origin.y;
+    if (canceled) {
+      if (moved.current) onDragEnd(dx, dy, true);
+    } else if (moved.current) onDragEnd(dx, dy, true);
+    else onExpand();
+  };
+  finishDragRef.current = finishDrag;
 
   const bandClass =
     readout.band === "low"
@@ -73,7 +100,7 @@ export default function Orb({
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.shift} style={{ transform: shiftTransform }}>
+      <div className={styles.shift}>
         <button
           ref={orbRef}
           type="button"
@@ -83,32 +110,34 @@ export default function Orb({
           data-orb-popped={popped ? "true" : "false"}
           aria-label={readout.title}
           title={readout.title}
-          onPointerEnter={onPointerEnter}
-          onPointerLeave={onPointerLeave}
+          onPointerEnter={() => { if (start.current == null) onPointerEnter(); }}
+          onPointerLeave={() => { if (start.current == null) onPointerLeave(); }}
           onPointerDown={(event) => {
             if (event.button !== 0) return;
             start.current = { x: event.screenX, y: event.screenY };
+            latest.current = { x: event.screenX, y: event.screenY };
             moved.current = false;
-            event.currentTarget.setPointerCapture?.(event.pointerId);
+            pointerId.current = event.pointerId;
+            window.addEventListener("pointerup", onWindowUp);
+            window.addEventListener("pointercancel", onWindowCancel);
+            window.addEventListener("blur", onWindowBlur);
+            try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* window listeners retain release fallback */ }
           }}
           onPointerMove={(event) => {
             const origin = start.current;
             if (origin == null) return;
             const dx = event.screenX - origin.x;
             const dy = event.screenY - origin.y;
+            latest.current = { x: event.screenX, y: event.screenY };
             if (!moved.current && Math.abs(dx) + Math.abs(dy) < DRAG_THRESHOLD) return;
             moved.current = true;
             onDragMove(dx, dy);
           }}
           onPointerUp={(event) => {
-            const origin = start.current;
-            if (origin == null) return;
-            start.current = null;
-            const dx = event.screenX - origin.x;
-            const dy = event.screenY - origin.y;
-            if (moved.current) onDragEnd(dx, dy, true);
-            else onExpand();
+            finishDrag(event);
           }}
+          onPointerCancel={(event) => finishDrag(event, true)}
+          onLostPointerCapture={(event) => finishDrag(event, true)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();

@@ -17,7 +17,7 @@ const css = readFileSync(join(__dirname, "..", "DashboardPanel.module.css"), "ut
 
 describe("RR40：采集状态卡副文案「·」不悬行缘（行尾/行首皆锁）", () => {
   it("新结构：去「·」，nowrap 段为纯时间段（整段=「时间段 北京时间」）", () => {
-    expect(tsx).toMatch(/最近更新成功 <span className=\{styles\.timeNoWrap\}>\{beijingShort\(vm!\.observedAt\)/);
+    expect(tsx).toMatch(/最近更新成功"\} <span className=\{styles\.timeNoWrap\}>\{beijingShort\(vm!\.observedAt\)/);
   });
   it("成功分支整段不含分隔点「·」（改间距后无孤悬标点可换形态）", () => {
     const m = tsx.match(/最近更新成功[^\n]*北京时间/);
@@ -25,7 +25,7 @@ describe("RR40：采集状态卡副文案「·」不悬行缘（行尾/行首皆
     expect(m![0]).not.toContain("·");
   });
   it("坏②不得回归：「·」并入 nowrap 段首即行首顶格（RR40 所修形态）", () => {
-    expect(tsx).not.toMatch(/最近更新成功 <span className=\{styles\.timeNoWrap\}>· /);
+    expect(tsx).not.toMatch(/最近更新成功"\} <span className=\{styles\.timeNoWrap\}>· /);
   });
   it("坏①不得回归：「·」暴露在 nowrap 段外即行尾悬挂（RR38 所修形态）", () => {
     expect(tsx).not.toMatch(/最近更新成功 · <span/);

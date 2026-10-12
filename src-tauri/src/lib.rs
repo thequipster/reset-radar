@@ -8,6 +8,7 @@ mod models;
 mod snapshots;
 mod reset_status;
 mod predictions;
+mod observations;
 mod calibration_summary;
 mod shell;
 
@@ -129,7 +130,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_snapshots, refresh_snapshots, read_prediction_log, append_prediction_log, read_calibration_summary,
+            get_snapshots, refresh_snapshots, read_observation_log, append_observation_log, read_prediction_log, append_prediction_log, read_calibration_summary,
             shell::shell_geometry, shell::shell_set_bounds, shell::shell_set_visible, shell::shell_is_visible, shell::shell_quit
         ])
         .run(tauri::generate_context!())
@@ -260,4 +261,16 @@ fn append_prediction_log(state: State<'_, AppState>, expected_content: String, l
 fn read_calibration_summary(state: State<'_, AppState>) -> Result<calibration_summary::SummaryRead, String> {
     let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
     calibration_summary::read_summary(dir.as_ref().ok_or("application config directory unavailable")?)
+}
+
+/// RR46 两类观测日志：目录固定，路径白名单在 IO 薄壳内验证。
+#[tauri::command]
+fn read_observation_log(state: State<'_, AppState>, kind: String) -> Result<observations::LogRead, String> {
+    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
+    observations::read_log(dir.as_ref().ok_or("application config directory unavailable")?, &kind)
+}
+#[tauri::command]
+fn append_observation_log(state: State<'_, AppState>, kind: String, expected_content: String, line: String) -> Result<observations::AppendResult, String> {
+    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
+    observations::append_line(dir.as_ref().ok_or("application config directory unavailable")?, &kind, &expected_content, &line)
 }

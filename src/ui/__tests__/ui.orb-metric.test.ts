@@ -28,23 +28,23 @@ const snapshot = (): ProviderSnapshot => ({
 });
 
 describe("orbReadout（三种指标各显示一个数）", () => {
-  it("配速：取 dailyPlan.suggested，一位小数，无单位", () => {
+  it("需求未知时配速显示占位符，不代入固定值", () => {
     const vm = buildDashboard(snapshot(), [], NOW);
     const readout = orbReadout(vm, "pace");
-    expect(vm.dailyPlan?.suggested).not.toBeNull();
-    expect(readout.value).toBe(vm.dailyPlan?.suggested?.toFixed(1));
+    expect(vm.dailyPlan?.todaySuggested).toBeNull();
+    expect(readout.value).toBe("—");
     expect(readout.unit).toBe("");
-    expect(readout.hasValue).toBe(true);
+    expect(readout.hasValue).toBe(false);
     expect(readout.metric).toBe("pace");
   });
 
-  it("风险：取 risk.score，一位小数 + %，圆环填充同风险分", () => {
+  it("风险：取 riskPercent，一位小数 + %，圆环填充同风险分", () => {
     const vm = buildDashboard(snapshot(), [], NOW);
     const readout = orbReadout(vm, "risk");
-    expect(readout.value).toBe(vm.risk?.score?.toFixed(1));
+    expect(readout.value).toBe(vm.riskPercent.toFixed(1));
     expect(readout.unit).toBe("%");
-    expect(readout.percent).toBe(vm.risk?.score);
-    expect(readout.band).toBe(riskBand(vm.risk?.score ?? null));
+    expect(readout.percent).toBe(vm.riskPercent);
+    expect(readout.band).toBe(riskBand(vm.riskPercent));
   });
 
   it("剩余：周额度取整 + %", () => {
@@ -65,7 +65,7 @@ describe("orbReadout（三种指标各显示一个数）", () => {
 
   it("字段缺失时逐个降级为占位符，而不是显示 undefined/NaN", () => {
     const vm = buildDashboard(snapshot(), [], NOW);
-    const risky = { ...vm, risk: null, dailyPlan: null, remainingPercent: null };
+    const risky = { ...vm, riskPercent: Number.NaN, dailyPlan: null, remainingPercent: null };
     for (const metric of ["pace", "risk", "remaining"] as const) {
       const readout = orbReadout(risky, metric);
       expect(readout.value).toBe("—");
@@ -95,8 +95,8 @@ describe("riskBand（与胶囊/面板风险徽章同阈值 30/60）", () => {
 
   it("圆环填充夹在 0–100，不给负分或超界分画满环", () => {
     const vm = buildDashboard(snapshot(), [], NOW);
-    const high = { ...vm, risk: { ...(vm.risk as object), score: 180 } } as typeof vm;
-    const low = { ...vm, risk: { ...(vm.risk as object), score: -20 } } as typeof vm;
+    const high = { ...vm, riskPercent: 180 } as typeof vm;
+    const low = { ...vm, riskPercent: -20 } as typeof vm;
     expect(orbReadout(high, "risk").percent).toBe(100);
     expect(orbReadout(low, "risk").percent).toBe(0);
   });

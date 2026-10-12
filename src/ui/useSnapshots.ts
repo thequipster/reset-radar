@@ -77,9 +77,11 @@ export function useSnapshots(): SnapshotsState {
   useEffect(() => {
     if (!isTauri()) return;
     let disposed = false;
+    let unlisten: (() => void) | null = null;
+    let eventRevision = 0;
     invoke<ProviderSnapshot[]>("get_snapshots")
       .then((values) => {
-        if (!disposed) apply(values);
+        if (!disposed && eventRevision === 0) apply(values);
       })
       .catch((error: unknown) => {
         if (disposed) return;
@@ -89,9 +91,14 @@ export function useSnapshots(): SnapshotsState {
           readError: String((error as { message?: string })?.message ?? error),
         }));
       });
-    listen<ProviderSnapshot[]>("background-snapshots-updated", (event) => apply(event.payload))
-      .then((unlisten) => {
-        if (disposed) unlisten();
+    listen<ProviderSnapshot[]>("background-snapshots-updated", (event) => {
+      if (disposed) return;
+      eventRevision++;
+      apply(event.payload);
+    })
+      .then((unsubscribe) => {
+        if (disposed) unsubscribe();
+        else unlisten = unsubscribe;
       })
       .catch(() => {
         // 订阅失败但读取已有结果：数据保留，横幅提示（02-spec §6）。
@@ -99,6 +106,7 @@ export function useSnapshots(): SnapshotsState {
       });
     return () => {
       disposed = true;
+      unlisten?.();
     };
   }, [apply]);
 

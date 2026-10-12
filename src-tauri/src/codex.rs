@@ -10,6 +10,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{ChildStdin, Command};
 use tokio::time::timeout;
@@ -20,8 +21,26 @@ use crate::models::{ProviderSnapshot, RateLimitSnapshot, UsageWindow};
 const WEEKLY_WINDOW_MINUTES: u64 = 10_080;
 /// 短窗口（5h）时长（分钟）。出处：参考 codex.rs:765 字面量 300。
 const SHORT_WINDOW_MINUTES: u64 = 300;
-/// app-server 响应超时。出处：参考 codex.rs:29 APP_SERVER_TIMEOUT（RR08 卡面：6s）。
-const APP_SERVER_TIMEOUT: Duration = Duration::from_secs(6);
+/// app-server 单轮响应超时；9346 实测原 6s 上限余量仅 221ms。
+const APP_SERVER_TIMEOUT: Duration = Duration::from_secs(15);
+const APP_SERVER_TOTAL_TIMEOUT: Duration = Duration::from_secs(30);
+
+enum AppServerReadError {
+    Timeout,
+    Other(String),
+}
+
+impl From<String> for AppServerReadError {
+    fn from(message: String) -> Self {
+        Self::Other(message)
+    }
+}
+
+impl AppServerReadError {
+    fn is_retryable(&self) -> bool {
+        matches!(self, Self::Timeout)
+    }
+}
 
 /// 定位 codex 可执行文件。出处：参考 codex.rs:588-617 codex_program
 /// （CODEX_BIN → PATH 的 codex.exe/codex.cmd → home 的 AppData/Roaming/npm/codex.cmd）。
@@ -92,11 +111,62 @@ async fn write_app_server_request(stdin: &mut ChildStdin, value: Value) -> Resul
         .map_err(|_| "Codex App Server did not accept the request.".to_string())
 }
 
+/// 提取 JSON-RPC 错误说明，保留 app-server 给出的具体失败原因。
+fn rpc_error_message(value: &Value) -> Option<&str> {
+    value.get("error")?.get("message")?.as_str()
+}
+
+/// Hash official GetAccountRateLimitsResponse.accountId before it enters any snapshot or log.
+/// Schema: openai/codex `app-server-protocol/src/protocol/v2/account.rs` GetAccountRateLimitsResponse.
+fn account_key(result: &Value) -> Option<String> {
+    let id = result
+        .get("accountId")
+        .or_else(|| result.get("account_id"))?
+        .as_str()?;
+    if id.is_empty() {
+        return None;
+    }
+    let digest = Sha256::digest(id.as_bytes());
+    Some(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
 /// spawn app-server 完成握手并读回 rateLimits 结果。
-/// 序列：initialize(id=1) → initialized(通知) → account/rateLimits/read(id=2)。
+/// 序列：initialize(id=1) 等待响应 → initialized(通知) → account/rateLimits/read(id=2)。
 /// 出处：参考 codex.rs:630-703 read_app_server_rate_limits
-/// （kill_on_drop + Windows CREATE_NO_WINDOW=0x0800_0000 + 6s 超时 + id=2 过滤）。
+/// （kill_on_drop + Windows CREATE_NO_WINDOW=0x0800_0000 + 超时 + id=2 过滤）。
+/// 协议握手等待顺序：OpenAI Codex app-server 文档要求 initialize 成功后再发送 initialized。
 async fn read_app_server_rate_limits() -> Result<(Value, String), String> {
+    match timeout(APP_SERVER_TOTAL_TIMEOUT, async {
+        match read_app_server_rate_limits_once().await {
+            Ok(result) => Ok(result),
+            Err(error) => {
+                if !error.is_retryable() {
+                    return match error {
+                        AppServerReadError::Other(message) => Err(message),
+                        AppServerReadError::Timeout => unreachable!("timeout must be retryable"),
+                    };
+                }
+                match read_app_server_rate_limits_once().await {
+                    Ok(result) => Ok(result),
+                    Err(AppServerReadError::Other(message)) => Err(message),
+                    Err(AppServerReadError::Timeout) => Err(
+                        "Codex App Server quota read timed out twice (15 seconds per attempt)."
+                            .into(),
+                    ),
+                }
+            }
+        }
+    })
+    .await
+    {
+        Ok(result) => result,
+        Err(_) => Err("Codex App Server quota read exceeded the 30-second total timeout.".into()),
+    }
+}
+
+/// 单轮 app-server 读取；超时由调用层单独识别，以便只重试一次超时。
+async fn read_app_server_rate_limits_once(
+) -> Result<(Value, String), AppServerReadError> {
     let program = codex_program().ok_or_else(|| "Codex App Server was not found.".to_string())?;
     let mut command = Command::new(program);
     #[cfg(windows)]
@@ -118,29 +188,57 @@ async fn read_app_server_rate_limits() -> Result<(Value, String), String> {
         .take()
         .ok_or_else(|| "Codex App Server stdout is unavailable.".to_string())?;
 
-    let requests = [
-        json!({
-            "id": 1,
-            "method": "initialize",
-            "params": {"clientInfo": {"name": "reset-radar", "version": env!("CARGO_PKG_VERSION")}}
-        }),
-        json!({"method": "initialized"}),
-        json!({"id": 2, "method": "account/rateLimits/read", "params": null}),
-    ];
-    for request in requests {
-        if let Err(error) = write_app_server_request(&mut stdin, request).await {
-            let _ = child.kill().await;
-            let _ = child.wait().await;
-            return Err(error);
-        }
-    }
-    stdin
-        .flush()
-        .await
-        .map_err(|_| "Codex App Server did not flush the request.".to_string())?;
-
     let mut lines = BufReader::new(stdout).lines();
     let response = timeout(APP_SERVER_TIMEOUT, async {
+        write_app_server_request(
+            &mut stdin,
+            json!({
+                "id": 1,
+                "method": "initialize",
+                "params": {"clientInfo": {"name": "reset-radar", "version": env!("CARGO_PKG_VERSION")}}
+            }),
+        )
+        .await?;
+        stdin
+            .flush()
+            .await
+            .map_err(|_| "Codex App Server did not flush the initialize request.".to_string())?;
+
+        // The app-server protocol requires waiting for initialize to succeed
+        // before notifying initialized or sending authenticated requests.
+        loop {
+            let line = lines
+                .next_line()
+                .await
+                .map_err(|_| "Codex App Server output could not be read.".to_string())?
+                .ok_or_else(|| {
+                    "Codex App Server stopped before returning quota data.".to_string()
+                })?;
+            let Ok(value) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
+            if value.get("id").and_then(Value::as_i64) == Some(1) {
+                if let Some(message) = rpc_error_message(&value) {
+                    return Err(format!("Codex App Server initialization failed: {message}"));
+                }
+                if value.get("result").is_some() {
+                    break;
+                }
+                return Err("Codex App Server returned no initialization result.".to_string());
+            }
+        }
+
+        write_app_server_request(&mut stdin, json!({"method": "initialized"})).await?;
+        write_app_server_request(
+            &mut stdin,
+            json!({"id": 2, "method": "account/rateLimits/read", "params": null}),
+        )
+        .await?;
+        stdin
+            .flush()
+            .await
+            .map_err(|_| "Codex App Server did not flush the quota request.".to_string())?;
+
         loop {
             let line = lines
                 .next_line()
@@ -155,8 +253,8 @@ async fn read_app_server_rate_limits() -> Result<(Value, String), String> {
             if value.get("id").and_then(Value::as_i64) != Some(2) {
                 continue;
             }
-            if value.get("error").is_some() {
-                return Err("Codex App Server rejected the quota read.".to_string());
+            if let Some(message) = rpc_error_message(&value) {
+                return Err(format!("Codex App Server quota read failed: {message}"));
             }
             return value
                 .get("result")
@@ -165,10 +263,11 @@ async fn read_app_server_rate_limits() -> Result<(Value, String), String> {
         }
     })
     .await
-    .map_err(|_| "Codex App Server quota read timed out.".to_string())?;
+    .map_err(|_| AppServerReadError::Timeout)?
+    .map_err(AppServerReadError::Other)?;
     let _ = child.kill().await;
     let _ = child.wait().await;
-    Ok((response?, chrono::Utc::now().to_rfc3339()))
+    Ok((response, chrono::Utc::now().to_rfc3339()))
 }
 
 /// 窗口解析：remaining=100-used（clamp 0..100）、分钟转秒。出处：参考 codex.rs:705-717。
@@ -261,6 +360,7 @@ fn parse_app_server_snapshot(result: &Value, observed_at: String) -> Result<Prov
         reset_status: None,
         provider: "codex".into(),
         display_name: "CODEX".into(),
+        account_key: account_key(result),
         plan,
         short_window,
         weekly_window: Some(weekly_window),
@@ -290,6 +390,7 @@ mod tests {
     /// 官方 app-server 响应夹具。出处：参考 codex.rs:1168-1198（原样移植）。
     fn official_result() -> Value {
         json!({
+            "accountId": "codex-account-fixture",
             "rateLimits": {
                 "limitId": "codex",
                 "primary": {
@@ -328,6 +429,47 @@ mod tests {
             },
             "rateLimitResetCredits": {"availableCount": 0}
         })
+    }
+
+    #[test]
+    fn preserves_specific_app_server_rpc_error() {
+        let response = json!({
+            "id": 2,
+            "error": {"code": -32600, "message": "codex account authentication required to read rate limits"}
+        });
+        assert_eq!(
+            rpc_error_message(&response),
+            Some("codex account authentication required to read rate limits")
+        );
+    }
+
+    #[test]
+    fn only_timeouts_are_retryable() {
+        assert!(AppServerReadError::Timeout.is_retryable());
+        assert!(!AppServerReadError::Other(
+            "codex account authentication required to read rate limits".into()
+        )
+        .is_retryable());
+    }
+
+    #[test]
+    fn hashes_official_account_id_without_exposing_it() {
+        let mut result = official_result();
+        let raw_id = result["accountId"].as_str().unwrap().to_owned();
+        let key = account_key(&result).unwrap();
+        assert_eq!(
+            key,
+            "c2d0bf6115208e473525e9b5c31680f566ffe73f0ede5641be74d8d4251bee01"
+        );
+        assert_ne!(key, raw_id);
+        let snapshot = parse_app_server_snapshot(&result, "2026-08-13T08:30:00Z".into()).unwrap();
+        assert_eq!(snapshot.account_key.as_deref(), Some(key.as_str()));
+        let serialized = serde_json::to_string(&snapshot).unwrap();
+        assert!(serialized.contains("accountKey"));
+        assert!(!serialized.contains(&raw_id));
+
+        result["accountId"] = Value::Null;
+        assert_eq!(account_key(&result), None);
     }
 
     /// 出处：参考 codex.rs:1167-1215 parses_official_app_server_weekly_snapshot（断言原样）。

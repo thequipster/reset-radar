@@ -39,8 +39,7 @@ describe("buildCopySummary", () => {
     expect(text).toContain("周额度剩余：55%｜短窗剩余：64%");
     expect(text).toContain("重置卡：卡 ×3");
     expect(text).toContain("重置风险（未来24h 模型估计）");
-    expect(text).toContain("今日建议追加：+");
-    expect(text).toContain("个周额度百分点");
+    expect(text).toContain("今日建议：需求未知");
     expect(text).toContain("额度观测：2026/10/10 20:00:00（北京时间）");
     expect(text).toContain("校准：尚未生成报告");
     expect(text).not.toContain("演示");

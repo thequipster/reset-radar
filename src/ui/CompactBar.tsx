@@ -32,8 +32,8 @@ export default function CompactBar({ vm, phase, demo, onExpand, expandRef }: Com
   const loading = vm == null || phase === "initializing";
   const collectState = useMemo<CollectState>(() => {
     if (loading || phase === "empty") return "loading";
-    if (phase === "read-error" || vm.status === "error") return "error";
-    if (vm.resetStatus != null && vm.resetStatus.state === "stale") return "warn";
+    if (phase === "read-error" || (vm.status !== "ok" && vm.status !== "stale") || vm.remainingPercent == null) return "error";
+    if (vm.status === "stale" || (vm.resetStatus != null && vm.resetStatus.state === "stale")) return "warn";
     return "ok";
   }, [loading, phase, vm]);
 
@@ -43,7 +43,7 @@ export default function CompactBar({ vm, phase, demo, onExpand, expandRef }: Com
   const riskText = loading ? "—" : percent1(vm.riskPercent);
 
   return (
-    <div className={styles.shell} role="group" aria-label="reset-radar 悬浮条">
+    <div className={styles.shell} role="group" aria-label="reset-radar 悬浮条" onClick={onExpand}>
       <span className={styles.dragHandle} data-tauri-drag-region title="拖动悬浮条">
         <GripDots size={18} />
       </span>
@@ -103,7 +103,7 @@ export default function CompactBar({ vm, phase, demo, onExpand, expandRef }: Com
         type="button"
         ref={expandRef}
         className={styles.expandButton}
-        onClick={onExpand}
+        onClick={(event) => { event.stopPropagation(); onExpand(); }}
         aria-label="展开完整面板"
         title="展开（Enter/Space）"
       >

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   PREDICTION_RISK_CHANGE_THRESHOLD,
   appendPredictionLog,
-  digestFactors,
+  digestFactorSteps,
   predictionDateKey,
   type PredictionRecord,
 } from "../predictions.ts";
@@ -99,23 +99,23 @@ describe("appendPredictionLog 幂等（卡面口径）", () => {
   });
 });
 
-describe("digestFactors 因子摘要", () => {
-  it("id=delta 逗号连接，delta 取 1 位小数", () => {
+describe("digestFactorSteps 因子摘要", () => {
+  it("id=delta 逗号连接，delta 取千分之一概率单位", () => {
     const factors = [
-      { id: "weekday", label: "星期", delta: 12.34, note: "" },
-      { id: "consecutive", label: "连续", delta: -6.26, note: "" },
-    ];
-    expect(digestFactors(factors)).toBe("weekday=12.3,consecutive=-6.3");
+      { id: "weekday", label: "星期", delta: 0.1234, note: "", beforeProbability: 0, afterProbability: 0.1234 },
+      { id: "age", label: "年龄", delta: -0.0626, note: "", beforeProbability: 0.1, afterProbability: 0.0374 },
+    ] as const;
+    expect(digestFactorSteps(factors)).toBe("weekday=123,age=-63");
   });
 
   it("空因子 → 空串；顺序敏感（数组序即摘要序）", () => {
-    expect(digestFactors([])).toBe("");
+    expect(digestFactorSteps([])).toBe("");
     const a = [
-      { id: "x", label: "", delta: 1, note: "" },
-      { id: "y", label: "", delta: 2, note: "" },
-    ];
+      { id: "baseline", label: "", delta: 0.01, beforeProbability: 0, afterProbability: 0.01, note: "" },
+      { id: "weekday", label: "", delta: 0.02, beforeProbability: 0.01, afterProbability: 0.03, note: "" },
+    ] as const;
     const b = [a[1]!, a[0]!];
-    expect(digestFactors(a)).not.toBe(digestFactors(b));
+    expect(digestFactorSteps(a)).not.toBe(digestFactorSteps(b));
   });
 });
 

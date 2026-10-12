@@ -279,8 +279,9 @@
 }
 
 .ringCenter {
-  font-size: 14px;
-  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1118,3 +1119,12 @@
   flex-direction: column;
   min-height: 0;
 }
+
+/* RR46 正式版：窄窗内分清主数字与说明，长解释有稳定行距。 */
+.titleSub { color: var(--text-secondary); font-size: 11px; }
+.page { min-height: 0; line-height: 1.6; }
+.mutedNote, .chartNote, .decisionSub { line-height: 1.65; }
+.factorNote { line-height: 1.55; }
+.titleMain { white-space: nowrap; }
+.headerDrag > svg:first-child { width: 12px; }
+.riskLabel, .metricMiniLabel { font-size: 11px; }

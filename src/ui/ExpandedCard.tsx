@@ -3,16 +3,15 @@
 // RR21：窄窗自适应（RR14 遗产①）——标题/指标行可换行、收起常驻可见、× 关闭悬浮窗
 // （skipTaskbar 下唯一常规退出入口）、理由链任意字符断行，消除 460 宽横滚与竖排单字。
 import type { DashboardViewModel } from "./adapters";
-import type { ResetCardDecision, RiskFactor } from "../lib";
+import type { FactorStep, ResetCardDecisionKind } from "../lib";
 
 /** 用卡决策的展示文案（机器键→中文，rc:39-44 决策语义的 UI 翻译，非业务判断）。 */
-const DECISION_LABELS: Record<ResetCardDecision, string> = {
-  "no-credits": "无可用重置卡",
-  "hold-until-depleted": "额度尚多 · 暂缓用卡",
-  "hold-until-natural-reset": "撑得到自然重置 · 不必烧卡",
-  "hold-until-scheduled-reset": "按公告计划暂缓用卡 · 待核实执行",
-  "use-today": "建议今天用卡",
-  "wait-for-best-day": "等待最佳用卡日",
+const DECISION_LABELS: Record<ResetCardDecisionKind, string> = {
+  not_applicable: "当前不适用",
+  hold: "暂缓用卡",
+  use_today: "建议今天用卡",
+  wait: "等待更优时机",
+  uncertain: "需求未知 · 结论不稳",
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -37,7 +36,7 @@ const metricsRowStyle: React.CSSProperties = {
 };
 
 /** 可解释因子行（D006：UI 必须按 id/label/delta/note 渲染，不许只给总分）。 */
-function FactorRows({ factors }: { factors: RiskFactor[] }) {
+function FactorRows({ factors }: { factors: readonly FactorStep[] }) {
   if (factors.length === 0) return <div style={{ color: "#9aa3b2", fontSize: 12 }}>无因子</div>;
   return (
     <div style={{ display: "grid", gap: 3 }}>
@@ -55,7 +54,7 @@ function FactorRows({ factors }: { factors: RiskFactor[] }) {
             }}
           >
             {factor.delta >= 0 ? "+" : ""}
-            {factor.delta.toFixed(1)}
+            {(factor.delta * 100).toFixed(1)}
           </span>
           <span style={{ color: "#e8eaf0", margin: "0 6px 0 8px" }}>{factor.label}</span>
           <span style={{ color: "#9aa3b2", flex: "1 1 150px", minWidth: 0, overflowWrap: "anywhere" }}>
@@ -142,11 +141,11 @@ export default function ExpandedCard({
         <div style={titleStyle}>① 风险雷达 · 未来 24h 强制重置概率</div>
         <div style={{ ...metricsRowStyle, gap: 18, alignItems: "center", marginBottom: 6 }}>
           <span style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-            {vm.risk == null ? "—" : `${vm.risk.score.toFixed(1)}%`}
+            {vm.riskPercent.toFixed(1)}%
           </span>
-          <Metric label="48h 碰撞概率" value={card == null ? "—" : `${card.forcedReset48hPercent.toFixed(1)}%`} />
+          <Metric label="48h 碰撞概率" value={card == null ? "—" : `${((vm.risk.survivalCurve.find((point) => point.hours === 48)?.cumulativeProbability ?? 0) * 100).toFixed(1)}%`} />
         </div>
-        <FactorRows factors={vm.risk?.factors ?? []} />
+        <FactorRows factors={vm.risk.factorSteps} />
       </div>
 
       {/* 面板二：今日建议 */}
@@ -158,17 +157,16 @@ export default function ExpandedCard({
           <>
             <div style={{ ...metricsRowStyle, gap: 18, marginBottom: 6 }}>
               <span style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                +{vm.dailyPlan.suggested.toFixed(1)}
+                {vm.dailyPlan.todaySuggested == null ? "需求未知" : `+${vm.dailyPlan.todaySuggested.toFixed(1)}`}
               </span>
-              <Metric label="软上限" value={`${vm.dailyPlan.cap.toFixed(1)}`} />
-              <Metric label="均匀配速" value={`${vm.dailyPlan.uniformPace.toFixed(1)}`} />
-              <Metric label="风险前拉" value={`${vm.dailyPlan.riskBoost.toFixed(1)}`} />
+              <Metric label="需求质量" value={vm.dailyPlan.demandQuality} />
+              <Metric label="截止前预计未用" value={`${vm.dailyPlan.expectedUnspentBeforeDeadline.toFixed(1)}`} />
               <Metric
                 label="短窗剩余"
                 value={vm.shortRemainingPercent == null ? "—" : `${Math.round(vm.shortRemainingPercent)}%`}
               />
             </div>
-            <FactorRows factors={vm.dailyPlan.factors} />
+            <div>{vm.dailyPlan.explanations.map((line) => <div key={line}>{line}</div>)}</div>
           </>
         )}
       </div>
@@ -184,15 +182,12 @@ export default function ExpandedCard({
               <span style={{ fontSize: 16, fontWeight: 700 }}>
                 {DECISION_LABELS[card.decision]}
               </span>
-              <Metric label="今日期望收益" value={`+${card.expectedGainTodayPercent.toFixed(1)}%`} />
-              <Metric label="最佳日收益" value={`+${card.expectedGainBestPercent.toFixed(1)}%`} />
-              <Metric label="最佳日" value={card.bestDayLocalDate} />
-              <Metric label="24h 碰撞" value={`${card.forcedReset24hPercent.toFixed(1)}%`} />
-              <Metric label="自然重置" value={`${card.daysUntilNaturalReset.toFixed(1)}天`} />
+              <Metric label="建议时刻" value={card.recommendedAt == null ? "—" : new Date(card.recommendedAt).toLocaleString("zh-CN")} />
+              <Metric label="增量用量" value={`${card.incrementalUsage.toFixed(1)} pp`} />
+              <Metric label="候选时刻数" value={String(card.candidateResults.length)} />
             </div>
             <div style={{ fontSize: 11, color: "#9aa3b2", overflowWrap: "anywhere" }}>
-              重置卡 {card.credits} 张 · 日需 {card.dailyNeedPercent.toFixed(1)}%/天 ·
-              策略 {card.policyVersion} · 理由链 {card.reasons.join(" › ")}
+              {card.explanations.join(" › ")}
             </div>
           </>
         )}

@@ -91,6 +91,7 @@ mod tests {
             reset_status: None,
             provider: "codex".into(),
             display_name: "CODEX".into(),
+            account_key: None,
             plan: Some("PRO".into()),
             short_window: None,
             weekly_window: Some(crate::models::UsageWindow {

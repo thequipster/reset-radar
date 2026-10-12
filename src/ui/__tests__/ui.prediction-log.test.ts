@@ -11,9 +11,11 @@ describe("生产预测VM", () => {
   it("候选完整来自统一评估时间和核心，不用旧额度时刻作目标日", () => {
     const vm = buildDashboard(input(), [], now);
     expect(vm.prediction).toEqual(buildPredictionRecord({ risk: vm.risk, evaluatedAt: vm.riskEvaluatedAt,
-      recordedAt: now, quotaStatus: "ok", resetSourceState: "ok" }));
+      recordedAt: now, quotaStatus: "ok", resetSourceState: "ok", inputSnapshotId: "codex@2026-10-10T05:00:00Z",
+      stateBefore: { remaining: null, nextNaturalResetAt: null, cardsRemaining: null,
+        lastForcedLikeResetAt: null, scheduleConfidence: "unknown" } }));
     expect(vm.prediction?.date).toBe("2026-10-11");
-    expect(vm.prediction?.predictedRisk).toBe(vm.risk?.score);
+    expect(vm.prediction?.predictedRisk).toBe(vm.riskPercent);
   });
   it("风险独立于额度状态，来源过期或旧契约stale额度不冒充新预测", () => {
     expect(buildDashboard({ ...input(), status: "error" }, [], now).prediction).not.toBeNull();

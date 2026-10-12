@@ -2,7 +2,7 @@
 // scripts/log-prediction.mjs —— RR10/RR15：每日评估落盘器（幂等追加生产predictions.jsonl）。
 // 用法：默认写应用 canonical 文件；可用 --path <路径> 指定唯一写入文件。
 // 建议先 node scripts/fetch-history.mjs 刷新夹具。
-// 算法单一源 src/lib（RUNBOOK §1.4）：风险=assessResetRisk、幂等=appendPredictionLog——
+// 算法单一源 src/lib（RUNBOOK §1.4）：风险=assessResetRiskV2、幂等=appendPredictionLog——
 // 本脚本零算法，只做读夹具/调核心/追加写（先例 calibrate.mjs，D016 node ≥22.18 原生
 // type-stripping 直载 .ts）。
 // RR17评估/窗口起点=本次捕获时刻；历史fetchedAt独立验证新鲜度，不倒签旧预测。

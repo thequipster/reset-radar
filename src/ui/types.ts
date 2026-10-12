@@ -20,6 +20,8 @@ export interface RateLimitSnapshot {
 
 /** 单 provider 快照。对应 Rust ProviderSnapshot（v1 裁剪版）。 */
 export interface ProviderSnapshot {
+  /** 官方账号标识的 SHA-256；缺失时不跨账号累计日耗。 */
+  accountKey?: string | null;
   provider: string;
   displayName: string;
   plan: string | null;

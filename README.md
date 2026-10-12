@@ -3,7 +3,7 @@
 > 看得见准头的 Codex 重置风险与用卡规划器。
 > A Codex reset-risk & credit planner that **proves its own accuracy**.
 
-[![CI](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](ROADMAP.md)
+[![CI](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/thequipster/reset-radar/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](ROADMAP.md)
 
 ## 为什么做这个
 
@@ -13,23 +13,23 @@ reset-radar 的核心差异是**校准闭环**——每条风险预测都被落�
 
 ## 界面
 
-悬浮胶囊常驻显示当前重置风险（真实数据截图）：
+默认迷你圆常驻。点击圆圈打开悬浮条，再点悬浮条展开完整面板（以下为标记演示数据的正式版界面）：
 
-![胶囊态：周窗重置风险](docs/screenshots/20261011-rr37-capsule-dark.png)
+![胶囊态：周窗重置风险](docs/screenshots/20261012-rr46-bar-dark.png)
 
-点击胶囊展开分页面板，四页签切换：**概览**（公告 / 余额 / 今日建议）/ **风险**（分数 + 可解释因子逐条列出）/
-**用卡**（决策 + 期望收益 + 24h/48h 碰撞概率）/ **数据**（采集状态与校准摘要）：
+点击悬浮条展开分页面板，四页签切换：**概览**（公告 / 余额 / 今日建议）/ **风险**（分数 + 可解释因子逐条列出）/
+**用卡**（增量使用量 + 候选时刻 + 敏感性依据）/ **数据**（采集状态与校准摘要）：
 
-![展开态：分页面板（深色主题）](docs/screenshots/20261011-rr35-expanded-dark.png)
+![展开态：分页面板（深色主题）](docs/screenshots/20261012-rr46-overview-dark.png)
 
 > 深浅双主题随时切换（默认深色）。验收/截图可用 hash 入口直达指定页签复现
 > （如 `#expanded&tab=risk`；`pwsh scripts/shot-expanded.ps1` 支持 `-Theme light` 等参数）。
 
-## 功能清单（v0.1.0）
+## 功能清单（v0.2.0）
 
 - [x] 📡 **重置风险雷达**：星期基线 + 历史校准的强制重置概率，每个数字附带可解释因子
   （"为什么是这个数"一条条列出来）。
-- [x] 🏃 **每日配速建议**：把剩余额度按风险摊到每天，公式三行说完，不搞黑盒。
+- [x] 🏃 **每日配速建议**：把剩余额度按风险摊到每天，完整日观测不足时明确显示需求未知，不搞黑盒。
 - [x] 🎴 **重置卡规划器**：期望增量模型告诉你"今天用卡/等到周几用/这周期别用"，
   并给出"用卡后 24h/48h 撞上强制重置"的概率。
 - [x] 📝 **预测落盘**：每日评估幂等追加到 `data/predictions.jsonl`（同日只在风险漂移超阈值时
@@ -87,11 +87,11 @@ python scripts/check-release-wf.py     # release.yml 结构（RR11）
 ```bash
 gh repo create <owner>/reset-radar --public --source . --remote origin   # ① 建 GitHub 仓库（仅首次）
 git push -u origin main                                                  # ② 推主干（CI 首跑=门禁验证）
-git tag v0.1.0 && git push origin v0.1.0                                 # ③ 打版本 tag → 自动出 Release
+git tag v0.2.0 && git push origin v0.2.0                                 # ③ 打版本 tag → 自动出 Release
 ```
 
-版本号两处（`package.json` + `src-tauri/tauri.conf.json`）已锁定 `0.1.0` 且有门禁校验同步；
-tag 名会与版本做一致性校验，不一致构建即失败。CI/release 的真实首跑发生在用户首次 push 后。
+版本号（`package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`）已同步为 `0.2.0` 且有门禁校验同步；
+tag 名会与版本做一致性校验，不一致构建即失败。已有正式版通过 GitHub Actions 发布，新 tag 同样执行类型检查、单元测试、脚本测试与 Windows 安装包构建。
 
 ## 致谢与许可
 
@@ -107,4 +107,4 @@ tag 名会与版本做一致性校验，不一致构建即失败。CI/release �
 
 ---
 
-*Status: v0.1.0 发布就绪（RR01–RR42 除 RR30 待用户 CI 首跑外已全部闭环，REVIEW 验收循环持续滚动，历轮报告见 `docs/review-*.md`）。此仓库由 AI 工位按 [RUNBOOK.md](RUNBOOK.md) 协议自主推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*
+*Status: v0.2.0 发布验收完成后由 GitHub Actions 生成安装包；本轮 QA 与门禁证据见 [发布验收](docs/release-qa-20261012.md)。此仓库按 [RUNBOOK.md](RUNBOOK.md) 协议推进，迭代计划见 [ROADMAP.md](ROADMAP.md)。*

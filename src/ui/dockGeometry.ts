@@ -16,9 +16,6 @@ export interface Size {
   height: number;
 }
 
-/** 贴边后留在屏幕内的厚度（逻辑像素）。配合 orbShift 让圆心落在可见带中线上 → 露出半个圆。 */
-export const DOCK_VISIBLE = 24;
-
 /** 拖到距屏幕边缘多少逻辑像素以内即吸附贴边。 */
 export const DOCK_SNAP_DISTANCE = 40;
 
@@ -31,6 +28,18 @@ export const DOCK_EDGES: readonly DockEdge[] = ["left", "right", "top", "bottom"
 function clamp(value: number, min: number, max: number): number {
   if (max < min) return min; // 窗口比屏幕还大时的退化情形
   return Math.min(Math.max(value, min), max);
+}
+
+/** 将窗口完整夹回工作区，供展开前先移动到可容纳目标窗的位置。 */
+export function clampVisiblePosition(
+  position: { x: number; y: number },
+  monitor: Rect,
+  size: Size,
+): { x: number; y: number } {
+  return {
+    x: clamp(position.x, monitor.x, monitor.x + monitor.width - size.width),
+    y: clamp(position.y, monitor.y, monitor.y + monitor.height - size.height),
+  };
 }
 
 /** 窗口四边到屏幕四边的距离（逻辑像素，负数 = 已越界）。 */
@@ -58,7 +67,7 @@ export function nearestDockEdge(
   return best;
 }
 
-/** 贴边坐标：沿该边把窗口推出屏幕外，只留 DOCK_VISIBLE 一条；另一轴保持当前值并夹在屏幕内。 */
+/** 贴边坐标：窗口中心压在屏幕边线上，圆形露出恰好一半；另一轴保持并夹在屏幕内。 */
 export function dockedPosition(
   edge: DockEdge,
   monitor: Rect,
@@ -71,13 +80,13 @@ export function dockedPosition(
   const maxY = monitor.y + monitor.height - size.height - KEEP_ON_SCREEN;
   switch (edge) {
     case "left":
-      return { x: monitor.x - size.width + DOCK_VISIBLE, y: clamp(current.y, minY, maxY) };
+      return { x: monitor.x - size.width / 2, y: clamp(current.y, minY, maxY) };
     case "right":
-      return { x: monitor.x + monitor.width - DOCK_VISIBLE, y: clamp(current.y, minY, maxY) };
+      return { x: monitor.x + monitor.width - size.width / 2, y: clamp(current.y, minY, maxY) };
     case "top":
-      return { x: clamp(current.x, minX, maxX), y: monitor.y - size.height + DOCK_VISIBLE };
+      return { x: clamp(current.x, minX, maxX), y: monitor.y - size.height / 2 };
     case "bottom":
-      return { x: clamp(current.x, minX, maxX), y: monitor.y + monitor.height - DOCK_VISIBLE };
+      return { x: clamp(current.x, minX, maxX), y: monitor.y + monitor.height - size.height / 2 };
   }
 }
 
@@ -111,23 +120,4 @@ export function isDockedAt(
 ): boolean {
   const target = dockedPosition(edge, monitor, window, { x: window.x, y: window.y });
   return Math.abs(target.x - window.x) <= tolerance && Math.abs(target.y - window.y) <= tolerance;
-}
-
-/** 圆在窗口内的位移量：贴边时把圆推向可见侧，使圆心落在可见带中线 → 露出半圆。 */
-export function orbShift(windowSize: number, visible: number = DOCK_VISIBLE): number {
-  return (windowSize - visible) / 2;
-}
-
-/** 贴边位移的方向符号：left 往右推(+1)、right 往左推(-1)，上下同理。 */
-export function orbShiftSign(edge: DockEdge): { x: number; y: number } {
-  switch (edge) {
-    case "left":
-      return { x: 1, y: 0 };
-    case "right":
-      return { x: -1, y: 0 };
-    case "top":
-      return { x: 0, y: 1 };
-    case "bottom":
-      return { x: 0, y: -1 };
-  }
 }

@@ -16,14 +16,15 @@ import PeekCard from "./ui/PeekCard";
 import DashboardPanel from "./ui/DashboardPanel";
 import Orb from "./ui/Orb";
 import {
-  DOCK_SNAP_DISTANCE, dockedPosition, nearestDockEdge, poppedPosition, type DockEdge, type Rect,
+  DOCK_SNAP_DISTANCE, clampVisiblePosition, dockedPosition, nearestDockEdge, poppedPosition, type DockEdge, type Rect,
 } from "./ui/dockGeometry";
 import { nextOrbMetric, type OrbMetric } from "./ui/orbMetric";
 import { RESET_HISTORY_ANNOUNCED_AT, RESET_HISTORY_SOURCE } from "./ui/history";
+import { useUsageObservations, useCardDecisionLog } from "./ui/useUsageObservations";
 import { usePredictionLog } from "./ui/usePredictionLog";
 import { useSnapshots } from "./ui/useSnapshots";
 import { useCalibrationSummary } from "./ui/useCalibrationSummary";
-import { ORB_SIZE, applyWidgetSize, closeWidget, targetWidgetSize } from "./ui/widgetWindow";
+import { ORB_SIZE, closeWidget, targetWidgetSize } from "./ui/widgetWindow";
 import {
   onShellAction, onShellFocusChanged, readShellPrefs, shellGeometry, shellIsVisible, shellQuit,
   shellSetBounds, shellSetVisible, writeShellPrefs, type ShellPrefs,
@@ -49,7 +50,8 @@ export default function App() {
   );
   // ?theme= 截图入口：直接覆盖生效主题（不写偏好记忆；不匹配时走正常解析链）。
   const themeOverride = useMemo(() => initialThemeOverride(window.location.search), []);
-  const resolvedTheme = themeOverride ?? resolveTheme(themePref, systemDark);
+  const [override, setOverride] = useState(themeOverride);
+  const resolvedTheme = override ?? resolveTheme(themePref, systemDark);
   const { snapshots, live, phase, readError, subscriptionError, refreshing, refresh } = useSnapshots();
   const calibration = useCalibrationSummary();
   const expandButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -62,6 +64,10 @@ export default function App() {
   const poppedRef = useRef(popped);
   const boundsRef = useRef<{ x: number; y: number } | null>(null);
   const monitorRef = useRef<Rect | null>(null);
+  const dragActive = useRef(false);
+  const movementTail = useRef<Promise<void>>(Promise.resolve());
+  const moveRunning = useRef(false);
+  const pendingMove = useRef<{ x: number; y: number } | null>(null);
   const dragOrigin = useRef<{ x: number; y: number } | null>(null);
   const hasFormSegment = useMemo(
     () => hashSegments(window.location.hash).some((segment) => segment.startsWith("form=")),
@@ -87,6 +93,7 @@ export default function App() {
     document.documentElement.dataset.theme = resolvedTheme;
   }, [resolvedTheme]);
   const onThemePreference = useCallback((pref: ThemePreference) => {
+    setOverride(null);
     setThemePref(pref);
     writeThemePreference(window.localStorage, pref);
   }, []);
@@ -94,16 +101,20 @@ export default function App() {
   /** 把「形态 + 展示态 + 贴边状态」折算成实际窗口坐标并落屏（浏览器降级 no-op）。 */
   const applyGeometry = useCallback(async (): Promise<void> => {
     const geo = await shellGeometry();
-    if (geo == null) return;
+    if (geo == null || dragActive.current) return;
     monitorRef.current = geo.monitor;
-    const size = targetWidgetSize(displayRef.current, formRef.current);
-    await applyWidgetSize(displayRef.current, formRef.current);
+    const wanted = targetWidgetSize(displayRef.current, formRef.current);
+    const size = { width: Math.min(wanted.width, geo.monitor.width), height: Math.min(wanted.height, geo.monitor.height) };
+
     const edge = dockEdgeRef.current;
     let position = { x: geo.x, y: geo.y };
-    if (edge != null) {
+    if (edge != null && displayRef.current === "collapsed" && formRef.current === "orb") {
       position = poppedRef.current
         ? poppedPosition(edge, geo.monitor, size, position)
         : dockedPosition(edge, geo.monitor, size, position);
+    }
+    if (displayRef.current !== "collapsed" || formRef.current === "bar") {
+      position = clampVisiblePosition(position, geo.monitor, size);
     }
     boundsRef.current = position;
     await shellSetBounds(position.x, position.y, size.width, size.height);
@@ -119,17 +130,19 @@ export default function App() {
     formRef.current = hasFormSegment ? formRef.current : prefs.form;
     dockEdgeRef.current = prefs.dockEdge;
     void (async () => {
+      await movementTail.current.catch(() => {});
       const geo = await shellGeometry();
       if (cancelled || geo == null) return;
       monitorRef.current = geo.monitor;
       const size = targetWidgetSize(displayRef.current, formRef.current);
-      if (prefs.dockEdge != null) {
+      if (prefs.dockEdge != null && displayRef.current === "collapsed" && formRef.current === "orb") {
         const docked = dockedPosition(prefs.dockEdge, geo.monitor, size, { x: geo.x, y: geo.y });
         boundsRef.current = docked;
         await shellSetBounds(docked.x, docked.y, size.width, size.height);
       } else if (prefs.x != null && prefs.y != null) {
-        boundsRef.current = { x: prefs.x, y: prefs.y };
-        await shellSetBounds(prefs.x, prefs.y, size.width, size.height);
+        const target = clampVisiblePosition({ x: prefs.x, y: prefs.y }, geo.monitor, size);
+        boundsRef.current = target;
+        await shellSetBounds(target.x, target.y, size.width, size.height);
       }
     })();
     return () => {
@@ -152,6 +165,10 @@ export default function App() {
     closeTimer.current = null;
   }, []);
   const dispatch = useCallback((event: DisplayEvent) => {
+    if (event === "auto-collapse") {
+      setForm("orb");
+      formRef.current = "orb";
+    }
     setDisplay((current) => nextDisplayState(current, event));
   }, []);
   const activate = useCallback(() => {
@@ -161,6 +178,8 @@ export default function App() {
   }, [clearTimers, dispatch]);
   const collapse = useCallback(() => {
     clearTimers();
+    setForm("orb");
+    formRef.current = "orb";
     dispatch("collapse");
     setPopped(false); // 收起后回到贴边位（未贴边时此值无副作用）
     if (formRef.current === "orb") orbRef.current?.focus();
@@ -174,6 +193,8 @@ export default function App() {
       const transition = escapeEvent(display);
       if (transition == null) return;
       clearTimers();
+      setForm("orb");
+      formRef.current = "orb";
       setDisplay(nextDisplayState(display, transition));
       setPopped(false);
       if (formRef.current === "orb") orbRef.current?.focus();
@@ -239,19 +260,30 @@ export default function App() {
   // —— 迷你圆：拖拽 / 贴边 / 换指标 ——
   const redockTimer = useRef<number | null>(null);
   const onOrbDragMove = useCallback((dx: number, dy: number) => {
+    dragActive.current = true;
+    if (redockTimer.current != null) window.clearTimeout(redockTimer.current);
     if (dragOrigin.current == null) dragOrigin.current = boundsRef.current;
     const origin = dragOrigin.current;
     if (origin == null) return;
-    void shellSetBounds(origin.x + dx, origin.y + dy, ORB_BOX.width, ORB_BOX.height).catch(() => {});
+    pendingMove.current = { x: origin.x + dx, y: origin.y + dy };
+    if (moveRunning.current) return;
+    moveRunning.current = true;
+    movementTail.current = movementTail.current.catch(() => {}).then(async () => {
+      while (pendingMove.current != null) {
+        const target = pendingMove.current;
+        pendingMove.current = null;
+        await shellSetBounds(target.x, target.y, ORB_BOX.width, ORB_BOX.height);
+      }
+    }).finally(() => { moveRunning.current = false; });
   }, []);
   const onOrbDragEnd = useCallback((dx: number, dy: number, moved: boolean) => {
     const origin = dragOrigin.current ?? boundsRef.current;
     dragOrigin.current = null;
-    if (!moved || origin == null) return;
+    if (!moved || origin == null) { dragActive.current = false; return; }
     const dropped = { x: origin.x + dx, y: origin.y + dy };
     void (async () => {
       const geo = await shellGeometry();
-      if (geo == null) return;
+      if (geo == null) { dragActive.current = false; return; }
       const edge = nearestDockEdge(
         { ...dropped, width: ORB_BOX.width, height: ORB_BOX.height },
         geo.monitor,
@@ -265,17 +297,22 @@ export default function App() {
       setPopped(false);
       writeShellPrefs(window.localStorage, { dockEdge: edge, x: dropped.x, y: dropped.y });
       await shellSetBounds(target.x, target.y, ORB_BOX.width, ORB_BOX.height);
-    })();
+      dragActive.current = false;
+    })().catch(() => { dragActive.current = false; });
   }, []);
   const onOrbEnter = useCallback(() => {
+    if (dragActive.current) return;
     if (redockTimer.current != null) {
       window.clearTimeout(redockTimer.current);
       redockTimer.current = null;
     }
     if (dockEdgeRef.current != null && !poppedRef.current) setPopped(true);
   }, []);
+  useEffect(() => () => {
+    if (redockTimer.current != null) window.clearTimeout(redockTimer.current);
+  }, []);
   const onOrbLeave = useCallback(() => {
-    if (dockEdgeRef.current == null) return;
+    if (dragActive.current || dockEdgeRef.current == null) return;
     if (redockTimer.current != null) window.clearTimeout(redockTimer.current);
     redockTimer.current = window.setTimeout(() => {
       setPopped(false);
@@ -349,15 +386,17 @@ export default function App() {
     scenarioPhase != null ? [] : scenarioSnapshot != null ? [scenarioSnapshot] : snapshots;
   const effectivePhase = scenarioPhase ?? phase;
   const codex = effectiveSnapshots.find((item) => item.provider === "codex") ?? effectiveSnapshots[0] ?? null;
+  const usage = useUsageObservations(codex, live && !demo);
   const vm = useMemo(
     () =>
       codex != null
-        ? buildDashboard(codex, RESET_HISTORY_ANNOUNCED_AT, new Date(), RESET_HISTORY_SOURCE, calibration.view)
+        ? buildDashboard(codex, RESET_HISTORY_ANNOUNCED_AT, new Date(), RESET_HISTORY_SOURCE, calibration.view, usage.samples)
         : null,
-    [codex, calibration.view],
+    [codex, calibration.view, usage.samples],
   );
 
-  const predictionLog = usePredictionLog(vm?.prediction ?? null, live, vm?.updatedAt ?? "");
+  const decisionLogError = useCardDecisionLog(vm, codex, live && !demo);
+  const predictionLog = usePredictionLog(vm?.prediction ?? null, live && !demo, vm?.updatedAt ?? "");
 
   return (
     <main
@@ -389,7 +428,13 @@ export default function App() {
           dockEdge={dockEdge}
           popped={popped}
           orbRef={orbRef}
-          onExpand={activate}
+          onExpand={() => {
+            clearTimers();
+            setPopped(true);
+            setForm("bar");
+            formRef.current = "bar";
+            setDisplay("collapsed");
+          }}
           onCycleMetric={onCycleMetric}
           onDragMove={onOrbDragMove}
           onDragEnd={onOrbDragEnd}
@@ -407,6 +452,7 @@ export default function App() {
           vm={vm}
           phase={effectivePhase}
           readError={readError}
+          logError={usage.error ?? decisionLogError}
           subscriptionError={subscriptionError}
           refreshing={refreshing}
           calibration={calibration.view}

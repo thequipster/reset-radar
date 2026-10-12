@@ -4,14 +4,14 @@
 // 全部数字来自 adapters VM，校准摘要只消费 RR28 只读契约。
 import { useState } from "react";
 import type { DashboardViewModel } from "./adapters";
-import type { CalibrationSummaryView, ResetCardDecision, RiskFactor, ScheduledResetAssessment } from "../lib";
-import { beijingFull, beijingShort, daysLabel, deltaPct, percent1, percentWhole, weekdayDateLabel } from "./format";
+import type { CalibrationSummaryView, ResetCardDecisionKind, FactorStep, ScheduledResetAssessment } from "../lib";
+import { beijingFull, beijingShort, deltaPct, percent1, percentWhole, weekdayDateLabel } from "./format";
 import { buildCopySummary } from "./copySummary";
 import { PANEL_TABS, initialPanelTab, type PanelTab } from "./panelTabs";
 import { OutlookChart, ProgressRing, type OutlookBar } from "./viz";
 import {
   AlertIcon, BarChartIcon, BulbIcon, CalendarIcon, CardStackIcon, CheckIcon, ChevronUp,
-  CloseIcon, CopyIcon, DatabaseIcon, InfoIcon, MonitorIcon, MoonIcon, PulseIcon,
+  CloseIcon, CopyIcon, DatabaseIcon, InfoIcon, MoonIcon, PulseIcon,
   RadarLogo, RefreshIcon, ShieldIcon, SlidersIcon, SparkleIcon, SpeakerIcon, SunIcon, GripDots,
 } from "./icons";
 import styles from "./DashboardPanel.module.css";
@@ -20,6 +20,7 @@ export interface DashboardPanelProps {
   vm: DashboardViewModel | null;
   phase: "initializing" | "ready" | "empty" | "read-error";
   readError: string | null;
+  logError?: string | null;
   subscriptionError: boolean;
   refreshing: boolean;
   calibration: CalibrationSummaryView;
@@ -34,13 +35,9 @@ export interface DashboardPanelProps {
 }
 
 /** 用卡决策文案（机器键→中文，rc:39-44 决策语义的 UI 翻译，非业务判断）。 */
-const DECISION_LABELS: Record<ResetCardDecision, string> = {
-  "no-credits": "无可用重置卡",
-  "hold-until-depleted": "额度尚多 · 暂缓用卡",
-  "hold-until-natural-reset": "撑得到自然重置 · 不必烧卡",
-  "hold-until-scheduled-reset": "按公告计划暂缓 · 待核实执行",
-  "use-today": "建议今天用卡",
-  "wait-for-best-day": "等待最佳用卡日",
+const DECISION_LABELS: Record<ResetCardDecisionKind, string> = {
+  not_applicable: "无可用重置卡", hold: "暂缓用卡", use_today: "建议今天用卡",
+  wait: "等待更合适的时机", uncertain: "暂不推荐 · 依据不足",
 };
 
 /** 风险分级标签（纯展示映射：分数→档位文案，不产出数字；30/60 与图5 档位一致）。 */
@@ -63,10 +60,10 @@ export default function DashboardPanel(props: DashboardPanelProps) {
   const card = loading ? null : vm.cardPlan;
   const announcement = loading ? null : vm.resetStatus?.announcement ?? null;
   const resetStatusStale = !loading && vm.resetStatus != null && vm.resetStatus.state === "stale";
-  const collectError = !loading && (phase === "read-error" || vm.status === "error");
+  const collectError = !loading && (phase === "read-error" || (vm.status !== "ok" && vm.status !== "stale") || vm.remainingPercent == null);
   // 卡数未知时隐藏 no-credits 决策及收益比较（02-spec §6），其余照常。
   const hideNoCreditsDecision = !loading && vm.resetCredits == null;
-  const showPlannerBlocks = card != null && !(hideNoCreditsDecision && card.decision === "no-credits");
+  const showPlannerBlocks = card != null && !(hideNoCreditsDecision && card.decision === "not_applicable");
 
   const copySummary = () => {
     if (vm == null) return;
@@ -91,7 +88,7 @@ export default function DashboardPanel(props: DashboardPanelProps) {
           <RadarLogo size={30} className={styles.logo} />
           <span className={styles.title}>
             <span className={styles.titleMain}>
-              reset-radar / {loading ? "…" : vm.displayName}
+              reset-radar
               {!loading && vm.plan != null && <span className={styles.titleSubPlan}>{vm.plan}</span>}
             </span>
             <span className={styles.titleSub}>Codex 额度规划与强制重置风险</span>
@@ -100,23 +97,23 @@ export default function DashboardPanel(props: DashboardPanelProps) {
         <div className={styles.headerActions}>
           {demo && <span className={styles.demoBadge}>演示</span>}
           <span className={styles.themeToggle} role="group" aria-label="主题">
-            {(["dark", "light", "system"] as const).map((pref) => (
+            {(["light", "dark"] as const).map((pref) => (
               <button
                 key={pref}
                 type="button"
                 className={`${styles.themeOption} ${activeForHighlight === pref ? styles.themeOptionActive : ""}`}
                 onClick={() => props.onThemePreference(pref)}
-                aria-label={pref === "dark" ? "深色主题" : pref === "light" ? "浅色主题" : "跟随系统主题"}
-                aria-pressed={props.themePreference === pref}
+                aria-label={pref === "dark" ? "深色主题" : "浅色主题"}
+                aria-pressed={activeForHighlight === pref}
               >
-                {pref === "dark" ? <MoonIcon size={15} /> : pref === "light" ? <SunIcon size={15} /> : <MonitorIcon size={15} />}
+                {pref === "dark" ? <MoonIcon size={15} /> : <SunIcon size={15} />}
               </button>
             ))}
           </span>
           <button type="button" className={styles.iconButton} onClick={props.onCollapse} aria-label="收起面板" title="收起（Esc）">
             <ChevronUp size={17} />
           </button>
-          <button type="button" className={styles.iconButton} onClick={props.onClose} aria-label="退出 reset-radar" title="退出 reset-radar">
+          <button type="button" className={styles.iconButton} onClick={props.onClose} aria-label="隐藏到托盘" title="隐藏到托盘">
             <CloseIcon size={16} />
           </button>
         </div>
@@ -140,6 +137,7 @@ export default function DashboardPanel(props: DashboardPanelProps) {
         ))}
       </nav>
 
+      {props.logError && <p className={styles.mutedNote} role="status">本机观测记录暂不可用：{props.logError}</p>}
       <div
         className={styles.page}
         role="tabpanel"
@@ -232,11 +230,11 @@ function OverviewPage({
           <div className={`${styles.noticeCard} ${collectError ? styles.noticeCardError : styles.noticeCardOk}`}>
             <DatabaseIcon size={17} className={styles.noticeIcon} />
             <span className={styles.noticeBody}>
-              <span className={styles.noticeTitle}>{collectError ? "采集失败" : resetStatusStale ? "采集状态：过期" : "采集状态：正常"}</span>
+              <span className={styles.noticeTitle}>{collectError ? "采集失败" : vm!.status === "stale" ? "采集状态：缓存" : "采集状态：正常"}</span>
               <span className={styles.noticeSub}>
                 {collectError
-                  ? (phase === "read-error" ? readError ?? "读取失败" : vm!.message ?? "额度来源返回错误")
-                  : <>最近更新成功 <span className={styles.timeNoWrap}>{beijingShort(vm!.observedAt) ?? "—"} 北京时间</span></>}
+                  ? (phase === "read-error" ? readError ?? "读取失败" : vm!.message ?? (vm!.remainingPercent == null ? "周窗数据未取得，请刷新额度" : "额度来源读取失败"))
+                  : <>{vm!.status === "stale" ? "上次有效观测" : "最近更新成功"} <span className={styles.timeNoWrap}>{beijingShort(vm!.observedAt) ?? "—"} 北京时间</span></>}
               </span>
             </span>
           </div>
@@ -350,9 +348,9 @@ function RiskPage({
               <span className={styles.riskIconBox}><PulseIcon size={19} /></span>
               <span className={styles.riskText}>
                 <span className={styles.riskLabel}>未来24h 模型风险</span>
-                <span className={styles.riskValue}>{vm!.risk == null ? "—" : percent1(vm!.risk.score)}</span>
+                <span className={styles.riskValue}>{vm!.risk == null ? "—" : percent1(vm!.riskPercent)}</span>
                 {(() => {
-                  const badge = riskBadge(vm!.risk?.score ?? null);
+                  const badge = riskBadge(vm!.riskPercent);
                   return badge != null ? <span className={`${styles.riskBadge} ${badge.className}`}>{badge.label}</span> : null;
                 })()}
               </span>
@@ -360,23 +358,23 @@ function RiskPage({
             <div className={styles.riskCard}>
               <span className={styles.riskIconBox}><BarChartIcon size={19} /></span>
               <span className={styles.riskText}>
-                <span className={styles.riskLabel}>48h 碰撞（用卡模型）</span>
-                <span className={`${styles.riskValue} ${styles.riskValueDanger}`}>
-                  {card == null ? "—" : percent1(card.forcedReset48hPercent)}
+                <span className={styles.riskLabel}>未来48h 模型风险</span>
+                <span className={styles.riskValue}>
+                  {percent1((vm!.risk.survivalCurve.find((point) => point.hours === 48)?.cumulativeProbability ?? 0) * 100)}
                 </span>
                 {(() => {
-                  const badge = riskBadge(card?.forcedReset48hPercent ?? null);
+                  const badge = riskBadge((vm!.risk.survivalCurve.find((point) => point.hours === 48)?.cumulativeProbability ?? 0) * 100);
                   return badge != null ? <span className={`${styles.riskBadge} ${badge.className}`}>{badge.label}</span> : null;
                 })()}
               </span>
             </div>
           </div>
           <div className={styles.factorScroll}>
-            <FactorRows factors={vm!.risk?.factors ?? []} emptyNote="无因子" />
+            <FactorRows factors={vm!.risk.factorSteps} emptyNote="无因子" />
           </div>
           <p className={styles.mutedNote}>
-            两个口径来自不同模型时段，分别命名展示，不能互相换算。因子正值提升风险、负值降低风险。
-            {vm!.risk?.watchComparison != null && " watch 公开信号按 25% 权重融合（对比见「数据」页）。"}
+            24h 与48h 来自同一存续曲线。因子展示概率变化，正值提升风险、负值降低风险。
+            <br />{vm!.risk.quality.scopeNote} {vm!.risk.quality.coldStart && "账号样本积累中，模型尚未完成个人校准。"}
           </p>
         </>
       )}
@@ -444,21 +442,21 @@ function PlannerPage({
             <>
               <div className={styles.metricGrid}>
                 <span className={styles.metricMini}>
-                  <span className={styles.metricMiniLabel}>今日期望收益</span>
-                  <span className={styles.metricMiniValue}>+{card.expectedGainTodayPercent.toFixed(1)} pp</span>
+                  <span className={styles.metricMiniLabel}>今天用卡增量</span>
+                  <span className={styles.metricMiniValue}>+{(card.candidateResults[0]?.incrementalUsage ?? 0).toFixed(1)} pp</span>
                 </span>
                 <span className={styles.metricMini}>
-                  <span className={styles.metricMiniLabel}>最佳日期期望收益</span>
-                  <span className={styles.metricMiniValue}>+{card.expectedGainBestPercent.toFixed(1)} pp</span>
+                  <span className={styles.metricMiniLabel}>推荐方案增量</span>
+                  <span className={styles.metricMiniValue}>+{card.incrementalUsage.toFixed(1)} pp</span>
                 </span>
                 <span className={styles.metricMini}>
-                  <span className={styles.metricMiniLabel}>模型最佳日</span>
-                  <span className={styles.metricMiniValue}>{weekdayDateLabel(card.bestDayLocalDate)}</span>
+                  <span className={styles.metricMiniLabel}>推荐时刻</span>
+                  <span className={styles.metricMiniValue}>{card.recommendedAt == null ? "待积累用量" : beijingShort(new Date(card.recommendedAt).toISOString())}</span>
                 </span>
                 <span className={styles.metricMini}>
                   <span className={styles.metricMiniLabel}>自然重置</span>
                   <span className={styles.metricMiniValue}>
-                    {beijingShort(vm!.resetsAt) ?? "—"}（约 {daysLabel(card.daysUntilNaturalReset)}后）
+                    {beijingShort(vm!.resetsAt) ?? "—"}
                   </span>
                 </span>
               </div>
@@ -467,11 +465,11 @@ function PlannerPage({
                   <BarChartIcon size={13} /> 候选日期收益图（预计获得的周额度百分点）
                   <InfoIcon size={12} />
                 </span>
-                <OutlookChart bars={outlookBars(card)} unitLabel="候选日期收益图（周额度百分点）" />
+                {card.candidateResults.length === 0 ? <p className={styles.mutedNote}>用量数据积累中，暂不比较候选日期。</p> : <OutlookChart bars={outlookBars(card)} unitLabel="候选日期收益图（周额度百分点）" />}
                 <p className={styles.chartNote}>
                   期望收益=用卡后到下次重置前<b>可实际消耗的增量</b>（按强制重置风险折价），
                   不是补给规模——临近自然重置用卡，补得多但消耗不完的部分不计入，不会「越晚越赚」。
-                  日需为模型假设，非个人实测用量。
+                  需求来自本机完整日观测；样本不足时保留不确定性。
                 </p>
               </div>
             </>
@@ -479,11 +477,11 @@ function PlannerPage({
 
           {showPlannerDetail && card != null && (
             <p className={styles.mutedNote}>
-              策略 {card.policyVersion} · 日需假设 {card.dailyNeedPercent.toFixed(1)}%/天 · 24h 碰撞{" "}
-              {percent1(card.forcedReset24hPercent)} · 补给规模 {card.refillTodayPercent.toFixed(1)}pp ·
-              理由链 {card.reasons.join(" › ")}
-              {card.daysUntilCreditExpiry != null && ` · 最早卡过期约 ${daysLabel(card.daysUntilCreditExpiry)}后`}
-              {card.planningResetAt != null && " · 收益按公告如期执行情景（碰撞概率仍为统计模型）"}
+              {card.explanations.join(" ")}<br />
+              {card.horizonSensitivity.note}<br />
+              {card.assumptions.join(" ")}<br />
+              {card.simulationError.note}
+
             </p>
           )}
         </>
@@ -565,9 +563,9 @@ function DataPage({
       {!loading && vm?.dailyPlan != null && (
         <div className={styles.factorScroll}>
           <div className={styles.chartTitle}>
-            <SlidersIcon size={13} /> 配速解释（今日建议 +{vm.dailyPlan.suggested.toFixed(1)} 的构成）
+            <SlidersIcon size={13} /> 配速依据
           </div>
-          <FactorRows factors={vm.dailyPlan.factors} emptyNote="无配速因子" />
+          {vm.dailyPlan.explanations.map((note) => <p key={note} className={styles.mutedNote}>{note}</p>)}
         </div>
       )}
     </>
@@ -588,7 +586,7 @@ function SuggestionBanner({ vm, stale }: { vm: DashboardViewModel; stale: boolea
           <span className={`${styles.suggestionLabel} ${styles.suggestionLabelPlain}`}>今日建议</span>
           <span className={styles.suggestionNumber}>当前无法生成建议</span>
           <span className={`${styles.suggestionSub} ${styles.suggestionSubPlain}`}>
-            {weeklyMissing ? "周窗数据缺失" : "自然重置时刻无效或已过"}——两类 null 含义不同，不一律写“缺周窗”。
+            {weeklyMissing ? "周窗数据未取得，请刷新额度" : "等待新的自然重置时刻，请刷新额度"}。
           </span>
         </span>
       </div>
@@ -598,14 +596,14 @@ function SuggestionBanner({ vm, stale }: { vm: DashboardViewModel; stale: boolea
     <div className={styles.suggestionBanner}>
       <span className={styles.suggestionIcon}><SparkleIcon size={20} /></span>
       <span className={styles.suggestionBody}>
-        <span className={styles.suggestionLabel}>今日建议追加</span>
+        <span className={styles.suggestionLabel}>今日建议</span>
         <span className={styles.suggestionNumber}>
-          +{plan.suggested.toFixed(1)} <span className={styles.suggestionNumberSuffix}>个周额度百分点</span>
+          {plan.todaySuggested == null ? "正在了解你的用量" : `+${plan.todaySuggested.toFixed(1)}`}
+          {plan.todaySuggested != null && <span className={styles.suggestionNumberSuffix}> 个周额度百分点</span>}
         </span>
         <span className={styles.suggestionSub}>
-          {stale ? "基于上次观测（数据过期）；" : ""}
-          建议后剩余 {plan.suggestedRemaining.toFixed(1)}% · 均匀 {plan.uniformPace.toFixed(1)} + 前拉{" "}
-          {plan.riskBoost.toFixed(1)}，受软上限 {plan.cap.toFixed(1)} 约束
+          {stale ? "基于上次有效观测；" : ""}
+          {plan.todaySuggested == null ? "积累完整日观测后，为你安排每天的额度。" : `预计未使用余额 ${plan.expectedUnspentBeforeDeadline.toFixed(1)} 个百分点；需求依据${plan.demandQuality === "weak" ? "有限" : "已有观测"}。`}
         </span>
       </span>
       <span className={styles.suggestionTail} aria-hidden={true}>›</span>
@@ -614,7 +612,7 @@ function SuggestionBanner({ vm, stale }: { vm: DashboardViewModel; stale: boolea
 }
 
 /** 因子行（risk 与配速共用）：icon + label + note + 带符号 delta；零/负/新增因子都渲染。 */
-function FactorRows({ factors, emptyNote }: { factors: RiskFactor[]; emptyNote: string }) {
+function FactorRows({ factors, emptyNote }: { factors: readonly FactorStep[]; emptyNote: string }) {
   if (factors.length === 0) return <div className={styles.mutedNote}>{emptyNote}</div>;
   return (
     <>
@@ -626,7 +624,7 @@ function FactorRows({ factors, emptyNote }: { factors: RiskFactor[]; emptyNote: 
           <span className={styles.factorLabel}>{factor.label}</span>
           <span className={styles.factorNote}>{factor.note}</span>
           <span className={`${styles.factorDelta} ${factor.delta >= 0 ? styles.factorDeltaPositive : styles.factorDeltaNegative}`}>
-            {deltaPct(factor.delta)} pp
+            {deltaPct(factor.delta * 100)} pp
           </span>
         </div>
       ))}
@@ -671,29 +669,13 @@ function CalibrationLine({ calibration }: { calibration: CalibrationSummaryView 
 
 /** 决策副文案：把 reasons 首条翻译成自然中文补充（机器键映射，非业务判断）。 */
 function plannerDecisionSub(card: NonNullable<DashboardViewModel["cardPlan"]>, credits: number | null): string {
-  if (credits == null) return "卡数未知，暂无法确认用卡建议；请评估风险后决策。";
-  if (credits === 0) return "无可用重置卡；保持风险与配速信息可读。";
-  const first = card.reasons[0];
-  // 机器键→中文（rc:299-318 reasons 取值；顺序=重要性，只翻首条，其余进“规划依据”）。
-  const mapping: Record<string, string> = {
-    "scheduled-reset-scenario": "收益按公告计划情景评估，公告未确认执行",
-    "no-credits": "无可用重置卡",
-    "quota-plentiful": "额度尚多，暂缓用卡",
-    "wait-for-depletion": "等待剩余降到值得用卡区间",
-    "gain-below-threshold": "今日期望收益低于阈值",
-    "wait-for-scheduled-reset-confirmation": "公告计划临近，暂缓用卡待核实",
-    "better-day-ahead": "等待模型推荐的最佳日期，收益更高",
-    "card-expires-soon": "重置卡即将过期，提前用卡",
-  };
-  return mapping[first] ?? (card.reasons.length > 0 ? card.reasons.join(" › ") : "—");
+  if (credits == null) return "卡数尚未取得，请刷新额度。";
+  return card.explanations[0] ?? "等待更多完整日观测，再判断用卡时机。";
 }
 
-/** 候选日柱：outlook 原值 → 图形行（bestDayLocalDate 标绿加皇冠；无候选日不画）。 */
 function outlookBars(card: NonNullable<DashboardViewModel["cardPlan"]>): OutlookBar[] {
-  return card.outlook.map((day) => ({
-    dateKey: day.localDate,
-    axisLabel: weekdayDateLabel(day.localDate),
-    gainPercent: day.expectedGainPercent,
-    best: day.localDate === card.bestDayLocalDate,
+  return card.candidateResults.map((day) => ({
+    dateKey: new Date(day.at).toISOString(), axisLabel: day.label,
+    gainPercent: day.incrementalUsage, best: day.at === card.recommendedAt,
   }));
 }

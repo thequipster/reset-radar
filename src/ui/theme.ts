@@ -107,7 +107,7 @@ export function resolveTheme(pref: ThemePreference, systemDark: boolean): Resolv
 export function readThemePreference(store: Storage | null | undefined): ThemePreference {
   try {
     const raw = store?.getItem(THEME_STORAGE_KEY);
-    return raw === "light" || raw === "dark" || raw === "system" ? raw : "dark";
+    return raw === "light" || raw === "dark" ? raw : "dark";
   } catch {
     return "dark";
   }
