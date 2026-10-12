@@ -13,6 +13,7 @@ import type { PersonalInputsState } from './usePersonalInputs';
 import type { PlatformSignalHistory } from './useV3Journal';
 import type { ProviderSnapshot } from './types';
 import type { OrbReadout, OrbMetric } from './orbMetric';
+import {weeklyDeadlineAfterCard} from '../lib/v3/simulator';
 
 export {normalizeAccount,buildReviewTimes} from '../lib/v3/inputs';
 const replayCache=new WeakMap<object,ReturnType<typeof replayTrend>>();
@@ -95,7 +96,7 @@ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unkno
   const result={provider:snapshot.provider,status:snapshot.status,message:snapshot.message,plan:snapshot.plan,updatedAt:snapshot.updatedAt,now,
     accountKey:snapshot.accountKey??null,account,remainingPercent:account?.weekly.remaining??snapshot.weeklyWindow?.remainingPercent??null,
     shortRemainingPercent:account?.short.remaining??snapshot.shortWindow?.remainingPercent??null,resetCredits:snapshot.resetCredits,
-    platformModel,platform,platformLongTerm,platformReference,r90Probability:rateProbability(recentWindowRate(trendInput),DAY_MS),supply,mapping,demand,planning,planningInput,recommendation,personal:data,coldContext,coldAdvice:initialAdvice,
+    platformModel,platform,platformLongTerm,platformReference,r90Probability:rateProbability(recentWindowRate(trendInput),DAY_MS),supply,mapping,demand,planning,planningInput,recommendation,personal:data,coldContext,coldAdvice:initialAdvice,cardPreview:account?{weekly:100,short:100,weeklyDeadlineAt:weeklyDeadlineAfterCard(now)}:null,
     ledgerVersion:`card-v${data.cardVersions.length}`,preferenceVersion:`preference-v${data.version}`,
     evidenceQuality:[...(coverage.length?[]:['平台历史覆盖不完整，概率可能不可评估。']),'历史firstSeenAt缺失时只作公告时间理想化参考。',`历史覆盖截至 ${Number.isFinite(history.fetchedAt)?new Date(history.fetchedAt).toISOString():'未知'}`],
   };return mergeV31Planning(result,planning);

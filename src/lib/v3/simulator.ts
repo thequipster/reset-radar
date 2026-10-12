@@ -1,6 +1,7 @@
 // 用户 v3 §8–9：统一双窗状态推进；world只用于评价，策略接口不含未来路径。
 import { DAY_MS, HOUR_MS } from '../beijing';
 import type { ResetCard } from './cards';
+export const weeklyDeadlineAfterCard=(now:number)=>now+7*DAY_MS;
 
 export interface AccountState {
   observedAt: number;
