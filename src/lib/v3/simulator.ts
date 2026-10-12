@@ -10,7 +10,7 @@ export interface AccountState {
   lastConfirmedCardUseAt?: number;
   lastConfirmedExternalResetAt?: number;
 }
-export interface DemandBlock { start: number; end: number; weeklyCost: number; shortCost: number | null; weight: number }
+export interface DemandBlock { start: number; end: number; weeklyCost: number; shortCost: number | null; weight: number; source?:'policy_default'|'user_plan'|'learned' }
 export interface SupplyEvent { at: number; incidentId: string; weekly: boolean; short: boolean; reanchorWeekly: boolean }
 export interface WorldPath { start: number; end: number; demand: readonly DemandBlock[]; platform: readonly SupplyEvent[]; reviews: readonly number[] }
 export interface Mechanisms {

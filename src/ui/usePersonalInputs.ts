@@ -41,6 +41,8 @@ export interface PersonalInputsState extends PersonalInputsData {
 }
 
 export interface PersonalInputsController {
+  setContinueWorking?(value:boolean):void;
+  setPlanningMode?(value:'policy_default'|'learned'):void;
   state: PersonalInputsState;
   addCard(label: string, enteredExpiry: string | null, precision: CardEntryPrecision): void;
   updateExpiry(localId: string, enteredExpiry: string | null, precision: CardEntryPrecision): void;
@@ -120,6 +122,8 @@ export function usePersonalInputs(
     updateInput("workloadToday", level == null ? null : { localDate: beijingDateKey(now), level });
   }, [now, updateInput]);
   const setPreference = useCallback((preference: PersonalPreference | null) => updateInput("preference", preference), [updateInput]);
+  const setContinueWorking=useCallback((value:boolean)=>updateInput('continueWorking',{localDate:beijingDateKey(now),value}),[now,updateInput]);
+  const setPlanningMode=useCallback((value:'policy_default'|'learned')=>updateInput('planningMode',value),[updateInput]);
   const setUsualViewTimes = useCallback((times: string[], confirmed: boolean) => {
     setData((previous) => {
       const withTimes = withPersonalInputChange(previous, "usualViewTimes", times, now);
@@ -150,6 +154,6 @@ export function usePersonalInputs(
 
   return {
     state, addCard, updateExpiry, recordUse, markUnresolved, confirmAbsent, restoreAvailable, setWorkloadToday,
-    setPreference, setUsualViewTimes, setWeeklyBudgetPercent, recordFeedback,
+    setPreference, setUsualViewTimes, setWeeklyBudgetPercent, recordFeedback,setContinueWorking,setPlanningMode,
   };
 }

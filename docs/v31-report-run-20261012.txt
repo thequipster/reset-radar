@@ -1,0 +1,272 @@
+{
+  "d60": 0.18186015379965226,
+  "active": "D60",
+  "all": {
+    "p0": {
+      "count": 329,
+      "positiveCount": 52,
+      "brier": 0.13752673364117662,
+      "logLoss": 0.46558761082411193,
+      "predictedActualRatio": 0.47146729126314046,
+      "bins": [
+        {
+          "from": 0,
+          "to": 0.3333333333333333,
+          "count": 329,
+          "meanProbability": 0.07451762658262402,
+          "eventRate": 0.1580547112462006
+        },
+        {
+          "from": 0.3333333333333333,
+          "to": 0.6666666666666666,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        },
+        {
+          "from": 0.6666666666666666,
+          "to": 1,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        }
+      ]
+    },
+    "p1": {
+      "count": 329,
+      "positiveCount": 52,
+      "brier": 0.13665928550383355,
+      "logLoss": 0.4625472291954344,
+      "predictedActualRatio": 0.5307184140632131,
+      "bins": [
+        {
+          "from": 0,
+          "to": 0.3333333333333333,
+          "count": 329,
+          "meanProbability": 0.08388254568780268,
+          "eventRate": 0.1580547112462006
+        },
+        {
+          "from": 0.3333333333333333,
+          "to": 0.6666666666666666,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        },
+        {
+          "from": 0.6666666666666666,
+          "to": 1,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        }
+      ]
+    },
+    "d60": {
+      "count": 329,
+      "positiveCount": 52,
+      "brier": 0.1326857565994568,
+      "logLoss": 0.4406782249795676,
+      "predictedActualRatio": 0.6595847504775013,
+      "bins": [
+        {
+          "from": 0,
+          "to": 0.3333333333333333,
+          "count": 329,
+          "meanProbability": 0.10425047727911875,
+          "eventRate": 0.1580547112462006
+        },
+        {
+          "from": 0.3333333333333333,
+          "to": 0.6666666666666666,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        },
+        {
+          "from": 0.6666666666666666,
+          "to": 1,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        }
+      ]
+    },
+    "r90": {
+      "count": 329,
+      "positiveCount": 52,
+      "brier": 0.1330014957251704,
+      "logLoss": 0.44369537586491853,
+      "predictedActualRatio": 0.7672408749282608,
+      "bins": [
+        {
+          "from": 0,
+          "to": 0.3333333333333333,
+          "count": 329,
+          "meanProbability": 0.12126603494306858,
+          "eventRate": 0.1580547112462006
+        },
+        {
+          "from": 0.3333333333333333,
+          "to": 0.6666666666666666,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        },
+        {
+          "from": 0.6666666666666666,
+          "to": 1,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        }
+      ]
+    }
+  },
+  "recent90": {
+    "p0": {
+      "count": 89,
+      "positiveCount": 21,
+      "brier": 0.19537344134406281,
+      "logLoss": 0.6061945801337545,
+      "predictedActualRatio": 0.5035411118208082,
+      "bins": [
+        {
+          "from": 0,
+          "to": 0.3333333333333333,
+          "count": 89,
+          "meanProbability": 0.1188130713285053,
+          "eventRate": 0.23595505617977527
+        },
+        {
+          "from": 0.3333333333333333,
+          "to": 0.6666666666666666,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        },
+        {
+          "from": 0.6666666666666666,
+          "to": 1,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        }
+      ]
+    },
+    "p1": {
+      "count": 89,
+      "positiveCount": 21,
+      "brier": 0.19258390163650835,
+      "logLoss": 0.5947193928228716,
+      "predictedActualRatio": 0.5877187440838005,
+      "bins": [
+        {
+          "from": 0,
+          "to": 0.3333333333333333,
+          "count": 89,
+          "meanProbability": 0.13867520927820012,
+          "eventRate": 0.23595505617977527
+        },
+        {
+          "from": 0.3333333333333333,
+          "to": 0.6666666666666666,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        },
+        {
+          "from": 0.6666666666666666,
+          "to": 1,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        }
+      ]
+    },
+    "d60": {
+      "count": 89,
+      "positiveCount": 21,
+      "brier": 0.18501766848327203,
+      "logLoss": 0.5617024796239215,
+      "predictedActualRatio": 0.7864518112641259,
+      "bins": [
+        {
+          "from": 0,
+          "to": 0.3333333333333333,
+          "count": 89,
+          "meanProbability": 0.18556728130951283,
+          "eventRate": 0.23595505617977527
+        },
+        {
+          "from": 0.3333333333333333,
+          "to": 0.6666666666666666,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        },
+        {
+          "from": 0.6666666666666666,
+          "to": 1,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        }
+      ]
+    },
+    "r90": {
+      "count": 89,
+      "positiveCount": 21,
+      "brier": 0.18595643184719224,
+      "logLoss": 0.5634583570767552,
+      "predictedActualRatio": 0.9523875198457544,
+      "bins": [
+        {
+          "from": 0,
+          "to": 0.3333333333333333,
+          "count": 89,
+          "meanProbability": 0.22472065075012182,
+          "eventRate": 0.23595505617977527
+        },
+        {
+          "from": 0.3333333333333333,
+          "to": 0.6666666666666666,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        },
+        {
+          "from": 0.6666666666666666,
+          "to": 1,
+          "count": 0,
+          "meanProbability": null,
+          "eventRate": null
+        }
+      ]
+    }
+  },
+  "summary": [
+    {
+      "modelVersion": "platform-v3:P0",
+      "target": "platform_notice",
+      "sampleCount": 0,
+      "positiveCount": 0,
+      "unknownCount": 0,
+      "pendingCount": 0,
+      "temporaryCount": 285,
+      "brier": null,
+      "logLoss": null
+    },
+    {
+      "modelVersion": "platform-v3:P1-shadow",
+      "target": "platform_notice",
+      "sampleCount": 0,
+      "positiveCount": 0,
+      "unknownCount": 0,
+      "pendingCount": 0,
+      "temporaryCount": 285,
+      "brier": null,
+      "logLoss": null
+    }
+  ]
+}

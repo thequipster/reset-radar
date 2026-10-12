@@ -1,0 +1,91 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR50
+
+ ❯ src/lib/__tests__/trend.v31.test.ts (9 tests | 1 failed) 50ms
+   ❯ v3.1 日历衰减与回放 (9)
+     × 相同覆盖相同总数，近期事件密集者有更高率；分母必须精确加权 3ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 passed (9)
+   Start at  22:18:32
+   Duration  315ms (transform 40%, import 30%, tests 28%, worker 2%)
+
+ 
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/trend.v31.test.ts > v3.1 日历衰减与回放 > 相同覆盖相同总数，近期事件密集者有更高率；分母必须精确加权
+AssertionError: expected 240 to be close to 81.1515960500042, received difference is 158.8484039499958, but expected 5e-13
+ ❯ src/lib/__tests__/trend.v31.test.ts:12:83
+     10|  it('相同覆盖相同总数，近期事件密集者有更高率；分母必须精确加权',()=>{
+     11|    const a=fit([event(210),event(200),event(190)]),b=fit([event(20),ev…
+     12|    const ew=weightedExposure(t,coverage[0].from,t);expect(b.weightedEx…
+       |                                                                                   ^
+     13|  });
+     14|  it('可靠无事件尾段下降，空档不当作同等无事件证据',()=>{
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+RED trend.ts: coverage.reduce((s,c)=>s+weightedExposure(t,c.from,c.to),0) => exposureDays
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR50
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  22:18:32
+   Duration  275ms (transform 38%, import 30%, tests 30%, worker 2%)
+
+ GREEN restored trend.ts
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR50
+
+ ❯ src/lib/__tests__/coldStart.v31.test.ts (9 tests | 2 failed) 8ms
+   ❯ v3.1 cold start planner (9)
+     × allocates by remaining wall-clock hours and does not call it predicted use 4ms
+     × returns an actionable non-learning plan with a budget and default review when history is absent 1ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 7 passed (9)
+   Start at  22:18:33
+   Duration  221ms (transform 52%, import 35%, tests 8%, worker 4%)
+
+ 
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/coldStart.v31.test.ts > v3.1 cold start planner > allocates by remaining wall-clock hours and does not call it predicted use
+AssertionError: expected 5.416666666666667 to be close to 5, received difference is 0.41666666666666696, but expected 5e-11
+ ❯ src/lib/__tests__/coldStart.v31.test.ts:18:27
+     16|   it('allocates by remaining wall-clock hours and does not call it pre…
+     17|     const result = allocateColdBudget(account(), now, now + 12 * H);
+     18|     expect(result?.today).toBeCloseTo(5, 10);
+       |                           ^
+     19|     expect(result?.untilReview).toBeCloseTo(5, 10);
+     20|     expect(result?.total).toBe(40);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/__tests__/coldStart.v31.test.ts > v3.1 cold start planner > returns an actionable non-learning plan with a budget and default review when history is absent
+AssertionError: expected 5.416666666666667 to be close to 5, received difference is 0.41666666666666696, but expected 5e-11
+ ❯ src/lib/__tests__/coldStart.v31.test.ts:26:47
+     24|     const result = coldStartAdvice({ now, account: account(), cards: […
+     25|     expect(result.action).toBe('hold_card');
+     26|     expect(result.allocatedWeeklyPointsToday).toBeCloseTo(5, 10);
+       |                                               ^
+     27|     expect(result.nextReviewAt).toBe(now + 12 * H);
+     28|     expect(result.expectedConsumption).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+RED coldStart.ts: total * todayHours * todayWeight / weightedHours => total * (todayHours+1) * todayWeight / weightedHours
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR50
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  22:18:34
+   Duration  224ms (transform 53%, import 36%, tests 7%, worker 4%)
+
+ GREEN restored coldStart.ts

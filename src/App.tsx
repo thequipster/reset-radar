@@ -5,7 +5,7 @@
 // RR14 hash 入口延续：#expanded / #peek 起始态；#demo=<场景> 注入演示快照（带演示标识）。
 // RR43 追加：#form=orb|bar 指定收起形态（默认迷你圆），偏好存 localStorage（本地优先）。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buildV3Dashboard, v3OrbReadout } from "./ui/v3Model";
+import { buildV3Dashboard, mergeV31Planning, v3OrbReadout } from "./ui/v3Model";
 import {
   AUTO_COLLAPSE_BLUR_DELAY_MS, AUTO_COLLAPSE_IDLE_MS, DOCK_REDOCK_DELAY_MS, PEEK_CLOSE_DELAY_MS,
   PEEK_OPEN_DELAY_MS, escapeEvent, hashSegments, initialDisplayState, initialRestForm,
@@ -406,7 +406,7 @@ export default function App() {
     [codex, modelNow, personal.state, journal.observations, journal.signalHistory,journal.historyDocument,journal.accountSnapshots],
   );
   const planningWorker=useV3Planning(baseVM?.planningInput??null);
-  const vm=useMemo(()=>baseVM?{...baseVM,planning:planningWorker.result,recommendation:planningWorker.result?.recommendation??baseVM.recommendation}:null,[baseVM,planningWorker.result]);
+  const vm=useMemo(()=>baseVM?mergeV31Planning(baseVM,planningWorker.result):null,[baseVM,planningWorker.result]);
   const calibrationV3=useMemo(()=>evaluatePlatformJournal(journal.predictionContent,journal.historyDocument,modelNow),[journal.predictionContent,journal.historyDocument,modelNow]);
   const [journalWriteError,setJournalWriteError]=useState<string|null>(null);
   useEffect(() => {
@@ -418,7 +418,9 @@ export default function App() {
       cardLedgerVersion:vm.ledgerVersion,preferenceVersion:vm.preferenceVersion,assumptions:vm.recommendation.assumptions,evidenceQuality:vm.evidenceQuality,platformHistorySnapshotId:historySnapshotId};
     const prefix=`v3:${snapshotId}:${historySnapshotId}:${vm.now}:${vm.ledgerVersion}:${vm.preferenceVersion}`;
     void(async()=>{
-      await journal.appendPrediction({...base,id:`${prefix}:platform`,target:'platform_notice',probability:vm.platform.probability24h,modelVersion:'platform-v3:P0',featureContributions:vm.platform.factors});
+      await journal.appendPrediction({...base,id:`${prefix}:platform`,target:'platform_notice',probability:vm.platformLongTerm.probability24h,modelVersion:'platform-v3:P0',featureContributions:vm.platformLongTerm.factors});
+      await journal.appendPrediction({...base,id:`${prefix}:d60`,target:'platform_notice',probability:vm.platformReference.decay.probability24h,modelVersion:'platform-v3.1:D60',featureContributions:[vm.platformReference.decay],assumptions:[...base.assumptions,'60天半衰期/7等效日收缩为固定假设，短期冻结发生率。']});
+      await journal.appendPrediction({...base,id:`${prefix}:r90`,target:'platform_notice',probability:vm.r90Probability,modelVersion:'platform-v3.1:R90-shadow',featureContributions:[]});
       await journal.appendPrediction({...base,id:`${prefix}:platform-shadow`,target:'platform_notice',probability:vm.platform.shadow.probability24h,modelVersion:'platform-v3:P1-shadow',featureContributions:vm.platform.shadowFactors});
       await journal.appendPrediction({...base,id:`${prefix}:account`,target:'account_external_reset',probability:vm.supply?.accountProbability24h??null,modelVersion:'account-v3:learning',featureContributions:[]});
       await journal.appendPrediction({...base,id:`${prefix}:demand`,target:'demand',probability:null,modelVersion:'demand-v3:empirical',featureContributions:[vm.demand]});

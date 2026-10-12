@@ -1,0 +1,12 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR50
+
+
+ Test Files  30 passed (30)
+      Tests  299 passed (299)
+   Start at  22:24:41
+   Duration  3.37s (tests 56%, import 25%, transform 16%, worker 3%)
+
+    Isolate  30 workers spawned · ~102ms startup each (spawn + environment, per file)
+             at least ~1.42s faster with isolate: false — reuses workers across files instead of one per file
+

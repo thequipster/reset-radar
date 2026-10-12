@@ -86,7 +86,7 @@ export function freezePrediction(input: PredictionRecordV3): PredictionRecordV3 
     throw new Error("prediction journal requires stable IDs and versions");
   }
   if (![input.issuedAt, input.windowStart, input.windowEnd, input.trainingCutoff].every(Number.isFinite) ||
-      input.windowEnd <= input.windowStart || input.windowStart > input.issuedAt ||
+      input.windowEnd <= input.windowStart || input.windowStart > input.issuedAt || input.issuedAt>=input.windowEnd || input.trainingCutoff>input.issuedAt ||
       (input.probability != null && (!Number.isFinite(input.probability) || input.probability < 0 || input.probability > 1))) {
     throw new RangeError("prediction journal has an invalid time window or probability");
   }

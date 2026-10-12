@@ -47,7 +47,7 @@ export interface RecordedCardUse {
 export interface PersonalInputVersion {
   version: number;
   changedAt: number;
-  field: "workloadToday" | "preference" | "usualViewTimes" | "viewTimesConfirmed" | "weeklyBudgetPercent" | "feedback";
+  field: "workloadToday" | "preference" | "usualViewTimes" | "viewTimesConfirmed" | "weeklyBudgetPercent" | "feedback" | "continueWorking" | "planningMode";
   before: unknown;
   after: unknown;
 }
@@ -66,6 +66,8 @@ export interface PersonalInputsData {
   usualViewTimes: string[];
   viewTimesConfirmed: boolean;
   weeklyBudgetPercent: { localDate: string; value: number } | null;
+  continueWorking?: {localDate:string;value:boolean}|null;
+  planningMode?: 'policy_default'|'learned';
 }
 
 export interface ReconciledCard {
@@ -101,7 +103,7 @@ export function emptyPersonalInputs(accountKey: string | null): PersonalInputsDa
   return {
     schema: "reset-radar/personal-inputs@3", accountKey, version: 0, cards: [], cardVersions: [],
     useRecords: [], feedback: [], inputVersions: [], workloadToday: null, preference: null,
-    usualViewTimes: [...DEFAULT_VIEW_TIMES], viewTimesConfirmed: false, weeklyBudgetPercent: null,
+    usualViewTimes: [...DEFAULT_VIEW_TIMES], viewTimesConfirmed: false, weeklyBudgetPercent: null,continueWorking:null,planningMode:'policy_default',
   };
 }
 

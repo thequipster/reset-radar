@@ -15,9 +15,9 @@ const props:V3PanelProps={vm,controller,phase:'ready',readError:null,subscriptio
 function panel(tab='overview',override:Partial<V3PanelProps>={}){vi.stubGlobal('window',{location:{hash:`#expanded&tab=${tab}`}});return renderToStaticMarkup(<Dashboard {...props} {...override}/>);}
 afterEach(()=>vi.unstubAllGlobals());
 describe('原设计与v3融合',()=>{
-  it('双窗保留各自彩色环和真实截止，预算未知显示学习而非数字',()=>{
+  it('双窗保留各自彩色环和真实截止，v3.1零样本默认分配与日耗学习分开',()=>{
     const html=panel();expect(html).toContain(styles.ringBlue);expect(html).toContain(styles.ringGreen);expect(html).toContain(styles.suggestionBanner);
-    expect(html).toContain('正在学习你的用量');expect(html.match(/自然补给/g)).toHaveLength(2);expect(html).not.toContain('今日达到最优');
+    expect(vm.coldAdvice.expectedConsumption).toBeNull();expect(vm.coldAdvice.allocatedWeeklyPointsToday).not.toBeNull();expect(html.match(/自然补给/g)).toHaveLength(2);expect(html).not.toContain('今日达到最优');
   });
   it('平台卡片保持P0参考与账号未知分离，不变成本人回满概率',()=>{
     const html=panel('risk');expect(html).toContain(styles.riskCard);expect(html).toContain('本人账号');expect(html).toContain('账号平台补给概率：—');expect(html).toContain('P0 · 当前概率参考');expect(html).toContain('尚未升级');

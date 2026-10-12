@@ -5,6 +5,7 @@ import { freezePlanning, freezePrediction, nextSignalVersion, predictionGroupAt,
 import type { ProviderSnapshot } from "./types";
 import type { ResetStatusSnapshot } from "../lib/resetStatus";
 import {archivePlatformHistory, latestArchivedHistory} from '../lib/v3/runtime';
+import {settlePlatformPredictions,summarizeVerdicts,weeklyFallbackReview} from '../lib/v3/verdict';
 import {RESET_HISTORY_SOURCE} from './history';
 import {normalizeAccount} from '../lib/v3/inputs';
 import type {AccountObservationSnapshot,AccountObservationInterval} from '../lib/v3/supply';
@@ -146,6 +147,26 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
     const record = freezePlanning(input);
     await enqueueWrite(() => appendOnce("cards", { id: record.id, observedAt: new Date().toISOString(), kind: "planning", record }));
   }, [enqueueWrite]);
+  // v3.1：原预测字节不变；成熟标签与迟到纠正独立追加到同一CAS日志。
+  useEffect(()=>{
+    if(!enabled)return;let alive=true;
+    void enqueueWrite(async()=>{
+      const log=await read('cards'),now=Date.now();let content=log.content;
+      const history=latestArchivedHistory(content,RESET_HISTORY_SOURCE);
+      for(const v of settlePlatformPredictions(content,history,now)){if(!alive)return;content=await appendOnce('cards',{...v,observedAt:v.observedAtISO});}
+      // 每周一实际运行时回顾一次，不能靠每次render追赢家。
+      const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+      const rows=content.split(/\r?\n/).flatMap(line=>{try{return [JSON.parse(line)]}catch{return []}});
+      if(new Date(now+8*3_600_000).getUTCDay()===1&&!rows.some(r=>r.kind==='weekly_review'&&r.reviewDate===date)){
+        const verdicts=new Map<string,{version:number;label:0|1|null}>();for(const r of rows.filter(r=>r.kind==='verdict'))if(!verdicts.has(r.predictionId)||verdicts.get(r.predictionId)!.version<r.version)verdicts.set(r.predictionId,r);
+        const mature=rows.filter(r=>r.kind==='prediction'&&r.group==='primary_daily'&&verdicts.get(r.record.id)?.label!=null&&r.record.probability!=null).map(r=>({...r.record,groupDate:r.groupDate,label:verdicts.get(r.record.id)!.label!}));
+        const review=weeklyFallbackReview(mature,now,rows.filter(r=>r.kind==='weekly_review').map(r=>r.record));
+        content=await appendOnce('cards',{id:`weekly-review:${date}:${review.version}`,observedAt:new Date(now).toISOString(),kind:'weekly_review',reviewDate:date,record:review,summary:summarizeVerdicts(content)});
+      }
+      if(alive)setPredictionContent(content);
+    }).catch(cause=>{if(alive)setError(`标签结算未完成：${String(cause)}`)});
+    return()=>{alive=false;};
+  },[enabled,historyDocument,snapshot?.updatedAt,enqueueWrite]);
 
   const appendAccountMapping=useCallback(async(accountKey:string,rows:readonly AccountObservationInterval[],observedAt:number)=>{
     await enqueueWrite(async()=>{
