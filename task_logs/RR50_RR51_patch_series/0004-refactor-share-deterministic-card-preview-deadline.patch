@@ -1,0 +1,46 @@
+From 25ff055b242b535de69f1aad94ff2699822cb65f Mon Sep 17 00:00:00 2001
+From: thequipster <256361972+thequipster@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 22:38:14 +0800
+Subject: [PATCH 4/6] refactor: share deterministic card preview deadline
+
+---
+ src/lib/v3/simulator.ts | 1 +
+ src/ui/v3Model.ts       | 3 ++-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/lib/v3/simulator.ts b/src/lib/v3/simulator.ts
+index 468b311..51586ff 100644
+--- a/src/lib/v3/simulator.ts
++++ b/src/lib/v3/simulator.ts
+@@ -1,6 +1,7 @@
+ // 用户 v3 §8–9：统一双窗状态推进；world只用于评价，策略接口不含未来路径。
+ import { DAY_MS, HOUR_MS } from '../beijing';
+ import type { ResetCard } from './cards';
++export const weeklyDeadlineAfterCard=(now:number)=>now+7*DAY_MS;
+ 
+ export interface AccountState {
+   observedAt: number;
+diff --git a/src/ui/v3Model.ts b/src/ui/v3Model.ts
+index bca5f75..6ea90ba 100644
+--- a/src/ui/v3Model.ts
++++ b/src/ui/v3Model.ts
+@@ -13,6 +13,7 @@ import type { PersonalInputsState } from './usePersonalInputs';
+ import type { PlatformSignalHistory } from './useV3Journal';
+ import type { ProviderSnapshot } from './types';
+ import type { OrbReadout, OrbMetric } from './orbMetric';
++import {weeklyDeadlineAfterCard} from '../lib/v3/simulator';
+ 
+ export {normalizeAccount,buildReviewTimes} from '../lib/v3/inputs';
+ const replayCache=new WeakMap<object,ReturnType<typeof replayTrend>>();
+@@ -95,7 +96,7 @@ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unkno
+   const result={provider:snapshot.provider,status:snapshot.status,message:snapshot.message,plan:snapshot.plan,updatedAt:snapshot.updatedAt,now,
+     accountKey:snapshot.accountKey??null,account,remainingPercent:account?.weekly.remaining??snapshot.weeklyWindow?.remainingPercent??null,
+     shortRemainingPercent:account?.short.remaining??snapshot.shortWindow?.remainingPercent??null,resetCredits:snapshot.resetCredits,
+-    platformModel,platform,platformLongTerm,platformReference,r90Probability:rateProbability(recentWindowRate(trendInput),DAY_MS),supply,mapping,demand,planning,planningInput,recommendation,personal:data,coldContext,coldAdvice:initialAdvice,
++    platformModel,platform,platformLongTerm,platformReference,r90Probability:rateProbability(recentWindowRate(trendInput),DAY_MS),supply,mapping,demand,planning,planningInput,recommendation,personal:data,coldContext,coldAdvice:initialAdvice,cardPreview:account?{weekly:100,short:100,weeklyDeadlineAt:weeklyDeadlineAfterCard(now)}:null,
+     ledgerVersion:`card-v${data.cardVersions.length}`,preferenceVersion:`preference-v${data.version}`,
+     evidenceQuality:[...(coverage.length?[]:['平台历史覆盖不完整，概率可能不可评估。']),'历史firstSeenAt缺失时只作公告时间理想化参考。',`历史覆盖截至 ${Number.isFinite(history.fetchedAt)?new Date(history.fetchedAt).toISOString():'未知'}`],
+   };return mergeV31Planning(result,planning);
+-- 
+2.52.0.windows.1
+

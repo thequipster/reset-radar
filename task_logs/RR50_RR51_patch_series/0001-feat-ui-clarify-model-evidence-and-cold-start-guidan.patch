@@ -1,0 +1,284 @@
+From 78f5ab15af020c086853c48cb4fc23cf452cfb72 Mon Sep 17 00:00:00 2001
+From: thequipster <256361972+thequipster@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 22:26:04 +0800
+Subject: [PATCH 1/6] feat(ui): clarify model evidence and cold-start guidance
+
+---
+ src/ui/PersonalInputs.tsx                    | 29 +++++++++++----
+ src/ui/V3Dashboard.module.css                | 15 ++++++++
+ src/ui/V3Dashboard.tsx                       | 35 +++++++++++++-----
+ src/ui/__tests__/ui.rr51-cold-start.test.tsx | 39 ++++++++++++++++++++
+ src/ui/__tests__/ui.v3-fusion.test.tsx       |  2 +-
+ 5 files changed, 103 insertions(+), 17 deletions(-)
+ create mode 100644 src/ui/__tests__/ui.rr51-cold-start.test.tsx
+
+diff --git a/src/ui/PersonalInputs.tsx b/src/ui/PersonalInputs.tsx
+index c33ee7d..578ceed 100644
+--- a/src/ui/PersonalInputs.tsx
++++ b/src/ui/PersonalInputs.tsx
+@@ -1,5 +1,5 @@
+ // RR47 个人输入区：展示台账/需求/偏好并记录用户已完成的操作；不自动触发用卡。
+-import { useEffect, useState } from "react";
++import { useEffect, useRef, useState } from "react";
+ import type { CardEntryPrecision, PersonalPreference, WorkloadLevel } from "../lib/v3/cards";
+ import { beijingDateKey, CARD_BUFFER_MS } from "../lib/v3/cards";
+ import type { PersonalInputsController } from "./usePersonalInputs";
+@@ -10,11 +10,12 @@ export interface PersonalInputsProps {
+   controller: PersonalInputsController;
+   now: number;
+   onRecordedUse?: () => void;
++  focusSection?: "budget" | "cards" | null;
+ }
+ 
+ const WORKLOADS: { value: WorkloadLevel; label: string }[] = [
+-  { value: "quiet", label: "比较闲" }, { value: "normal", label: "正常干活" },
+-  { value: "busy", label: "可能忙很久" }, { value: "unknown", label: "还不确定" },
++  { value: "quiet", label: "轻用" }, { value: "normal", label: "均衡（默认）" },
++  { value: "busy", label: "较忙" }, { value: "unknown", label: "还不确定" },
+ ];
+ 
+ const PREFERENCES: { value: PersonalPreference; label: string }[] = [
+@@ -30,7 +31,7 @@ function beijingClock(value: number | null): string {
+   }).format(value);
+ }
+ 
+-export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: PersonalInputsProps) {
++export function PersonalInputs({ controller, accountKey, now, onRecordedUse, focusSection = null }: PersonalInputsProps) {
+   const { state } = controller;
+   const [label, setLabel] = useState("");
+   const [precision, setPrecision] = useState<CardEntryPrecision>("date");
+@@ -39,6 +40,9 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
+   const [budget, setBudget] = useState(state.effectiveWeeklyBudgetPercent == null ? "" : String(state.effectiveWeeklyBudgetPercent));
+   const [viewTimes, setViewTimes] = useState(state.usualViewTimes.join(", "));
+   const [error, setError] = useState<string | null>(null);
++  const detailsRef = useRef<HTMLDetailsElement>(null);
++  const budgetRef = useRef<HTMLInputElement>(null);
++  const cardsRef = useRef<HTMLInputElement>(null);
+   const serverCountLabel = state.accountCount == null ? "服务端张数未知" : `服务端 ${state.accountCount} 张`;
+ 
+   useEffect(() => {
+@@ -48,6 +52,16 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
+     setError(null);
+   }, [accountKey, state.version]);
+ 
++  useEffect(() => {
++    if (!focusSection) return;
++    if (detailsRef.current) detailsRef.current.open = true;
++    const target = focusSection === "budget" ? budgetRef.current : cardsRef.current;
++    requestAnimationFrame(() => {
++      target?.scrollIntoView?.({ block: "center", behavior: "smooth" });
++      target?.focus();
++    });
++  }, [focusSection]);
++
+   const addCard = () => {
+     try {
+       controller.addCard(label, expiry || null, expiry ? precision : "unknown");
+@@ -115,6 +129,7 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
+             className={state.effectiveWorkloadToday === option.value ? styles.selected : ""}
+             onClick={() => controller.setWorkloadToday(option.value)}>{option.label}</button>)}
+         </div>
++        <p className={styles.hint}>轻用 / 均衡 / 较忙是每 7 天 50 / 100 / 200 点的策略档，不是个人用量预测。</p>
+       </fieldset>
+ 
+       <fieldset className={styles.group}>
+@@ -127,7 +142,7 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
+         {state.preference == null && <p className={styles.hint}>默认按“别用到一半没额度”提供建议；你可以跳过或随时修改。</p>}
+       </fieldset>
+ 
+-      <details className={styles.details}>
++      <details ref={detailsRef} className={styles.details}>
+         <summary>卡片台账、查看时段与可选预算</summary>
+         <p className={styles.hint}>只填日期，会提醒你在前一天用完；填具体时间可以晚些再决定。</p>
+         <p className={styles.hint}>到期时间按北京时间记录。登记和“记录已用”只更新本地台账，不会自动使用真实重置卡。</p>
+@@ -163,7 +178,7 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
+         </div>
+ 
+         <div className={styles.addCard}>
+-          <label htmlFor="personal-card-label">卡片名称</label><input id="personal-card-label" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如：备用重置卡" />
++          <label htmlFor="personal-card-label">卡片名称</label><input ref={cardsRef} id="personal-card-label" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如：备用重置卡" />
+           <label htmlFor="personal-card-precision">截止类型</label><select id="personal-card-precision" value={precision} onChange={(event) => setPrecision(event.target.value as CardEntryPrecision)}>
+             <option value="date">只知道日期</option><option value="datetime">知道具体时间</option><option value="unknown">尚不清楚</option>
+           </select>
+@@ -180,7 +195,7 @@ export function PersonalInputs({ controller, accountKey, now, onRecordedUse }: P
+         {!state.viewTimesConfirmed && <p className={styles.hint}>09:00、20:00 只是初始建议；确认常用时段后，提醒才会按查看时机安排。</p>}
+         <div className={styles.fieldRow}>
+           <label htmlFor="personal-week-budget">今天预计周额度用量（百分点，可选）</label>
+-          <input id="personal-week-budget" type="number" min="0" step="0.1" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="不清楚可留空" />
++          <input ref={budgetRef} id="personal-week-budget" type="number" min="0" step="0.1" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="不清楚可留空" />
+           <button type="button" onClick={saveBudget}>保存预算</button>
+         </div>
+         {state.effectiveWeeklyBudgetPercent == null && <p className={styles.hint}>未填预算时显示“正在学习”，不会代入固定日耗。</p>}
+diff --git a/src/ui/V3Dashboard.module.css b/src/ui/V3Dashboard.module.css
+index a55d787..3fa5161 100644
+--- a/src/ui/V3Dashboard.module.css
++++ b/src/ui/V3Dashboard.module.css
+@@ -7,6 +7,21 @@
+ .summary p{margin:5px 0;color:var(--text-secondary)}
+ .note{margin:0;padding:10px;border-radius:10px;background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-secondary);font-size:11px}
+ .warning{margin:0;padding:10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);color:var(--warn-text);background:var(--warn-dim);font-size:11px}
++.coldStart,.coldAdvice,.confirmWork,.reminder,.referencePanel{display:grid;gap:7px;padding:11px 12px;border:1px solid var(--accent-purple);border-radius:12px;background:color-mix(in srgb,var(--accent-purple) 10%,var(--bg-card));color:var(--text-primary);font-size:11px;line-height:1.5}
++.coldStart>strong,.coldAdvice>strong,.reminder>strong,.referencePanel>strong{font-size:13px}
++.coldStart>div{display:flex;flex-wrap:wrap;gap:7px}
++.coldStart button,.confirmWork button{min-height:32px;padding:6px 10px;border:1px solid var(--accent-purple);border-radius:9px;background:var(--bg-card);color:var(--accent-purple-text);font:inherit;font-weight:700;cursor:pointer}
++.coldStart button:focus-visible,.confirmWork button:focus-visible{outline:2px solid var(--accent-purple);outline-offset:2px}
++.coldAdvice{border-width:2px;background:color-mix(in srgb,var(--accent-purple) 15%,var(--bg-card))}
++.coldAdvice small,.referencePanel small{color:var(--text-secondary)}
++.confirmWork{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap}
++.reminder{border-color:var(--warn);background:var(--warn-dim)}
++.reminder b{color:var(--warn-text)}
++.referencePanel{border-color:var(--accent-blue);background:color-mix(in srgb,var(--accent-blue) 8%,var(--bg-card))}
++.referencePanel details{border-top:1px solid var(--border-subtle);padding-top:6px}.referencePanel summary{cursor:pointer}.referencePanel pre{max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:10px;color:var(--text-secondary)}
++.replayBlock{display:grid;gap:8px;padding:10px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--bg-card)}
++.replayBlock h3{margin:0;font-size:12px;color:var(--text-primary)}.replayBlock details{display:grid;gap:7px}.replayBlock summary{cursor:pointer;color:var(--text-primary);font-weight:600}
++.referenceTable{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;color:var(--text-secondary)}.referenceTable th,.referenceTable td{padding:5px 3px;border-bottom:1px solid var(--border-subtle);text-align:right;overflow-wrap:anywhere}.referenceTable th:first-child{text-align:left}.referenceTable thead th{color:var(--text-primary);font-weight:700}.referenceTable tbody th{font-weight:600;color:var(--text-secondary)}
+ .details{display:grid;grid-template-columns:minmax(110px,.8fr) minmax(0,1.2fr);gap:0;margin:0;border:1px solid var(--border-subtle);border-radius:12px;padding:4px 10px;background:var(--bg-card);font-size:11px}
+ .details dt,.details dd{padding:7px 0;border-bottom:1px solid var(--border-subtle)}.details dt:nth-last-child(2),.details dd:last-child{border-bottom:0}
+ .details dt{color:var(--text-tertiary)}.details dd{margin:0;overflow-wrap:anywhere}
+diff --git a/src/ui/V3Dashboard.tsx b/src/ui/V3Dashboard.tsx
+index c8b2078..d0f2d10 100644
+--- a/src/ui/V3Dashboard.tsx
++++ b/src/ui/V3Dashboard.tsx
+@@ -15,6 +15,7 @@ import peek from './PeekCard.module.css';
+ export interface V3PanelProps {
+   vm:V3DashboardModel|null; controller:PersonalInputsController;
+   calibration?:PlatformCalibrationV3;
++  verdictSummaries?: readonly {modelVersion:string;sampleCount:number;positiveCount:number;unknownCount:number;pendingCount:number;brier:number|null;logLoss:number|null}[];
+   phase:string; readError:string|null; logError?:string|null;subscriptionError:boolean;refreshing:boolean;demo:boolean;
+   activeTheme:'light'|'dark';onThemePreference:(theme:'light'|'dark')=>void;onRefresh:()=>void;onCollapse:()=>void;onClose:()=>void;
+ }
+@@ -34,8 +35,16 @@ function Suggestion({vm,onOpen}:{vm:V3DashboardModel;onOpen?:()=>void}){
+ }
+ export default function V3Dashboard(props:V3PanelProps){
+   const {vm,controller}=props;const [tab,setTab]=useState(()=>initialPanelTab(window.location.hash));
++  const [focusSection,setFocusSection]=useState<'budget'|'cards'|null>(null);
+   const [copyState,setCopyState]=useState<'idle'|'ok'|'error'>('idle');
+   const r=vm?.recommendation;const card=controller.state.cards.find(c=>c.localId===r?.cardId);
++  const extraVm=vm as (V3DashboardModel & {coldAdvice?:{headline:string;trigger:string|null;basis?:string;allocatedWeeklyPointsToday?:number|null;nextReviewAt:number|null;expectedConsumption?:{low:number;high:number}|number|null;assumptions?:string[]};platformReference?:{activeModel:'D60'|'P0';deployment?:string;evidence?:string;reason?:string;decay?:Record<string,number>;replay?:unknown};platformLongTerm?:unknown})|null;
++  const optionalController=controller as PersonalInputsController & {state:PersonalInputsController['state']&{continueWorking?:{localDate:string;value:boolean}|null;planningMode?:'policy_default'|'learned'};setContinueWorking?:(value:boolean)=>void;setPlanningMode?:(mode:'policy_default'|'learned')=>void};
++  const openInputs=(section:'budget'|'cards')=>{setFocusSection(section);setTab('planner');};
++  const replay=extraVm?.platformReference?.replay as {all?:Record<string,{count:number;positiveCount:number;brier:number|null;logLoss:number|null;predictedActualRatio:number|null}>;recent180?:Record<string,{count:number;positiveCount:number;brier:number|null;logLoss:number|null;predictedActualRatio:number|null}>;recent90?:Record<string,{count:number;positiveCount:number;brier:number|null;logLoss:number|null;predictedActualRatio:number|null}>}|undefined;
++  const replayModels=['p0','p1','d60','r90'] as const;
++  const score=(value:number|null|undefined)=>value==null?'—':value.toFixed(4);
++  const replayTable=(period:'all'|'recent180'|'recent90')=>replay?.[period]&&<table className={extra.referenceTable}><thead><tr><th>窗口</th>{replayModels.map(model=><th key={model}>{model.toUpperCase()}</th>)}</tr></thead><tbody><tr><th>样本数</th>{replayModels.map(model=><td key={model}>{replay[period]?.[model]?.count??0}</td>)}</tr><tr><th>正例数</th>{replayModels.map(model=><td key={model}>{replay[period]?.[model]?.positiveCount??0}</td>)}</tr><tr><th>Brier</th>{replayModels.map(model=><td key={model}>{score(replay[period]?.[model]?.brier)}</td>)}</tr><tr><th>Log loss</th>{replayModels.map(model=><td key={model}>{score(replay[period]?.[model]?.logLoss)}</td>)}</tr><tr><th>预测/实际比</th>{replayModels.map(model=><td key={model}>{score(replay[period]?.[model]?.predictedActualRatio)}</td>)}</tr></tbody></table>;
+   const scheduled=vm?.supply?.incidents.find(i=>i.kind==='scheduled'&&i.status!=='cancelled'&&i.scheduledFor!=null);
+   const copySummary=async()=>{if(!vm)return;try{await navigator.clipboard.writeText(`reset-radar${props.demo?'（演示）':''}\n周余 ${percentWhole(vm.remainingPercent)} / 短余 ${percentWhole(vm.shortRemainingPercent)} / ${creditsLabel(vm.resetCredits)}\n${statusText[vm.recommendation.status]}：${vm.recommendation.reasons.join(' ')}\n平台24h公告参考 ${pct(vm.platform.probability24h)}；账号补给 ${pct(vm.supply?.accountProbability24h)}\n观测 ${beijingFull(vm.updatedAt)} 北京时间`);setCopyState('ok');}catch{setCopyState('error');}};
+   return <div className={styles.shell} role="main" aria-label="reset-radar 展开面板">
+@@ -58,26 +67,32 @@ export default function V3Dashboard(props:V3PanelProps){
+         <Section icon={<PulseIcon size={13}/>}>额度状态与今日建议</Section>
+         <div className={styles.quotaGrid}>{[{value:vm.remainingPercent,label:'周额度剩余',window:vm.account?.weekly,color:styles.ringBlue},{value:vm.shortRemainingPercent,label:'短窗剩余',window:vm.account?.short,color:styles.ringGreen}].map(item=><div className={styles.quotaCard} key={item.label}><ProgressRing value={item.value} size={54} className={item.color} label={item.label}><span className={styles.ringCenter}>{percentWhole(item.value)}</span></ProgressRing><span className={styles.quotaText}><span className={styles.quotaLabel}>{item.label}</span><span className={styles.quotaSub}>自然补给 {item.window?<span className={styles.timeNoWrap}>{beijingShort(new Date(item.window.resetsAt).toISOString())} 北京时间</span>:'待取得截止'}</span></span></div>)}</div>
+         <Suggestion vm={vm} onOpen={()=>setTab('planner')}/>
++        {vm.demand.sampleDays<7&&<div className={extra.coldStart} role="region" aria-label="正在学习你的用量"><strong>还在学习你的用量</strong><span>填写今天大概用多少，马上得到条件建议；也可以先补充卡台账。</span><div><button type="button" onClick={()=>openInputs('budget')}>填写今天用量</button><button type="button" onClick={()=>openInputs('cards')}>补充卡台账</button></div></div>}
++        {extraVm?.coldAdvice&&<div className={extra.coldAdvice} aria-label="用量建议"><strong>{extraVm.coldAdvice.headline}</strong>{extraVm.coldAdvice.trigger&&<span>{extraVm.coldAdvice.trigger}</span>}<span>今日{extraVm.coldAdvice.basis==='learned'?'建议预算':'默认分配'}：{extraVm.coldAdvice.allocatedWeeklyPointsToday==null?'待计算':`${extraVm.coldAdvice.allocatedWeeklyPointsToday.toFixed(1)} 周额度百分点`}</span><span>下次查看：{extraVm.coldAdvice.nextReviewAt==null?'待确认':beijingFull(new Date(extraVm.coldAdvice.nextReviewAt).toISOString())} 北京时间</span><small>依据：{extraVm.coldAdvice.basis==='learned'?'已学习用量':extraVm.coldAdvice.basis??'冷启动默认策略'}。预计用量仍在学习{extraVm.coldAdvice.expectedConsumption==null?'':`（${typeof extraVm.coldAdvice.expectedConsumption==='number'?extraVm.coldAdvice.expectedConsumption.toFixed(1):`${extraVm.coldAdvice.expectedConsumption.low.toFixed(1)}–${extraVm.coldAdvice.expectedConsumption.high.toFixed(1)}`} 周额度百分点）`}。{extraVm.coldAdvice.assumptions?.join(' ')}</small></div>}
++        {extraVm?.coldAdvice&&<div className={extra.confirmWork}><span>今天准备继续工作吗？确认后会纳入今天的规划。</span><button type="button" aria-pressed={optionalController.state.continueWorking?.value===true} onClick={()=>optionalController.setContinueWorking?.(true)}>准备继续工作</button>{vm.demand.sampleDays>=7&&<button type="button" onClick={()=>optionalController.setPlanningMode?.('learned')}>使用已学习用量</button>}</div>}
+         <div className={styles.decisionCard}><span className={styles.decisionIcon}><CardStackIcon size={18}/></span><div className={styles.decisionText}><span className={styles.decisionTitle}>用卡建议</span><strong className={styles.decisionMain}>{r?statusText[r.status]:'等待数据'}</strong><span className={styles.decisionSub}>{card?`${card.label}：` : ''}{r?.reasons[0]}</span></div></div>
+-        {controller.state.reminders.map(rem=><p className={extra.warning} key={`${rem.localId}:${rem.tier}`}>临期卡：{controller.state.cards.find(c=>c.localId===rem.localId)?.label} · {rem.tier==='needs-confirmation'?'需补具体时间，可能仍可用':rem.tier==='last-chance'?'已到最后建议操作时段':`${rem.tier} 内需处理`}{rem.lastActionAt!=null?` · 最迟 ${beijingFull(new Date(rem.lastActionAt).toISOString())}`:''}</p>)}
++        {controller.state.reminders.map(rem=><div className={extra.reminder} role="status" key={`${rem.localId}:${rem.tier}`}><strong>临期提醒 · {controller.state.cards.find(c=>c.localId===rem.localId)?.label??'重置卡'}</strong><span>{rem.tier==='needs-confirmation'?'需补具体时间，可能仍可用':rem.tier==='last-chance'?'已到最后建议操作时段':`${rem.tier} 内需处理`}</span>{rem.lastActionAt!=null&&<b>最迟处理 {beijingFull(new Date(rem.lastActionAt).toISOString())} 北京时间</b>}</div>)}
+         <div className={styles.pacingRow}><span className={`${styles.pacingIcon} ${styles.pacingIconCyan}`}><SlidersIcon size={17}/></span><div className={styles.pacingBody}><strong className={styles.pacingLabel}>今天的工作量</strong><span className={styles.pacingNote}>{vm.demand.weekly?`${amount(vm.demand.workload[controller.state.effectiveWorkloadToday==='quiet'?'light':controller.state.effectiveWorkloadToday??'unknown'].low)} – ${amount(vm.demand.workload[controller.state.effectiveWorkloadToday==='quiet'?'light':controller.state.effectiveWorkloadToday??'unknown'].high)}`:vm.demand.budgetScenarios.length?'使用你今天填写的预算情景':'正在学习，可在用卡页填今天预算'}</span></div><button type="button" className={styles.sectionLink} onClick={()=>setTab('planner')}>调整</button></div>
+         <div className={extra.footerRow}><p className={styles.mutedNote}>{r?.shortWindowEvaluated?'已评估双窗工作量':'短窗工作量未知，周预算不保证连续工作不会限流。'}</p><button type="button" className={styles.primaryButton} onClick={props.onRefresh} disabled={props.refreshing}><RefreshIcon size={14}/> {props.refreshing?'正在读取':'刷新额度'}</button></div>
+       </>}
+       {tab==='risk'&&<>
+         <Section icon={<ShieldIcon size={13}/>}>平台重置信号</Section>
+-        <div className={styles.riskGrid}>{[{hours:24,value:vm.platform.probability24h,icon:<PulseIcon size={19}/>},{hours:48,value:vm.platform.probabilities.find(p=>p.horizonMs===2*86_400_000)?.probability,icon:<BarChartIcon size={19}/>}].map(item=><div className={styles.riskCard} key={item.hours}><span className={extra.signalIcon}>{item.icon}</span><div className={styles.riskText}><span className={styles.riskLabel}>未来 {item.hours} 小时平台公告</span><strong className={styles.riskValue}>{pct(item.value)}</strong><span className={extra.referenceBadge}>P0 · 参考概率</span></div></div>)}</div>
++        {extraVm?.platformReference&&<div className={extra.referencePanel}><strong>{extraVm.platformReference.activeModel} · 当前选择模型</strong><span>{extraVm.platformReference.reason??'模型选择依据见证据与验证。'}</span><small>部署：{extraVm.platformReference.deployment??'待定'} · 证据：{extraVm.platformReference.evidence??'待确认'}</small><details><summary>衰减与回放诊断</summary><pre>{JSON.stringify({decay:extraVm.platformReference.decay,replay:extraVm.platformReference.replay},null,2)}</pre></details></div>}
++        <div className={styles.riskGrid}>{[{hours:24,value:vm.platform.probability24h,icon:<PulseIcon size={19}/>},{hours:48,value:vm.platform.probabilities.find(p=>p.horizonMs===2*86_400_000)?.probability,icon:<BarChartIcon size={19}/>}].map(item=><div className={styles.riskCard} key={item.hours}><span className={extra.signalIcon}>{item.icon}</span><div className={styles.riskText}><span className={styles.riskLabel}>未来 {item.hours} 小时平台公告</span><strong className={styles.riskValue}>{pct(item.value)}</strong><span className={extra.referenceBadge}>{extraVm?.platformReference?.activeModel??'P0'} · 当前概率参考</span></div></div>)}</div>
+         <p className={extra.note}>这是新 regular 公告的时间口径，尚不等价于本人账号在窗口内回满的概率。</p>
+         <div className={styles.plannerCard}><span className={styles.plannerCardBlueIcon}><CalendarIcon size={20}/></span><div className={styles.plannerText}><strong className={styles.plannerBig}>账号平台补给概率：{pct(vm.supply?.accountProbability24h)}</strong><span className={styles.plannerSub}>{vm.supply?.accountProbabilityReason??'双窗快照缺失，补给场景未计算。'}</span></div></div>
+-        <dl className={extra.details}><dt>正式模型</dt><dd>P0 常数发生率（参考）</dd><dt>24h 影子模型 P1</dt><dd>{pct(vm.platform.shadow.probability24h)}，尚未升级</dd><dt>48h 同口径 P0</dt><dd>{pct(vm.platform.probabilities.find(p=>p.horizonMs===2*86_400_000)?.probability)}</dd><dt>regular / 相邻完整间隔</dt><dd>{vm.platform.training.eventCount} / {vm.platform.training.completedGapCount}</dd><dt>有效暴露</dt><dd>{vm.platform.training.exposureDays.toFixed(1)} 天</dd></dl>
++        <dl className={extra.details}><dt>当前选中模型</dt><dd>{extraVm?.platformReference?.activeModel??'P0'} · 参考展示，不代表账号回满</dd><dt>P0 长期参考</dt><dd>{pct((extraVm?.platformLongTerm as {probability24h?:number}|undefined)?.probability24h??vm.platform.probability24h)}</dd><dt>24h 影子模型 P1</dt><dd>{pct(vm.platform.shadow.probability24h)}，尚未升级</dd><dt>48h 当前模型</dt><dd>{pct(vm.platform.probabilities.find(p=>p.horizonMs===2*86_400_000)?.probability)}</dd><dt>regular / 相邻完整间隔</dt><dd>{vm.platform.training.eventCount} / {vm.platform.training.completedGapCount}</dd><dt>有效暴露</dt><dd>{vm.platform.training.exposureDays.toFixed(1)} 天</dd></dl>
+         {vm.platform.factors.map(f=><p key={f.key} className={styles.mutedNote}>{f.explanation}：{pct(f.before)} → {pct(f.after)}</p>)}
+         {vm.supply?.watchNotes.length? <p className={extra.note}>平台正在观察。原始 watch 百分比只作来源提示，不增加可放心使用的确定额度。</p>:null}
+         <p className={styles.mutedNote}>{vm.evidenceQuality.join(' ')}</p>
+       </>}
+       {tab==='planner'&&<>
+         <Section icon={<CardStackIcon size={13}/>}>重置卡与今天的安排</Section>
++        {vm.demand.sampleDays>=7&&<div className={extra.confirmWork}><span>{optionalController.state.planningMode==='learned'?'当前按已学习用量规划。':'工作量选项是默认策略档，不是习惯预测。'}</span><button type="button" aria-pressed={optionalController.state.planningMode==='learned'} onClick={()=>optionalController.setPlanningMode?.(optionalController.state.planningMode==='learned'?'policy_default':'learned')}>{optionalController.state.planningMode==='learned'?'恢复默认策略档':'使用已学习用量'}</button></div>}
+         <div className={styles.plannerGrid}><div className={styles.plannerCard}><span className={styles.plannerCardBlueIcon}><CardStackIcon size={20}/></span><div className={styles.plannerText}><strong className={styles.plannerBig}>{creditsLabel(vm.resetCredits)}</strong><span className={styles.plannerSub}>可用数量以服务端为准</span></div></div><div className={styles.plannerCard}><span className={extra.signalIcon}><ClockIcon size={20}/></span><div className={styles.plannerText}><strong className={styles.plannerBig}>{r?statusText[r.status]:'等待数据'}</strong><span className={styles.plannerSub}>{card?.label??'卡有效期与偏好可在下方补充'}</span></div></div></div>
+-        <PersonalInputs controller={controller} accountKey={props.demo?null:vm.accountKey} now={vm.now} onRecordedUse={props.onRefresh}/>
+-        <details className={extra.expander}><summary>建议方案与计算依据</summary><p>{r?.reasons.join(' ')}</p><p>现在用卡会回满双窗，并把周截止改为 {vm.account?beijingFull(new Date(vm.now+7*86_400_000).toISOString()):'快照取得后显示'}；短窗的新截止需刷新确认。</p>
++        {vm.resetCredits===0&&<p className={extra.note}>未登记可用卡。服务端当前显示 0 张；请核对卡台账，不会替你推测卡片身份。</p>}
++        <PersonalInputs controller={controller} accountKey={props.demo?null:vm.accountKey} now={vm.now} onRecordedUse={props.onRefresh} focusSection={focusSection}/>
++        <details className={extra.expander}><summary>建议方案与计算依据</summary><p>{r?.reasons.join(' ')}</p><p>用卡效果预览：周窗预计回满；周截止预计为 {vm.account?beijingFull(new Date(vm.now+7*86_400_000).toISOString()):'快照取得后显示'}。短窗截止待刷新确认。此预览不会执行用卡。</p>
+           <p>共同视野：{vm.planning?.horizons.map(h=>`${h.days}天`).join(' / ')??'需求不足，未计算'}；{r?.sensitivity==='stable'?'首个动作稳定':r?.sensitivity==='changes_with_assumptions'?'随远期或机制假设变化，只作条件建议':'关键输入仍待学习'}。</p>
+           {vm.planning?.selected&&<p>当前方案：{vm.planning.selected.firstAction?'现在用一张':'现在先留卡'}，最差情景不足 {vm.planning.selected.Ltail.toFixed(3)} 工作段单位，最多预计用 {vm.planning.selected.Nspent.toFixed(1)} 张。</p>}
+           {vm.planning?.alternative&&<p>另一选择：{vm.planning.alternative.firstAction?'现在用一张':'现在先留卡'}，最差情景不足 {vm.planning.alternative.Ltail.toFixed(3)} 工作段单位，最多预计用 {vm.planning.alternative.Nspent.toFixed(1)} 张。你可以修改今天更在意的选项。</p>}
+@@ -87,12 +102,14 @@ export default function V3Dashboard(props:V3PanelProps){
+       </>}
+       {tab==='data'&&<>
+         <Section icon={<DatabaseIcon size={13}/>}>观测与验证</Section>
+-        <div className={styles.metricGrid}>{[{label:'完整需求日',value:`${vm.demand.sampleDays} 天`},{label:'regular 公告',value:`${vm.platform.training.eventCount} 条`},{label:'完整间隔',value:`${vm.platform.training.completedGapCount} 段`},{label:'正式模型',value:'P0 · 参考'}].map(item=><div className={styles.metricMini} key={item.label}><span className={styles.metricMiniLabel}>{item.label}</span><strong className={styles.metricMiniValue}>{item.value}</strong></div>)}</div><p className={styles.mutedNote}>个人完整周需求日少于7日仅初步范围，14日起显示常规经验分位。</p>
++        <div className={styles.metricGrid}>{[{label:'完整需求日',value:`${vm.demand.sampleDays} 天`},{label:'regular 公告',value:`${vm.platform.training.eventCount} 条`},{label:'完整间隔',value:`${vm.platform.training.completedGapCount} 段`},{label:'当前参考模型',value:extraVm?.platformReference?.activeModel??'P0'}].map(item=><div className={styles.metricMini} key={item.label}><span className={styles.metricMiniLabel}>{item.label}</span><strong className={styles.metricMiniValue}>{item.value}</strong></div>)}</div><p className={styles.mutedNote}>个人完整周需求日少于7日仅初步范围，14日起显示常规经验分位。</p>
+         <details className={extra.expander}><summary>最近账号状态变化</summary><p>余额与截止变化会保留执行区间；仅靠时间接近无法确认是平台补给，来源未知时不记为未命中。</p>{vm.mapping.filter(m=>m.incidentId!=null||m.knownClassification!=='unobservable').slice(-10).map((m,i)=><p key={i}>{beijingFull(new Date(m.interval.fromExclusive).toISOString())} – {beijingFull(new Date(m.interval.toInclusive).toISOString())}：{m.knownClassification==='natural_reset'?'自然补给候选':m.knownClassification==='card_use'?'已记录用卡干预':m.status==='ambiguous'?'来源歧义':m.status==='hit'?'已确认平台命中':m.status==='miss'?'可辨识未命中':'不可观测'}。{m.reason}</p>)}</details>
+-        <p>v3 在线固定日预测：{props.calibration?.matchedCount??0} 个可评估，正例 {props.calibration?.positiveCount??0}；等待完整覆盖 {props.calibration?.pending??0}，未知 {props.calibration?.unknown??0}，缺配对 {props.calibration?.missingPair??0}。P0 正式参考，P1 保持影子。</p>
+-        <dl className={extra.details}><dt>正式 P0 Brier</dt><dd>{props.calibration?.brierP0?.toFixed(4)??'等待可评估样本'}</dd><dt>影子 P1 Brier</dt><dd>{props.calibration?.brierP1?.toFixed(4)??'等待可评估样本'}</dd><dt>P1 相对改善</dt><dd>{props.calibration?.improvement?.toFixed(4)??'尚不可比较'}</dd><dt>完整周分块</dt><dd>{props.calibration?.weeklyBootstrap.blockCount??0} 周；改善区间 {props.calibration?.weeklyBootstrap.lower?.toFixed(4)??'—'} – {props.calibration?.weeklyBootstrap.upper?.toFixed(4)??'—'}</dd><dt>历史覆盖截至</dt><dd>{props.calibration?.coverageEnd!=null?beijingFull(new Date(props.calibration.coverageEnd).toISOString()):'未取得完整覆盖'}</dd></dl>
++        <p>参考启用与验证分开；60 日仅作回顾节点，现有回放尚未证明哪种模型更准。回放是历史证据，不代表线上成熟样本。</p>
++        {replay?.all&&<section className={extra.replayBlock} aria-label="历史回放对照"><h3>历史回放 · 全期</h3>{replayTable('all')}<details><summary>近期窗口对照</summary><h3>近 180 日</h3>{replayTable('recent180')}<h3>近 90 日</h3>{replayTable('recent90')}</details></section>}
++        {props.verdictSummaries&&props.verdictSummaries.length>0&&<section className={extra.replayBlock} aria-label="线上 verdict 汇总"><h3>线上验证汇总</h3><p>只统计已追加的在线 verdict；当前汇总未证明 D60 已有成熟在线样本。</p><table className={extra.referenceTable}><thead><tr><th>模型</th><th>样本</th><th>正例</th><th>待覆盖</th><th>未知</th><th>Brier</th><th>Log loss</th></tr></thead><tbody>{props.verdictSummaries.map(row=><tr key={row.modelVersion}><th>{row.modelVersion}</th><td>{row.sampleCount}</td><td>{row.positiveCount}</td><td>{row.pendingCount}</td><td>{row.unknownCount}</td><td>{score(row.brier)}</td><td>{score(row.logLoss)}</td></tr>)}</tbody></table></section>}
++        <dl className={extra.details}><dt>长期 P0 Brier</dt><dd>{score(replay?.all?.p0?.brier)}</dd></dl>
++        <details className={extra.expander}><summary>旧版在线固定日校准统计</summary><dl className={extra.details}><dt>旧版 P0 Brier</dt><dd>{props.calibration?.brierP0?.toFixed(4)??'等待可评估样本'}</dd><dt>旧版 P1 Brier</dt><dd>{props.calibration?.brierP1?.toFixed(4)??'等待可评估样本'}</dd><dt>旧版 P1 相对改善</dt><dd>{props.calibration?.improvement?.toFixed(4)??'尚不可比较'}</dd><dt>旧版完整周分块</dt><dd>{props.calibration?.weeklyBootstrap.blockCount??0} 周；改善区间 {props.calibration?.weeklyBootstrap.lower?.toFixed(4)??'—'} – {props.calibration?.weeklyBootstrap.upper?.toFixed(4)??'—'}</dd><dt>历史覆盖截至</dt><dd>{props.calibration?.coverageEnd!=null?beijingFull(new Date(props.calibration.coverageEnd).toISOString()):'未取得完整覆盖'}</dd></dl></details>
+         <details className={extra.expander}><summary>概率分组与评分边界</summary>{props.calibration?.probabilityBins.p0.map(bin=><p key={bin.from}>{pct(bin.from)} – {pct(bin.to)}：{bin.count} 个样本，平均预测 {pct(bin.meanProbability)}，实际公告比例 {pct(bin.eventRate)}</p>)}<p>临时预测 {props.calibration?.temporaryRows??0} 条单列，不加入固定日主成绩；旧日志不计入 v3。区间按完整周重采样，样本少时不能证明改进。</p></details>
+-        <p>升级至少需要60个可评估固定日预测、10个正例、周分块改善证据；watch 另需30个可分辨 episode。</p>
+         <dl className={extra.details}><dt>快照</dt><dd>{vm.updatedAt}</dd><dt>卡台账版本</dt><dd>{vm.ledgerVersion}</dd><dt>输入版本</dt><dd>{vm.preferenceVersion}</dd><dt>模拟种子</dt><dd>{vm.planning?.seed??'未运行'}</dd><dt>模型</dt><dd>{vm.planning?.modelVersion??'platform-v3'}</dd></dl>
+         <p className={styles.mutedNote}>日耗、平台信号版本和各次预测均只追加到本机日志；演示不会写生产预测记录。</p>
+         <div className={extra.footerRow}><button type="button" className={styles.primaryButton} onClick={props.onRefresh} disabled={props.refreshing}><RefreshIcon size={14}/>刷新额度</button><button type="button" className={styles.iconButton} onClick={copySummary} aria-label="复制摘要"><CopyIcon size={16}/></button><span role="status" className={styles.mutedNote}>{copyState==='ok'?'摘要已复制':copyState==='error'?'复制失败，请重试':''}</span></div>
+diff --git a/src/ui/__tests__/ui.rr51-cold-start.test.tsx b/src/ui/__tests__/ui.rr51-cold-start.test.tsx
+new file mode 100644
+index 0000000..f2c7dc8
+--- /dev/null
++++ b/src/ui/__tests__/ui.rr51-cold-start.test.tsx
+@@ -0,0 +1,39 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { readFileSync } from 'node:fs';
++import { join } from 'node:path';
++import { renderToStaticMarkup } from 'react-dom/server';
++import Dashboard, { type V3PanelProps } from '../V3Dashboard';
++import { buildV3Dashboard } from '../v3Model';
++import { demoSnapshot } from '../demoScenarios';
++import { emptyPersonalInputs, reconcileCardCount } from '../../lib/v3/cards';
++import type { PersonalInputsController } from '../usePersonalInputs';
++
++const now=Date.parse('2026-10-12T10:00:00+08:00');
++const snapshot={...demoSnapshot(),updatedAt:new Date(now).toISOString()};
++const vm=buildV3Dashboard(snapshot,{events:[],fetchedAt:snapshot.updatedAt},now,undefined,[],[],true);
++const controller:PersonalInputsController={state:{...emptyPersonalInputs(null),accountCount:3,reconciliation:reconcileCardCount([],3),reminders:[],effectiveWorkloadToday:null,effectiveWeeklyBudgetPercent:null},addCard:()=>{},updateExpiry:()=>{},recordUse:()=>{},markUnresolved:()=>{},confirmAbsent:()=>{},restoreAvailable:()=>{},setWorkloadToday:()=>{},setPreference:()=>{},setUsualViewTimes:()=>{},setWeeklyBudgetPercent:()=>{},recordFeedback:()=>{}};
++const props:V3PanelProps={vm,controller,phase:'ready',readError:null,subscriptionError:false,refreshing:false,demo:true,activeTheme:'dark',onThemePreference:()=>{},onRefresh:()=>{},onCollapse:()=>{},onClose:()=>{}};
++function panel(override:Partial<V3PanelProps>={},tab='overview'){vi.stubGlobal('window',{location:{hash:`#expanded&tab=${tab}`}});return renderToStaticMarkup(<Dashboard {...props} {...override}/>);}
++afterEach(()=>vi.unstubAllGlobals());
++
++describe('RR51 冷启动与预览提示',()=>{
++  it('不足七个完整需求日时提供两条醒目填写入口',()=>{
++    const html=panel({vm:{...vm,demand:{...vm.demand,sampleDays:0}}});
++    expect(html).toContain('还在学习你的用量');expect(html).toContain('填写今天用量');expect(html).toContain('补充卡台账');expect(html).toContain('马上得到条件建议');
++  });
++  it('预览明确双窗及周截止推算且提醒不会执行用卡',()=>{
++    const html=panel({vm:{...vm,demand:{...vm.demand,sampleDays:0}}},'planner');
++    expect(html).toContain('周窗预计回满');expect(html).toContain('短窗截止待刷新确认');expect(html).toContain('此预览不会执行用卡');
++  });
++  it('个人输入入口打开台账并滚动聚焦预算或卡标签',()=>{
++    const source=readFileSync(join(__dirname,'..','PersonalInputs.tsx'),'utf8');
++    expect(source).toContain('focusSection?: "budget" | "cards" | null');expect(source).toContain('detailsRef.current.open = true');
++    expect(source).toContain('target?.scrollIntoView?.');expect(source).toContain('target?.focus()');
++  });
++  it('数据页区分当前模型、全期回放与在线 verdict，60 日只作回顾节点',()=>{
++    const replayModel={count:25,positiveCount:4,brier:0.18,logLoss:0.61,predictedActualRatio:1.2};
++    const enriched={...vm,platformReference:{activeModel:'D60' as const,replay:{all:{p0:replayModel,p1:replayModel,d60:replayModel,r90:replayModel},recent180:{},recent90:{}}}};
++    const html=panel({vm:enriched,verdictSummaries:[{modelVersion:'D60',sampleCount:0,positiveCount:0,unknownCount:0,pendingCount:0,brier:null,logLoss:null}]},'data');
++    expect(html).toContain('当前参考模型');expect(html).toContain('D60');expect(html).toContain('历史回放 · 全期');expect(html).toContain('线上验证汇总');expect(html).toContain('60 日仅作回顾节点');expect(html).not.toContain('升级至少需要60个');
++  });
++});
+diff --git a/src/ui/__tests__/ui.v3-fusion.test.tsx b/src/ui/__tests__/ui.v3-fusion.test.tsx
+index 7f997b9..8cceac3 100644
+--- a/src/ui/__tests__/ui.v3-fusion.test.tsx
++++ b/src/ui/__tests__/ui.v3-fusion.test.tsx
+@@ -20,7 +20,7 @@ describe('原设计与v3融合',()=>{
+     expect(html).toContain('正在学习你的用量');expect(html.match(/自然补给/g)).toHaveLength(2);expect(html).not.toContain('今日达到最优');
+   });
+   it('平台卡片保持P0参考与账号未知分离，不变成本人回满概率',()=>{
+-    const html=panel('risk');expect(html).toContain(styles.riskCard);expect(html).toContain('本人账号');expect(html).toContain('账号平台补给概率：—');expect(html).toContain('P0 · 参考概率');expect(html).toContain('尚未升级');
++    const html=panel('risk');expect(html).toContain(styles.riskCard);expect(html).toContain('本人账号');expect(html).toContain('账号平台补给概率：—');expect(html).toContain('P0 · 当前概率参考');expect(html).toContain('尚未升级');
+   });
+   it('无数据仍有刷新入口与缺失说明',()=>{const html=panel('overview',{vm:null});expect(html).toContain('缺失数据不会填成满额');expect(html).toContain('刷新额度');});
+   it('用卡页保留工作量、偏好、台账和建议依据',()=>{const html=panel('planner');for(const text of ['今天大概忙不忙','今天你更在意什么','卡片台账','建议方案与计算依据'])expect(html).toContain(text);});
+-- 
+2.52.0.windows.1
+

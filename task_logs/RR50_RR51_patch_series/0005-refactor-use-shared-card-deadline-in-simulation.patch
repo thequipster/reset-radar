@@ -1,0 +1,25 @@
+From 001e3bfc0334a704baaac546f1f89cc30030ef0e Mon Sep 17 00:00:00 2001
+From: thequipster <256361972+thequipster@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 22:38:47 +0800
+Subject: [PATCH 5/6] refactor: use shared card deadline in simulation
+
+---
+ src/lib/v3/simulator.ts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/lib/v3/simulator.ts b/src/lib/v3/simulator.ts
+index 51586ff..11ce672 100644
+--- a/src/lib/v3/simulator.ts
++++ b/src/lib/v3/simulator.ts
+@@ -45,7 +45,7 @@ export function applyCardUse(state: VisibleState, cardId: string, at: number, me
+   if (!card || !available(card, at) || state.availableCardCount < 1) return null;
+   return {
+     ...state, observedAt: at, availableCardCount: state.availableCardCount - 1, lastConfirmedCardUseAt: at,
+-    weekly: { ...state.weekly, remaining: 100, resetsAt: at + 7 * DAY_MS },
++    weekly: { ...state.weekly, remaining: 100, resetsAt: weeklyDeadlineAfterCard(at) },
+     short: { ...state.short, remaining: 100, resetsAt: mechanisms.shortAfterCard === 'restart_duration' ? at + state.short.durationMins * 60_000 : state.short.resetsAt },
+     weeklyGeneration: state.weeklyGeneration + 1, shortGeneration: state.shortGeneration + 1,
+     cards: state.cards.map(c => c.localId === cardId ? { ...c, state: 'used' as const } : { ...c }),
+-- 
+2.52.0.windows.1
+

@@ -1,0 +1,660 @@
+From 533540ac73d1baab4c53e1f9d2f2e60318c6c89f Mon Sep 17 00:00:00 2001
+From: thequipster <256361972+thequipster@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 09:39:54 +0800
+Subject: [PATCH 1/2] fix: publish platform forecasts when account refresh
+ fails
+
+---
+ docs/DECISIONS.md                             |   5 +
+ docs/v3-publication-audit-20261013.md         |  22 ++
+ .../check-platform-publication-mutation.mjs   |  16 +
+ src/App.tsx                                   |   4 +-
+ .../__tests__/ui.platform-publication.test.ts |  51 +++
+ task_logs/RR52_artifacts/build.txt            |  21 ++
+ task_logs/RR52_artifacts/domain.txt           |  12 +
+ task_logs/RR52_artifacts/full.txt             |  12 +
+ task_logs/RR52_artifacts/mutation.txt         |  54 +++
+ task_logs/RR52_artifacts/native-build.txt     |   8 +
+ task_logs/RR52_artifacts/node.txt             | 338 ++++++++++++++++++
+ task_logs/RR52_artifacts/tsc.txt              |   0
+ 12 files changed, 542 insertions(+), 1 deletion(-)
+ create mode 100644 docs/v3-publication-audit-20261013.md
+ create mode 100644 scripts/check-platform-publication-mutation.mjs
+ create mode 100644 src/ui/__tests__/ui.platform-publication.test.ts
+ create mode 100644 task_logs/RR52_artifacts/build.txt
+ create mode 100644 task_logs/RR52_artifacts/domain.txt
+ create mode 100644 task_logs/RR52_artifacts/full.txt
+ create mode 100644 task_logs/RR52_artifacts/mutation.txt
+ create mode 100644 task_logs/RR52_artifacts/native-build.txt
+ create mode 100644 task_logs/RR52_artifacts/node.txt
+ create mode 100644 task_logs/RR52_artifacts/tsc.txt
+
+diff --git a/docs/DECISIONS.md b/docs/DECISIONS.md
+index 93edc99..5dd439a 100644
+--- a/docs/DECISIONS.md
++++ b/docs/DECISIONS.md
+@@ -356,3 +356,8 @@
+ - 默认策略长期回退，学习由7个有效日起用户主动切换，默认日耗不是个人预测，分配预算不预支卡或平台。
+ - 用户明确追加一张UI卡RR51；RR50核心和RR51展示分域准备，各自worktree，合入仍串行，不扩大发布授权。
+ - 历史firstSeen缺失且归档versionSeen是当前抓取时，只在明确理想化回放使用当前规范版本公告即知假设；在线原样过滤未来版本。
++
++## D039 平台预测发布与账号读取分离（2026-10-13）
++- v3 §2.1平台公告目标与个人账号是否读取成功无因果关系。账号error/stale仍发布已有输入下的P0/D60/R90/P1平台目标；不预支额度，也不将账号错误当无公告。
++- 账号状态不是ok时，跳过账号/需求/个人观测/规划的成功记录；平台记录冻结原输入版本和证据质量，后续完整覆盖才评分。
++- RR50/RR51源码已在main eb0fbbc，与最终集成分支恒等，结项心跳/wip双超10小时。先备份其提交与未提交产物，再补协调结项，保留分支/worktree；RR52在独立新分支修复，不重做已完成的v3.1功能，不push。
+diff --git a/docs/v3-publication-audit-20261013.md b/docs/v3-publication-audit-20261013.md
+new file mode 100644
+index 0000000..7cdefbc
+--- /dev/null
++++ b/docs/v3-publication-audit-20261013.md
+@@ -0,0 +1,22 @@
++# v3 定时核查：平台预测独立记账（RR52）
++
++依据：桌面v3 §2.1/10.3/12.B12；后续已确认的v3.1冲突处保持现有实现。
++
++本轮核查最新主项目eb0fbbc：v3.1算法、冷启动和界面已合入，原占槽的结项记录超时遗留；先将RR50/RR51提交、未提交产物、wip/done备份至 `C:/tmp/takeover/RR50-RR51-20261013`，核对主仓与最终RR51源码恒等后释放旧占槽，保留原worktree及分支。
++
++## 发现与修复
++
++App预测发布整体被账号状态 `ok` 限制。运行实际发布effect复现：账号成功时有P0/D60/R90/P1四条平台预测，账号error或stale时全部停止。即便平台历史完整，09:00固定日发布也会被无关的账号读取失败抑制。
++
++现将账号检查放到四个平台目标发布之后。失败或过期账号继续记录同一平台预测、发布时刻及冻结版本，但不追加账号预测、需求预测、个人观测和规划的成功记录。演示和非本机运行仍不会写生产日志。
++
++## 验证
++
++- 回归测试从App真实effect提取执行，隔离React壳和磁盘：error/stale保留四个平台目标且内容与成功账号一致；成功账号保留六目标与观测/规划；演示及非本机无生产写入。
++- 原问题两项测试先失败；修复后四项通过。变异再次恢复旧账号总门控，两项失败；逐字恢复后四项通过。
++- 全量482项通过，类型检查、域测试、Node脚本41项与生产构建通过。Rust源码与算法没有改动。
++- 源码证据：`src/App.tsx` 发布effect；测试 `src/ui/__tests__/ui.platform-publication.test.ts`；完整门禁和变异输出 `task_logs/RR52_artifacts/`。
++
++主项目继续保留v3.1 D60参考、独立账号概率降级、原有界面和追加式标签。账号命中、延迟及短窗机制仍按真实观测积累；本轮修复不伪造统计升级证据。
++
++本轮仅本地合入及生成可运行程序，不更新GitHub已发布资产，不停止用户旧实例。
+diff --git a/scripts/check-platform-publication-mutation.mjs b/scripts/check-platform-publication-mutation.mjs
+new file mode 100644
+index 0000000..703e664
+--- /dev/null
++++ b/scripts/check-platform-publication-mutation.mjs
+@@ -0,0 +1,16 @@
++// RR52真实接线变异；只许本卡worktree，finally恢复App原字节。
++import {readFileSync,writeFileSync} from 'node:fs';
++import {spawnSync} from 'node:child_process';
++import assert from 'node:assert/strict';
++assert(/reset-radar_wt[\\/]RR52$/i.test(process.cwd()));
++const file='src/App.tsx',original=readFileSync(file),text=original.toString('utf8');
++const from='if(!live||demo||!vm||!codex)return;',to='if(!live||demo||!vm||!codex||codex.status!=="ok")return;';
++assert(text.includes(from));let red;
++function run(){return spawnSync('pwsh',['-NoProfile','-Command','npx vitest run src/ui/__tests__/ui.platform-publication.test.ts'],{encoding:'utf8'});}
++try{
++ writeFileSync(file,text.replace(from,to));red=run();
++ assert.notEqual(red.status,0);assert((red.stdout+red.stderr).includes('账号error仍发布四个平台目标'));
++}finally{writeFileSync(file,original);}
++const green=run();assert.equal(green.status,0);
++writeFileSync('task_logs/RR52_artifacts/mutation.txt',`恢复错误的账号总门控：${from} -> ${to}\nRED\n${red.stdout}${red.stderr}\nRESTORED GREEN\n${green.stdout}${green.stderr}`);
++console.log('账号错误门控：两项回归RED -> 原字节恢复4项GREEN');
+diff --git a/src/App.tsx b/src/App.tsx
+index f52ab7e..5bfd9b8 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -412,7 +412,7 @@ export default function App() {
+   const verdictSummaries=useMemo(()=>summarizeVerdicts(journal.predictionContent),[journal.predictionContent]);
+   const [journalWriteError,setJournalWriteError]=useState<string|null>(null);
+   useEffect(() => {
+-    if(!live||demo||!vm||!codex||codex.status!=="ok")return;
++    if(!live||demo||!vm||!codex)return;
+     let alive=true;
+     const snapshotId=`v3-${codex.accountKey??'unknown'}-${codex.rateLimitSnapshot?.observedAt??codex.updatedAt}`;
+     const historySnapshotId=`platform-history:${(journal.historyDocument as {fetchedAt?:string})?.fetchedAt??'unknown'}`;
+@@ -424,6 +424,8 @@ export default function App() {
+       await journal.appendPrediction({...base,id:`${prefix}:d60`,target:'platform_notice',probability:vm.platformReference.decay.probability24h,modelVersion:'platform-v3.1:D60',featureContributions:[vm.platformReference.decay],assumptions:[...base.assumptions,'60天半衰期/7等效日收缩为固定假设，短期冻结发生率。']});
+       await journal.appendPrediction({...base,id:`${prefix}:r90`,target:'platform_notice',probability:vm.r90Probability,modelVersion:'platform-v3.1:R90-shadow',featureContributions:[]});
+       await journal.appendPrediction({...base,id:`${prefix}:platform-shadow`,target:'platform_notice',probability:vm.platform.shadow.probability24h,modelVersion:'platform-v3:P1-shadow',featureContributions:vm.platform.shadowFactors});
++      // v3 §2.1：平台目标不依赖账号读取；失败账号不追加个人预测/规划的成功输入。
++      if(codex.status!=="ok"){if(alive)setJournalWriteError(null);return;}
+       await journal.appendPrediction({...base,id:`${prefix}:account`,target:'account_external_reset',probability:vm.supply?.accountProbability24h??null,modelVersion:'account-v3:learning',featureContributions:[]});
+       await journal.appendPrediction({...base,id:`${prefix}:demand`,target:'demand',probability:null,modelVersion:'demand-v3:empirical',featureContributions:[vm.demand]});
+       if(vm.accountKey)await journal.appendAccountMapping(vm.accountKey,vm.mapping,vm.now);
+diff --git a/src/ui/__tests__/ui.platform-publication.test.ts b/src/ui/__tests__/ui.platform-publication.test.ts
+new file mode 100644
+index 0000000..a98e648
+--- /dev/null
++++ b/src/ui/__tests__/ui.platform-publication.test.ts
+@@ -0,0 +1,51 @@
++import {describe,expect,it} from 'vitest';
++import {readFileSync} from 'node:fs';
++import {runInNewContext} from 'node:vm';
++import ts from 'typescript';
++
++// 运行App实际发布effect，隔离React壳与磁盘写入；防止只测试一个未接线的辅助函数。
++const path=new URL('../../App.tsx',import.meta.url);
++const source=ts.createSourceFile(path.pathname,readFileSync(path,'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
++let publicationEffect:ts.Expression|undefined;
++function visit(node:ts.Node){
++  if(ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'&&node.arguments[0]?.getText(source).includes('journal.appendPrediction'))publicationEffect=node.arguments[0];
++  ts.forEachChild(node,visit);
++}
++visit(source);
++if(!publicationEffect)throw new Error('App platform publication effect not found');
++const executable=ts.transpileModule(`const publicationEffect=${publicationEffect.getText(source)}; publicationEffect;`,
++  {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
++type Published={target:string;modelVersion:string;probability:number|null;issuedAt:number};
++async function publish(status:string,options:{live?:boolean;demo?:boolean}={}){
++  const predictions:Published[]=[],planning:unknown[]=[],mappings:unknown[]=[],errors:unknown[]=[];
++  const forecast={probability24h:.2,factors:[],shadow:{probability24h:.3},shadowFactors:[]};
++  const now=Date.parse('2026-10-13T09:00:00+08:00');
++  const context={live:options.live??true,demo:options.demo??false,DAY_MS:86400000,setJournalWriteError:(value:unknown)=>errors.push(value),
++    codex:{status,accountKey:'test-account',updatedAt:new Date(now).toISOString(),rateLimitSnapshot:null},
++    vm:{now,accountKey:'test-account',mapping:[],platform:forecast,platformLongTerm:forecast,platformModel:{cutoff:now},platformReference:{decay:{probability24h:.4}},r90Probability:.5,
++      recommendation:{assumptions:[]},evidenceQuality:['complete platform history'],ledgerVersion:'test',preferenceVersion:'test',
++      planning:{seed:123,comparisons:[],selected:null},supply:{accountProbability24h:null},demand:null},
++    journal:{historyDocument:{fetchedAt:new Date(now-1000).toISOString()},appendPrediction:async(row:Published)=>{predictions.push(row);},
++      appendPlanning:async(row:unknown)=>{planning.push(row);},appendAccountMapping:async(...rows:unknown[])=>{mappings.push(rows);}}};
++  const effect=runInNewContext(executable,context) as ()=>unknown;
++  effect();await new Promise<void>(resolve=>setImmediate(resolve));
++  expect(errors.filter(error=>error!=null)).toEqual([]);
++  return {predictions,planning,mappings};
++}
++const platformVersions=['platform-v3:P0','platform-v3.1:D60','platform-v3.1:R90-shadow','platform-v3:P1-shadow'];
++describe('平台发布独立于账号读取',()=>{
++  it.each(['error','stale'])('账号%s仍发布四个平台目标，保留概率与09:00发布时刻',async status=>{
++    const actual=await publish(status),healthy=await publish('ok');
++    expect(actual.predictions.map(row=>row.modelVersion)).toEqual(platformVersions);
++    expect(actual.predictions).toEqual(healthy.predictions.filter(row=>row.target==='platform_notice'));
++    expect(actual.planning).toEqual([]);expect(actual.mappings).toEqual([]);
++  });
++  it('账号成功时保留账号/需求目标以及规划与观测链路',async()=>{
++    const actual=await publish('ok');
++    expect(actual.predictions.map(row=>row.target)).toEqual(['platform_notice','platform_notice','platform_notice','platform_notice','account_external_reset','demand']);
++    expect(actual.planning).toHaveLength(1);expect(actual.mappings).toHaveLength(1);
++  });
++  it('演示或非本机运行不向生产日志写入任何目标',async()=>{
++    for(const options of [{demo:true},{live:false}])expect((await publish('ok',options)).predictions).toEqual([]);
++  });
++});
+diff --git a/task_logs/RR52_artifacts/build.txt b/task_logs/RR52_artifacts/build.txt
+new file mode 100644
+index 0000000..79960ce
+--- /dev/null
++++ b/task_logs/RR52_artifacts/build.txt
+@@ -0,0 +1,21 @@
++
++> reset-radar@0.2.0 build
++> tsc && vite build
++
++vite v7.3.7 building client environment for production...
++transforming...
++✓ 95 modules transformed.
++rendering chunks...
++[plugin vite:reporter] 
++(!) C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/core.js is dynamically imported by C:/Users/slsjz/Desktop/reset-radar_wt/RR52/src/ui/shellBridge.ts, C:/Users/slsjz/Desktop/reset-radar_wt/RR52/src/ui/shellBridge.ts, C:/Users/slsjz/Desktop/reset-radar_wt/RR52/src/ui/shellBridge.ts, C:/Users/slsjz/Desktop/reset-radar_wt/RR52/src/ui/shellBridge.ts, C:/Users/slsjz/Desktop/reset-radar_wt/RR52/src/ui/shellBridge.ts but also statically imported by C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/dpi.js, C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/event.js, C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/image.js, C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/window.js, C:/Users/slsjz/Desktop/reset-radar_wt/RR52/src/ui/useSnapshots.ts, C:/Users/slsjz/Desktop/reset-radar_wt/RR52/src/ui/useV3Journal.ts, dynamic import will not move module into another chunk.
++
++[plugin vite:reporter] 
++(!) C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/event.js is dynamically imported by C:/Users/slsjz/Desktop/reset-radar_wt/RR52/src/ui/shellBridge.ts but also statically imported by C:/Users/slsjz/Desktop/reset-radar/node_modules/@tauri-apps/api/window.js, C:/Users/slsjz/Desktop/reset-radar_wt/RR52/src/ui/useSnapshots.ts, dynamic import will not move module into another chunk.
++
++computing gzip size...
++dist/index.html                              0.67 kB │ gzip:   0.48 kB
++dist/assets/v3Planning.worker-CXo8pCjN.js   19.17 kB
++dist/assets/index-CVlz6Mbo.css              38.15 kB │ gzip:   7.57 kB
++dist/assets/window-Dm32hv--.js              13.49 kB │ gzip:   3.29 kB
++dist/assets/index-DOTtJwqM.js              418.60 kB │ gzip: 136.11 kB
++✓ built in 1.38s
+diff --git a/task_logs/RR52_artifacts/domain.txt b/task_logs/RR52_artifacts/domain.txt
+new file mode 100644
+index 0000000..f7faa32
+--- /dev/null
++++ b/task_logs/RR52_artifacts/domain.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR52
++
++
++ Test Files  24 passed (24)
++      Tests  178 passed (178)
++   Start at  09:35:05
++   Duration  2.94s (import 56%, transform 31%, tests 10%, worker 3%)
++
++    Isolate  24 workers spawned · ~99ms startup each (spawn + environment, per file)
++             at least ~1.09s faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR52_artifacts/full.txt b/task_logs/RR52_artifacts/full.txt
+new file mode 100644
+index 0000000..5f1570a
+--- /dev/null
++++ b/task_logs/RR52_artifacts/full.txt
+@@ -0,0 +1,12 @@
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR52
++
++
++ Test Files  55 passed (55)
++      Tests  482 passed (482)
++   Start at  09:35:09
++   Duration  5.81s (tests 41%, import 38%, transform 17%, worker 4%)
++
++    Isolate  55 workers spawned · ~103ms startup each (spawn + environment, per file)
++             at least ~2.74s faster with isolate: false — reuses workers across files instead of one per file
++
+diff --git a/task_logs/RR52_artifacts/mutation.txt b/task_logs/RR52_artifacts/mutation.txt
+new file mode 100644
+index 0000000..aac6236
+--- /dev/null
++++ b/task_logs/RR52_artifacts/mutation.txt
+@@ -0,0 +1,54 @@
++恢复错误的账号总门控：if(!live||demo||!vm||!codex)return; -> if(!live||demo||!vm||!codex||codex.status!=="ok")return;
++RED
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR52
++
++ ❯ src/ui/__tests__/ui.platform-publication.test.ts (4 tests | 2 failed) 14ms
++   ❯ 平台发布独立于账号读取 (4)
++     × 账号error仍发布四个平台目标，保留概率与09:00发布时刻 9ms
++     × 账号stale仍发布四个平台目标，保留概率与09:00发布时刻 2ms
++
++ Test Files  1 failed (1)
++      Tests  2 failed | 2 passed (4)
++   Start at  09:35:17
++   Duration  560ms (import 80%, transform 16%, tests 3%, worker 1%)
++
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/ui/__tests__/ui.platform-publication.test.ts > 平台发布独立于账号读取 > 账号error仍发布四个平台目标，保留概率与09:00发布时刻
++ FAIL  src/ui/__tests__/ui.platform-publication.test.ts > 平台发布独立于账号读取 > 账号stale仍发布四个平台目标，保留概率与09:00发布时刻
++AssertionError: expected [] to deeply equal [ 'platform-v3:P0', …(3) ]
++
++- Expected
+++ Received
++
++- [
++-   "platform-v3:P0",
++-   "platform-v3.1:D60",
++-   "platform-v3.1:R90-shadow",
++-   "platform-v3:P1-shadow",
++- ]
+++ []
++
++ ❯ src/ui/__tests__/ui.platform-publication.test.ts:39:59
++     37|   it.each(['error','stale'])('账号%s仍发布四个平台目标，保留概率与09:00发布时刻',async stat…
++     38|     const actual=await publish(status),healthy=await publish('ok');
++     39|     expect(actual.predictions.map(row=>row.modelVersion)).toEqual(plat…
++       |                                                           ^
++     40|     expect(actual.predictions).toEqual(healthy.predictions.filter(row=…
++     41|     expect(actual.planning).toEqual([]);expect(actual.mappings).toEqua…
++
++⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
++
++
++RESTORED GREEN
++
++ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR52
++
++
++ Test Files  1 passed (1)
++      Tests  4 passed (4)
++   Start at  09:35:20
++   Duration  498ms (import 80%, transform 16%, tests 3%, worker 1%)
++
+diff --git a/task_logs/RR52_artifacts/native-build.txt b/task_logs/RR52_artifacts/native-build.txt
+new file mode 100644
+index 0000000..96d3c61
+--- /dev/null
++++ b/task_logs/RR52_artifacts/native-build.txt
+@@ -0,0 +1,8 @@
++   Compiling reset-radar v0.2.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR52\src-tauri)
++warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++         C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
++  |
++  = note: `#[warn(linker_messages)]` on by default
++
++warning: `reset-radar` (bin "reset-radar") generated 1 warning
++    Finished `release` profile [optimized] target(s) in 53.18s
+diff --git a/task_logs/RR52_artifacts/node.txt b/task_logs/RR52_artifacts/node.txt
+new file mode 100644
+index 0000000..0996c6b
+--- /dev/null
++++ b/task_logs/RR52_artifacts/node.txt
+@@ -0,0 +1,338 @@
++
++> reset-radar@0.2.0 test:node
++> node scripts/run-node-tests.mjs
++
++TAP version 13
++# Subtest: 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++ok 1 - 鲜活历史：仅regular计实际重置；未覆盖的未来日不计分
++  ---
++  duration_ms: 10.5674
++  type: 'test'
++  ...
++# Subtest: 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++ok 2 - 恰好7日无过期；超过1毫秒顶部红色提示，as_of仍为历史覆盖时刻
++  ---
++  duration_ms: 1.9755
++  type: 'test'
++  ...
++# Subtest: 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++ok 3 - 非法、缺失或未来fetchedAt：不能墙钟回退，不能输出计分指标
++  ---
++  duration_ms: 0.4474
++  type: 'test'
++  ...
++# Subtest: parseIsoMs
++    # Subtest: 合法 ISO（毫秒/Z）→ epoch 毫秒
++    ok 1 - 合法 ISO（毫秒/Z）→ epoch 毫秒
++      ---
++      duration_ms: 0.5449
++      type: 'test'
++      ...
++    # Subtest: 非法输入 → null
++    ok 2 - 非法输入 → null
++      ---
++      duration_ms: 0.1674
++      type: 'test'
++      ...
++    1..2
++ok 4 - parseIsoMs
++  ---
++  duration_ms: 1.3593
++  type: 'suite'
++  ...
++# Subtest: normalizeEvent
++    # Subtest: snake_case → camelCase，缺 source 容错
++    ok 1 - snake_case → camelCase，缺 source 容错
++      ---
++      duration_ms: 0.2284
++      type: 'test'
++      ...
++    1..1
++ok 5 - normalizeEvent
++  ---
++  duration_ms: 0.3649
++  type: 'suite'
++  ...
++# Subtest: sanitizeEvents（按 ID 清洗历史事件）
++    # Subtest: 不可解析日期被丢弃
++    ok 1 - 不可解析日期被丢弃
++      ---
++      duration_ms: 0.8773
++      type: 'test'
++      ...
++    # Subtest: 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++    ok 2 - 未来容差：as_of+5min 整保留（<=，参考 :112），+5min01s 丢弃
++      ---
++      duration_ms: 0.626
++      type: 'test'
++      ...
++    # Subtest: 倒序输出（最新在前）
++    ok 3 - 倒序输出（最新在前）
++      ---
++      duration_ms: 0.3131
++      type: 'test'
++      ...
++    # Subtest: 同 ID 的修订只算一个事件，不同 ID 的近时 regular 全部保留
++    ok 4 - 同 ID 的修订只算一个事件，不同 ID 的近时 regular 全部保留
++      ---
++      duration_ms: 0.4274
++      type: 'test'
++      ...
++    # Subtest: 缺少 ID 时不按近时或同时间猜测合并
++    ok 5 - 缺少 ID 时不按近时或同时间猜测合并
++      ---
++      duration_ms: 0.2761
++      type: 'test'
++      ...
++    # Subtest: 不同 resetType 的邻近事件均保留；同 ID 跨记录去重
++    ok 6 - 不同 resetType 的邻近事件均保留；同 ID 跨记录去重
++      ---
++      duration_ms: 0.7583
++      type: 'test'
++      ...
++    1..6
++ok 6 - sanitizeEvents（按 ID 清洗历史事件）
++  ---
++  duration_ms: 3.7884
++  type: 'suite'
++  ...
++# Subtest: buildDocument（上游封装校验）
++    # Subtest: 跨类型近时记录不按时间距离合并
++    ok 1 - 跨类型近时记录不按时间距离合并
++      ---
++      duration_ms: 0.2446
++      type: 'test'
++      ...
++    # Subtest: 缺字段或坏形状直接 reject
++    ok 2 - 缺字段或坏形状直接 reject
++      ---
++      duration_ms: 0.5813
++      type: 'test'
++      ...
++    # Subtest: 兼容真实 API 的 object/null 可选字段并保留 status 原形
++    ok 3 - 兼容真实 API 的 object/null 可选字段并保留 status 原形
++      ---
++      duration_ms: 0.1788
++      type: 'test'
++      ...
++    1..3
++ok 7 - buildDocument（上游封装校验）
++  ---
++  duration_ms: 1.108
++  type: 'suite'
++  ...
++# Subtest: fetchAllResetPages（分页完整性）
++    # Subtest: 沿 next_cursor 翻完所有页并按 ID 合并重复记录，明确输出完整覆盖
++    ok 1 - 沿 next_cursor 翻完所有页并按 ID 合并重复记录，明确输出完整覆盖
++      ---
++      duration_ms: 0.6069
++      type: 'test'
++      ...
++    # Subtest: has_more 缺游标、重复游标或页数溢出时拒绝写出不完整数据
++    ok 2 - has_more 缺游标、重复游标或页数溢出时拒绝写出不完整数据
++      ---
++      duration_ms: 1.3145
++      type: 'test'
++      ...
++    1..2
++ok 8 - fetchAllResetPages（分页完整性）
++  ---
++  duration_ms: 2.0241
++  type: 'suite'
++  ...
++# Subtest: weekdayBeijing（D004 北京零点边界）
++    # Subtest: 北京 16:00:00Z 恰跨零点 → 次日星期
++    ok 1 - 北京 16:00:00Z 恰跨零点 → 次日星期
++      ---
++      duration_ms: 0.1535
++      type: 'test'
++      ...
++    # Subtest: 15:59:59Z 仍属北京当日
++    ok 2 - 15:59:59Z 仍属北京当日
++      ---
++      duration_ms: 0.0609
++      type: 'test'
++      ...
++    # Subtest: 实测锚点 2026-10-08T03:44:55Z → 北京周四
++    ok 3 - 实测锚点 2026-10-08T03:44:55Z → 北京周四
++      ---
++      duration_ms: 0.064
++      type: 'test'
++      ...
++    1..3
++ok 9 - weekdayBeijing（D004 北京零点边界）
++  ---
++  duration_ms: 0.3897
++  type: 'suite'
++  ...
++# Subtest: summarize
++    # Subtest: count/earliest/latest/星期直方图
++    ok 1 - count/earliest/latest/星期直方图
++      ---
++      duration_ms: 0.1483
++      type: 'test'
++      ...
++    # Subtest: 空输入 → count 0 且两端为 null
++    ok 2 - 空输入 → count 0 且两端为 null
++      ---
++      duration_ms: 0.0636
++      type: 'test'
++      ...
++    1..2
++ok 10 - summarize
++  ---
++  duration_ms: 0.2622
++  type: 'suite'
++  ...
++# Subtest: refreshCalibration writes deterministic outcomes without changing prediction logs or production files
++ok 11 - refreshCalibration writes deterministic outcomes without changing prediction logs or production files
++  ---
++  duration_ms: 72.3575
++  type: 'test'
++  ...
++# Subtest: 先刷新历史，再运行校准；输出流按用途分流
++ok 12 - 先刷新历史，再运行校准；输出流按用途分流
++  ---
++  duration_ms: 1.1578
++  type: 'test'
++  ...
++# Subtest: fetch 失败时非零退出并且不运行 calibrate
++ok 13 - fetch 失败时非零退出并且不运行 calibrate
++  ---
++  duration_ms: 0.217
++  type: 'test'
++  ...
++# Subtest: calibrate 失败时非零退出且不输出部分 Markdown
++ok 14 - calibrate 失败时非零退出且不输出部分 Markdown
++  ---
++  duration_ms: 0.2847
++  type: 'test'
++  ...
++# 未发现 scripts 下的 Node 测试文件。
++# Node 测试进程被信号终止：SIGTERM
++# 启动 Node 测试失败：spawn failed
++# TAP version 13
++# \# Subtest: 故意失败
++# not ok 1 - 故意失败
++#   ---
++#   duration_ms: 0.5861
++#   type: 'test'
++#   location: 'C:\\\\Users\\\\slsjz\\\\AppData\\\\Local\\\\Temp\\\\reset-radar-node-runner-test-ANzcev\\\\scripts\\\\broken.test.mjs:1:31'
++#   failureType: 'testCodeFailure'
++#   error: 'expected failure'
++#   code: 'ERR_TEST_FAILURE'
++#   stack: |-
++#     TestContext.<anonymous> (file:///C:/Users/slsjz/AppData/Local/Temp/reset-radar-node-runner-test-ANzcev/scripts/broken.test.mjs:1:58)
++#     Test.runInAsyncScope (node:async_hooks:214:14)
++#     Test.run (node:internal/test_runner/test:1047:25)
++#     Test.start (node:internal/test_runner/test:944:17)
++#     startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
++#   ...
++# 1..1
++# \# tests 1
++# \# suites 0
++# \# pass 0
++# \# fail 1
++# \# cancelled 0
++# \# skipped 0
++# \# todo 0
++# \# duration_ms 72.0237
++# Subtest: 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++ok 15 - 递归发现 Node 测试并忽略普通脚本，结果按绝对路径排序
++  ---
++  duration_ms: 6.8804
++  type: 'test'
++  ...
++# Subtest: 空清单拒绝启动 Node 子进程
++ok 16 - 空清单拒绝启动 Node 子进程
++  ---
++  duration_ms: 2.1616
++  type: 'test'
++  ...
++# Subtest: 透传子进程退出码及启动失败、信号失败
++ok 17 - 透传子进程退出码及启动失败、信号失败
++  ---
++  duration_ms: 2.9533
++  type: 'test'
++  ...
++# Subtest: 真实 Node 测试进程失败时入口返回非零
++ok 18 - 真实 Node 测试进程失败时入口返回非零
++  ---
++  duration_ms: 135.9426
++  type: 'test'
++  ...
++# Subtest: --path resolves relative paths and preserves absolute paths
++ok 19 - --path resolves relative paths and preserves absolute paths
++  ---
++  duration_ms: 1.604
++  type: 'test'
++  ...
++# Subtest: canonical paths follow Tauri identifier on each platform
++ok 20 - canonical paths follow Tauri identifier on each platform
++  ---
++  duration_ms: 0.4422
++  type: 'test'
++  ...
++# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++ok 21 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
++  ---
++  duration_ms: 10.351
++  type: 'test'
++  ...
++# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
++ok 22 - append preserves existing bytes and inserts a separator for a missing final newline
++  ---
++  duration_ms: 21.7088
++  type: 'test'
++  ...
++# Subtest: busy lock fails clearly and never removes the other process lock
++ok 23 - busy lock fails clearly and never removes the other process lock
++  ---
++  duration_ms: 7.2739
++  type: 'test'
++  ...
++# Subtest: log CLI --path writes only to the requested temporary file
++ok 24 - log CLI --path writes only to the requested temporary file
++  ---
++  duration_ms: 128.6964
++  type: 'test'
++  ...
++# Subtest: unknown or duplicate path options fail instead of writing canonical data
++ok 25 - unknown or duplicate path options fail instead of writing canonical data
++  ---
++  duration_ms: 0.3338
++  type: 'test'
++  ...
++# Subtest: missing file is labelled but read errors make calibration fail explicitly
++ok 26 - missing file is labelled but read errors make calibration fail explicitly
++  ---
++  duration_ms: 107.7696
++  type: 'test'
++  ...
++# Subtest: 同一预先留存窗口分列0%与25%权重，真实调用核心计分
++ok 27 - 同一预先留存窗口分列0%与25%权重，真实调用核心计分
++  ---
++  duration_ms: 4.9795
++  type: 'test'
++  ...
++# Subtest: 旧行和事后记录无法伪造paired样本，0不呈现为完美Brier
++ok 28 - 旧行和事后记录无法伪造paired样本，0不呈现为完美Brier
++  ---
++  duration_ms: 0.6815
++  type: 'test'
++  ...
++# Subtest: 文件读取保留24h窗口与watch基准元数据，报告不会在IO接线时丢失配对
++ok 29 - 文件读取保留24h窗口与watch基准元数据，报告不会在IO接线时丢失配对
++  ---
++  duration_ms: 9.6081
++  type: 'test'
++  ...
++1..29
++# tests 41
++# suites 7
++# pass 41
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 427.8661
+diff --git a/task_logs/RR52_artifacts/tsc.txt b/task_logs/RR52_artifacts/tsc.txt
+new file mode 100644
+index 0000000..e69de29
+-- 
+2.52.0.windows.1
+

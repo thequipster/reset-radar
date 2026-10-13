@@ -9,3 +9,5 @@
 - 不push，不改既有发布资产，不停止用户当前旧实例；本地程序与核查记录复制到此定时聊天outputs。
 
 - 源码/验收提交：533540a；diffstat： 12 files changed, 542 insertions(+), 1 deletion(-)。
+
+- 本地合入71c16c5/819e7e9，src/scripts/docs树恒等；main tsc及482全量复绿。先列清单和查引用，安全拆依赖junction（主仓依赖在位）后撤worktree，分支归档archive/RR52-merged-819e7e9。

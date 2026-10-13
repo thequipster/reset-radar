@@ -1,0 +1,12 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar
+
+
+ Test Files  55 passed (55)
+      Tests  482 passed (482)
+   Start at  09:41:22
+   Duration  6.21s (tests 40%, import 39%, transform 17%, worker 4%)
+
+    Isolate  55 workers spawned · ~108ms startup each (spawn + environment, per file)
+             at least ~2.85s faster with isolate: false — reuses workers across files instead of one per file
+

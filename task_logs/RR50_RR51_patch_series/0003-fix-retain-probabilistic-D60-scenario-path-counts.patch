@@ -1,0 +1,34 @@
+From 91173823615be88cf970b971d1f7b2f4396a1628 Mon Sep 17 00:00:00 2001
+From: thequipster <256361972+thequipster@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 22:27:19 +0800
+Subject: [PATCH 3/6] fix: retain probabilistic D60 scenario path counts
+
+---
+ src/lib/v3/planning.ts | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/lib/v3/planning.ts b/src/lib/v3/planning.ts
+index 7653c42..1312051 100644
+--- a/src/lib/v3/planning.ts
++++ b/src/lib/v3/planning.ts
+@@ -142,7 +142,7 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
+   }));
+   // 额外平台过程属于独立敏感性机制，所有策略复用相同seed/path；不等价本账号概率。
+   const rateCases=input.platformRates?.length?input.platformRates:[{id:'reference',ratePerDay:input.platformModel?.lambda0??0}];
+-  const backgrounds=rateCases.map(rc=>({id:rc.id,paths:input.platformModel?generateRenewalPaths({...input.platformModel,lambda0:rc.ratePerDay,lambda:[rc.ratePerDay,rc.ratePerDay,rc.ratePerDay]},{now:input.now,horizonMs:days*DAY_MS,count:256,seed}):[]}));
++  const backgrounds=rateCases.map(rc=>({id:rc.id,ratePerDay:rc.ratePerDay,paths:input.platformModel?generateRenewalPaths({...input.platformModel,lambda0:rc.ratePerDay,lambda:[rc.ratePerDay,rc.ratePerDay,rc.ratePerDay]},{now:input.now,horizonMs:days*DAY_MS,count:256,seed}):[]}));
+   const scenarios = input.supplyScenarios.length ? input.supplyScenarios : [{ id:'no-extra-supply',events:[] } as unknown as SupplyScenario];
+   const mechanisms: Mechanisms[] = [
+     { shortAfterCard:'keep_deadline', weeklyContinuation:'fixed_duration',shortContinuation:'fixed_duration' },
+@@ -153,7 +153,7 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
+   // 无权重手填压力各自单列，不能平均成概率；有概率的背景过程始终256条共享路径。
+   const worlds = scenarios.flatMap(sc => (sc.source==='platform_background'?backgrounds:[backgrounds[0]!]).flatMap(background=>mechanisms.flatMap((mechanism, mi) => {
+     return sampleGroups.map(({samples:group,id,pattern,daily})=>{
+-      const probabilistic=empirical||sc.source==='platform_background'&&input.platformModel?.lambda0!=null;
++      const probabilistic=empirical||sc.source==='platform_background'&&background.ratePerDay>0&&Number.isFinite(background.ratePerDay);
+       const grouped=probabilistic&&!empirical?Array.from({length:256},()=>group[0]!):group;
+       return {id:`${sc.id}:mechanism-${mi}:${id}${sc.source==='platform_background'?`:rate-${background.id}`:''}`,mechanism,probabilistic,pattern,daily,
+         paths:grouped.map((demand,path)=>({start:input.now,end,demand,reviews:input.reviews,platform:[...scenarioEvents(sc,input.now,end),...(sc.source==='platform_background'?(background.paths[path]??[]).map((at,i)=>({at,incidentId:`background-${path}-${i}`,weekly:true,short:false,reanchorWeekly:false})):[])]}as WorldPath))};
+-- 
+2.52.0.windows.1
+
