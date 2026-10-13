@@ -1,0 +1,35 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR55
+
+ ❯ src/ui/__tests__/ui.weekday-journal.test.ts (5 tests | 1 failed) 30ms
+   ❯ useV3Journal 星期影子日志与结算 (5)
+     × 成熟窗口通过真实settlement effect追加W28 verdict并形成有效配对 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/ui/__tests__/ui.weekday-journal.test.ts > useV3Journal 星期影子日志与结算 > 成熟窗口通过真实settlement effect追加W28 verdict并形成有效配对
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ src/ui/__tests__/ui.weekday-journal.test.ts:131:22
+    129|     await settleWithRealEffect();
+    130|     const verdicts = rows().filter(row => row.kind === 'verdict' && ro…
+    131|     expect(verdicts).toHaveLength(1);
+       |                      ^
+    132|     expect(verdicts[0].modelVersion).toBe(WEEKDAY_VERSION);
+    133|     expect(verdicts[0].outcome).toBe('negative');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  22:41:46
+   Duration  744ms (import 49%, transform 46%, tests 5%, worker 1%)
+
+exit=1

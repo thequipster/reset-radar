@@ -1,0 +1,305 @@
+
+> reset-radar@0.2.0 test:node
+> node scripts/run-node-tests.mjs
+
+TAP version 13
+# Subtest: 椴滄椿鍘嗗彶锛氫粎regular璁″疄闄呴噸缃紱鏈鐩栫殑鏈潵鏃ヤ笉璁″垎
+ok 1 - 椴滄椿鍘嗗彶锛氫粎regular璁″疄闄呴噸缃紱鏈鐩栫殑鏈潵鏃ヤ笉璁″垎
+  ---
+  duration_ms: 21.5238
+  type: 'test'
+  ...
+# Subtest: 鎭板ソ7鏃ユ棤杩囨湡锛涜秴杩?姣椤堕儴绾㈣壊鎻愮ず锛宎s_of浠嶄负鍘嗗彶瑕嗙洊鏃跺埢
+ok 2 - 鎭板ソ7鏃ユ棤杩囨湡锛涜秴杩?姣椤堕儴绾㈣壊鎻愮ず锛宎s_of浠嶄负鍘嗗彶瑕嗙洊鏃跺埢
+  ---
+  duration_ms: 1.9185
+  type: 'test'
+  ...
+# Subtest: 闈炴硶銆佺己澶辨垨鏈潵fetchedAt锛氫笉鑳藉閽熷洖閫€锛屼笉鑳借緭鍑鸿鍒嗘寚鏍?ok 3 - 闈炴硶銆佺己澶辨垨鏈潵fetchedAt锛氫笉鑳藉閽熷洖閫€锛屼笉鑳借緭鍑鸿鍒嗘寚鏍?  ---
+  duration_ms: 0.5606
+  type: 'test'
+  ...
+# Subtest: parseIsoMs
+    # Subtest: 鍚堟硶 ISO锛堟绉?Z锛夆啋 epoch 姣
+    ok 1 - 鍚堟硶 ISO锛堟绉?Z锛夆啋 epoch 姣
+      ---
+      duration_ms: 0.8537
+      type: 'test'
+      ...
+    # Subtest: 闈炴硶杈撳叆 鈫?null
+    ok 2 - 闈炴硶杈撳叆 鈫?null
+      ---
+      duration_ms: 0.3012
+      type: 'test'
+      ...
+    1..2
+ok 4 - parseIsoMs
+  ---
+  duration_ms: 2.2016
+  type: 'suite'
+  ...
+# Subtest: normalizeEvent
+    # Subtest: snake_case 鈫?camelCase锛岀己 source 瀹归敊
+    ok 1 - snake_case 鈫?camelCase锛岀己 source 瀹归敊
+      ---
+      duration_ms: 0.3443
+      type: 'test'
+      ...
+    1..1
+ok 5 - normalizeEvent
+  ---
+  duration_ms: 0.482
+  type: 'suite'
+  ...
+# Subtest: sanitizeEvents锛堟寜 ID 娓呮礂鍘嗗彶浜嬩欢锛?    # Subtest: 涓嶅彲瑙ｆ瀽鏃ユ湡琚涪寮?    ok 1 - 涓嶅彲瑙ｆ瀽鏃ユ湡琚涪寮?      ---
+      duration_ms: 1.2231
+      type: 'test'
+      ...
+    # Subtest: 鏈潵瀹瑰樊锛歛s_of+5min 鏁翠繚鐣欙紙<=锛屽弬鑰?:112锛夛紝+5min01s 涓㈠純
+    ok 2 - 鏈潵瀹瑰樊锛歛s_of+5min 鏁翠繚鐣欙紙<=锛屽弬鑰?:112锛夛紝+5min01s 涓㈠純
+      ---
+      duration_ms: 1.0411
+      type: 'test'
+      ...
+    # Subtest: 鍊掑簭杈撳嚭锛堟渶鏂板湪鍓嶏級
+    ok 3 - 鍊掑簭杈撳嚭锛堟渶鏂板湪鍓嶏級
+      ---
+      duration_ms: 0.3658
+      type: 'test'
+      ...
+    # Subtest: 鍚?ID 鐨勪慨璁㈠彧绠椾竴涓簨浠讹紝涓嶅悓 ID 鐨勮繎鏃?regular 鍏ㄩ儴淇濈暀
+    ok 4 - 鍚?ID 鐨勪慨璁㈠彧绠椾竴涓簨浠讹紝涓嶅悓 ID 鐨勮繎鏃?regular 鍏ㄩ儴淇濈暀
+      ---
+      duration_ms: 0.4589
+      type: 'test'
+      ...
+    # Subtest: 缂哄皯 ID 鏃朵笉鎸夎繎鏃舵垨鍚屾椂闂寸寽娴嬪悎骞?    ok 5 - 缂哄皯 ID 鏃朵笉鎸夎繎鏃舵垨鍚屾椂闂寸寽娴嬪悎骞?      ---
+      duration_ms: 0.3307
+      type: 'test'
+      ...
+    # Subtest: 涓嶅悓 resetType 鐨勯偦杩戜簨浠跺潎淇濈暀锛涘悓 ID 璺ㄨ褰曞幓閲?    ok 6 - 涓嶅悓 resetType 鐨勯偦杩戜簨浠跺潎淇濈暀锛涘悓 ID 璺ㄨ褰曞幓閲?      ---
+      duration_ms: 0.3932
+      type: 'test'
+      ...
+    1..6
+ok 6 - sanitizeEvents锛堟寜 ID 娓呮礂鍘嗗彶浜嬩欢锛?  ---
+  duration_ms: 4.5527
+  type: 'suite'
+  ...
+# Subtest: buildDocument锛堜笂娓稿皝瑁呮牎楠岋級
+    # Subtest: 璺ㄧ被鍨嬭繎鏃惰褰曚笉鎸夋椂闂磋窛绂诲悎骞?    ok 1 - 璺ㄧ被鍨嬭繎鏃惰褰曚笉鎸夋椂闂磋窛绂诲悎骞?      ---
+      duration_ms: 0.4064
+      type: 'test'
+      ...
+    # Subtest: 缂哄瓧娈垫垨鍧忓舰鐘剁洿鎺?reject
+    ok 2 - 缂哄瓧娈垫垨鍧忓舰鐘剁洿鎺?reject
+      ---
+      duration_ms: 0.9379
+      type: 'test'
+      ...
+    # Subtest: 鍏煎鐪熷疄 API 鐨?object/null 鍙€夊瓧娈靛苟淇濈暀 status 鍘熷舰
+    ok 3 - 鍏煎鐪熷疄 API 鐨?object/null 鍙€夊瓧娈靛苟淇濈暀 status 鍘熷舰
+      ---
+      duration_ms: 0.2974
+      type: 'test'
+      ...
+    1..3
+ok 7 - buildDocument锛堜笂娓稿皝瑁呮牎楠岋級
+  ---
+  duration_ms: 1.8503
+  type: 'suite'
+  ...
+# Subtest: fetchAllResetPages锛堝垎椤靛畬鏁存€э級
+    # Subtest: 娌?next_cursor 缈诲畬鎵€鏈夐〉骞舵寜 ID 鍚堝苟閲嶅璁板綍锛屾槑纭緭鍑哄畬鏁磋鐩?    ok 1 - 娌?next_cursor 缈诲畬鎵€鏈夐〉骞舵寜 ID 鍚堝苟閲嶅璁板綍锛屾槑纭緭鍑哄畬鏁磋鐩?      ---
+      duration_ms: 0.8756
+      type: 'test'
+      ...
+    # Subtest: has_more 缂烘父鏍囥€侀噸澶嶆父鏍囨垨椤垫暟婧㈠嚭鏃舵嫆缁濆啓鍑轰笉瀹屾暣鏁版嵁
+    ok 2 - has_more 缂烘父鏍囥€侀噸澶嶆父鏍囨垨椤垫暟婧㈠嚭鏃舵嫆缁濆啓鍑轰笉瀹屾暣鏁版嵁
+      ---
+      duration_ms: 2.2089
+      type: 'test'
+      ...
+    1..2
+ok 8 - fetchAllResetPages锛堝垎椤靛畬鏁存€э級
+  ---
+  duration_ms: 3.2472
+  type: 'suite'
+  ...
+# Subtest: weekdayBeijing锛圖004 鍖椾含闆剁偣杈圭晫锛?    # Subtest: 鍖椾含 16:00:00Z 鎭拌法闆剁偣 鈫?娆℃棩鏄熸湡
+    ok 1 - 鍖椾含 16:00:00Z 鎭拌法闆剁偣 鈫?娆℃棩鏄熸湡
+      ---
+      duration_ms: 0.2183
+      type: 'test'
+      ...
+    # Subtest: 15:59:59Z 浠嶅睘鍖椾含褰撴棩
+    ok 2 - 15:59:59Z 浠嶅睘鍖椾含褰撴棩
+      ---
+      duration_ms: 0.1176
+      type: 'test'
+      ...
+    # Subtest: 瀹炴祴閿氱偣 2026-10-08T03:44:55Z 鈫?鍖椾含鍛ㄥ洓
+    ok 3 - 瀹炴祴閿氱偣 2026-10-08T03:44:55Z 鈫?鍖椾含鍛ㄥ洓
+      ---
+      duration_ms: 0.0786
+      type: 'test'
+      ...
+    1..3
+ok 9 - weekdayBeijing锛圖004 鍖椾含闆剁偣杈圭晫锛?  ---
+  duration_ms: 0.5442
+  type: 'suite'
+  ...
+# Subtest: summarize
+    # Subtest: count/earliest/latest/鏄熸湡鐩存柟鍥?    ok 1 - count/earliest/latest/鏄熸湡鐩存柟鍥?      ---
+      duration_ms: 0.2621
+      type: 'test'
+      ...
+    # Subtest: 绌鸿緭鍏?鈫?count 0 涓斾袱绔负 null
+    ok 2 - 绌鸿緭鍏?鈫?count 0 涓斾袱绔负 null
+      ---
+      duration_ms: 0.1281
+      type: 'test'
+      ...
+    1..2
+ok 10 - summarize
+  ---
+  duration_ms: 0.486
+  type: 'suite'
+  ...
+# Subtest: refreshCalibration writes deterministic outcomes without changing prediction logs or production files
+ok 11 - refreshCalibration writes deterministic outcomes without changing prediction logs or production files
+  ---
+  duration_ms: 330.8108
+  type: 'test'
+  ...
+# Subtest: 鍏堝埛鏂板巻鍙诧紝鍐嶈繍琛屾牎鍑嗭紱杈撳嚭娴佹寜鐢ㄩ€斿垎娴?ok 12 - 鍏堝埛鏂板巻鍙诧紝鍐嶈繍琛屾牎鍑嗭紱杈撳嚭娴佹寜鐢ㄩ€斿垎娴?  ---
+  duration_ms: 1.6757
+  type: 'test'
+  ...
+# Subtest: fetch 澶辫触鏃堕潪闆堕€€鍑哄苟涓斾笉杩愯 calibrate
+ok 13 - fetch 澶辫触鏃堕潪闆堕€€鍑哄苟涓斾笉杩愯 calibrate
+  ---
+  duration_ms: 0.3739
+  type: 'test'
+  ...
+# Subtest: calibrate 澶辫触鏃堕潪闆堕€€鍑轰笖涓嶈緭鍑洪儴鍒?Markdown
+ok 14 - calibrate 澶辫触鏃堕潪闆堕€€鍑轰笖涓嶈緭鍑洪儴鍒?Markdown
+  ---
+  duration_ms: 0.4231
+  type: 'test'
+  ...
+# 鏈彂鐜?scripts 涓嬬殑 Node 娴嬭瘯鏂囦欢銆?# Node 娴嬭瘯杩涚▼琚俊鍙风粓姝細SIGTERM
+# 鍚姩 Node 娴嬭瘯澶辫触锛歴pawn failed
+# TAP version 13
+# \# Subtest: 鏁呮剰澶辫触
+# not ok 1 - 鏁呮剰澶辫触
+#   ---
+#   duration_ms: 1.0743
+#   type: 'test'
+#   location: 'C:\\\\Users\\\\slsjz\\\\AppData\\\\Local\\\\Temp\\\\reset-radar-node-runner-test-leqjge\\\\scripts\\\\broken.test.mjs:1:31'
+#   failureType: 'testCodeFailure'
+#   error: 'expected failure'
+#   code: 'ERR_TEST_FAILURE'
+#   stack: |-
+#     TestContext.<anonymous> (file:///C:/Users/slsjz/AppData/Local/Temp/reset-radar-node-runner-test-leqjge/scripts/broken.test.mjs:1:58)
+#     Test.runInAsyncScope (node:async_hooks:214:14)
+#     Test.run (node:internal/test_runner/test:1047:25)
+#     Test.start (node:internal/test_runner/test:944:17)
+#     startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+#   ...
+# 1..1
+# \# tests 1
+# \# suites 0
+# \# pass 0
+# \# fail 1
+# \# cancelled 0
+# \# skipped 0
+# \# todo 0
+# \# duration_ms 149.7767
+# Subtest: 閫掑綊鍙戠幇 Node 娴嬭瘯骞跺拷鐣ユ櫘閫氳剼鏈紝缁撴灉鎸夌粷瀵硅矾寰勬帓搴?ok 15 - 閫掑綊鍙戠幇 Node 娴嬭瘯骞跺拷鐣ユ櫘閫氳剼鏈紝缁撴灉鎸夌粷瀵硅矾寰勬帓搴?  ---
+  duration_ms: 26.7977
+  type: 'test'
+  ...
+# Subtest: 绌烘竻鍗曟嫆缁濆惎鍔?Node 瀛愯繘绋?ok 16 - 绌烘竻鍗曟嫆缁濆惎鍔?Node 瀛愯繘绋?  ---
+  duration_ms: 3.175
+  type: 'test'
+  ...
+# Subtest: 閫忎紶瀛愯繘绋嬮€€鍑虹爜鍙婂惎鍔ㄥけ璐ャ€佷俊鍙峰け璐?ok 17 - 閫忎紶瀛愯繘绋嬮€€鍑虹爜鍙婂惎鍔ㄥけ璐ャ€佷俊鍙峰け璐?  ---
+  duration_ms: 4.0705
+  type: 'test'
+  ...
+# Subtest: 鐪熷疄 Node 娴嬭瘯杩涚▼澶辫触鏃跺叆鍙ｈ繑鍥為潪闆?ok 18 - 鐪熷疄 Node 娴嬭瘯杩涚▼澶辫触鏃跺叆鍙ｈ繑鍥為潪闆?  ---
+  duration_ms: 277.01
+  type: 'test'
+  ...
+# Subtest: --path resolves relative paths and preserves absolute paths
+ok 19 - --path resolves relative paths and preserves absolute paths
+  ---
+  duration_ms: 1.7736
+  type: 'test'
+  ...
+# Subtest: canonical paths follow Tauri identifier on each platform
+ok 20 - canonical paths follow Tauri identifier on each platform
+  ---
+  duration_ms: 1.1902
+  type: 'test'
+  ...
+# Subtest: default inputs deduplicate same path and sort by fetchedAt with archive first on ties
+ok 21 - default inputs deduplicate same path and sort by fetchedAt with archive first on ties
+  ---
+  duration_ms: 28.1909
+  type: 'test'
+  ...
+# Subtest: append preserves existing bytes and inserts a separator for a missing final newline
+ok 22 - append preserves existing bytes and inserts a separator for a missing final newline
+  ---
+  duration_ms: 18.0657
+  type: 'test'
+  ...
+# Subtest: busy lock fails clearly and never removes the other process lock
+ok 23 - busy lock fails clearly and never removes the other process lock
+  ---
+  duration_ms: 11.4029
+  type: 'test'
+  ...
+# Subtest: log CLI --path writes only to the requested temporary file
+ok 24 - log CLI --path writes only to the requested temporary file
+  ---
+  duration_ms: 400.0029
+  type: 'test'
+  ...
+# Subtest: unknown or duplicate path options fail instead of writing canonical data
+ok 25 - unknown or duplicate path options fail instead of writing canonical data
+  ---
+  duration_ms: 0.3769
+  type: 'test'
+  ...
+# Subtest: missing file is labelled but read errors make calibration fail explicitly
+ok 26 - missing file is labelled but read errors make calibration fail explicitly
+  ---
+  duration_ms: 166.9868
+  type: 'test'
+  ...
+# Subtest: 鍚屼竴棰勫厛鐣欏瓨绐楀彛鍒嗗垪0%涓?5%鏉冮噸锛岀湡瀹炶皟鐢ㄦ牳蹇冭鍒?ok 27 - 鍚屼竴棰勫厛鐣欏瓨绐楀彛鍒嗗垪0%涓?5%鏉冮噸锛岀湡瀹炶皟鐢ㄦ牳蹇冭鍒?  ---
+  duration_ms: 4.6578
+  type: 'test'
+  ...
+# Subtest: 鏃ц鍜屼簨鍚庤褰曟棤娉曚吉閫爌aired鏍锋湰锛?涓嶅憟鐜颁负瀹岀編Brier
+ok 28 - 鏃ц鍜屼簨鍚庤褰曟棤娉曚吉閫爌aired鏍锋湰锛?涓嶅憟鐜颁负瀹岀編Brier
+  ---
+  duration_ms: 0.8722
+  type: 'test'
+  ...
+# Subtest: 鏂囦欢璇诲彇淇濈暀24h绐楀彛涓巜atch鍩哄噯鍏冩暟鎹紝鎶ュ憡涓嶄細鍦↖O鎺ョ嚎鏃朵涪澶遍厤瀵?ok 29 - 鏂囦欢璇诲彇淇濈暀24h绐楀彛涓巜atch鍩哄噯鍏冩暟鎹紝鎶ュ憡涓嶄細鍦↖O鎺ョ嚎鏃朵涪澶遍厤瀵?  ---
+  duration_ms: 15.9336
+  type: 'test'
+  ...
+1..29
+# tests 41
+# suites 7
+# pass 41
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1027.5613

@@ -1,0 +1,8 @@
+   Compiling reset-radar v0.2.0 (C:\Users\slsjz\Desktop\reset-radar_wt\RR55\src-tauri)
+warning: linker stderr: C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
+         C:/Users/slsjz/.zcode/workspace/default/quota-analysis/toolchain/mingw64/bin/../lib/gcc/x86_64-w64-mingw32/16.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: .rsrc merge failure: multiple non-default manifests
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `reset-radar` (bin "reset-radar") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 38.46s

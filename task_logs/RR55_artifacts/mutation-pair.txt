@@ -1,0 +1,35 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR55
+
+ ❯ src/lib/__tests__/weekday.pairing.test.ts (9 tests | 1 failed) 57ms
+   ❯ weekday shadow pairing and review journal (9)
+     × pairs only same frozen publication fields and same labels 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/weekday.pairing.test.ts > weekday shadow pairing and review journal > pairs only same frozen publication fields and same labels
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ src/lib/__tests__/weekday.pairing.test.ts:127:33
+    125|     ]);
+    126|     const result = evaluateWeekdayJournal(content, bjtNine(6));
+    127|     expect(result.matchedCount).toBe(0);
+       |                                 ^
+    128|     expect(result.missingPairCount).toBeGreaterThanOrEqual(3);
+    129|     expect(result.labelMismatchCount).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 passed (9)
+   Start at  22:41:44
+   Duration  371ms (transform 40%, import 34%, tests 24%, worker 2%)
+
+exit=1

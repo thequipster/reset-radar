@@ -1,0 +1,4 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR55
+
+Interrupted by user continuation before test completion; not counted as passing evidence. Final verification resumes in resume-* logs.

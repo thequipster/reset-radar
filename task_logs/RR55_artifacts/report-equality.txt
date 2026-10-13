@@ -1,0 +1,63 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
+  {
++   integratedHazard: 0.21047888649433888,
++   probability: 0.18980383894600267,
++   segments: [
++     {
++       from: 1791854935886,
++       hazard: 0.13155151237511067,
++       ratePerDay: 0.21747332537215808,
++       to: 1791907200000,
++       weekday: 2
++     },
++     {
++       from: 1791907200000,
++       hazard: 0.0789273741192282,
++       ratePerDay: 0.19976997591043388,
++       to: 1791941335886,
++       weekday: 3
++     }
++   ]
+-   d60: 0.18089130797849404,
+-   w28: 0.18980383894600267
+  }
+
+    at file:///C:/Users/slsjz/Desktop/reset-radar/task_logs/RR55_artifacts/check-report.mjs:15:8
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: {
+    probability: 0.18980383894600267,
+    integratedHazard: 0.21047888649433888,
+    segments: [
+      {
+        from: 1791854935886,
+        to: 1791907200000,
+        weekday: 2,
+        ratePerDay: 0.21747332537215808,
+        hazard: 0.13155151237511067
+      },
+      {
+        from: 1791907200000,
+        to: 1791941335886,
+        weekday: 3,
+        ratePerDay: 0.19976997591043388,
+        hazard: 0.0789273741192282
+      }
+    ]
+  },
+  expected: { d60: 0.18089130797849404, w28: 0.18980383894600267 },
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.23.1
+Correction: full model assertions passed; final forecast wrapper contains only d60/w28 probabilities, not the full segments object. Corrected script compares exact frozen probabilities; see report-equality-corrected.txt.

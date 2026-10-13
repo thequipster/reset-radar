@@ -1,0 +1,17 @@
+import {readFileSync,writeFileSync} from 'node:fs';
+import assert from 'node:assert/strict';
+import {fitWeekdayModel,predictWeekday} from './weekday-final.mjs';
+const root='C:/Users/slsjz/Desktop/reset-radar_wt/RR55';
+const {document}=JSON.parse(readFileSync(`${root}/docs/v32-history-input-20261013.json`,'utf8'));
+const expected=JSON.parse(readFileSync(`${root}/docs/v32-replay-20261013.json`,'utf8')).finalFit;
+const times=document.events.filter(e=>e.resetType==='regular').map(e=>typeof e.announcedAt==='number'?e.announcedAt:Date.parse(e.announcedAt));
+const cutoff=Date.parse(document.coverageThrough??document.fetchedAt),coverage=[{from:Math.min(...times),to:cutoff,complete:true}];
+const actual=fitWeekdayModel({events:document.events,coverage,trainingCutoff:cutoff});
+assert.deepEqual(actual,expected.onlineAsStored.w28);
+const idealized=document.events.map(e=>e.firstSeenAt==null?{...e,versionSeenAt:null}:e);
+const replay=fitWeekdayModel({events:idealized,coverage,trainingCutoff:cutoff});
+assert.deepEqual(replay,expected.idealizedMissingFirstSeen.w28);
+const forecast=predictWeekday(replay,cutoff);
+assert.equal(forecast.probability,expected.cutoffFuture24h.w28); assert.equal(replay.base.probability24h,expected.cutoffFuture24h.d60);
+console.log(JSON.stringify({match:true,cutoff,d60:replay.base.probability24h,weekday:forecast.probability,modelVersion:replay.version}));
+

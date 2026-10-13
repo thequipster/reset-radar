@@ -219,3 +219,15 @@
 - 回源：docs/spec-algorithm-v3.md:608要求256共享路径；docs/DECISIONS.md D035/D037/D038要求全情景、共同前缀与预定费率；src/lib/v3/planning.ts:151起的全量world/基线保留及src/lib/v3/simulator.ts:112的轨迹记录为直接实现证据。
 - 独立实证：task_logs/RR53_artifacts/before.mjs来自main e7c389b；before-memory.txt（128MB）与before-golden.txt（2048MB）均V8 OOM；after-memory.txt为修复后同规模12轮且无强制GC。四组完整输出对照见before-golden-small.txt/after-golden.txt/golden.json及planning.memory.test.ts中的冻结SHA256。
 - 本地修复，不push、不发布；独立原生QA使用app.resetradar.rr53.qa/profile，生产数据未改写。
+
+### U20261013-v32 星期效应提案（RR54，用户本轮点单）
+- 用户要求v3.2提案纳入星期效应并如实评估证据，Markdown存桌面；简单实算与代码交Luna。用户明示星期证据弱、连发依赖/事后挑选，建议影子运行、定档收缩、评分达标再转正。
+- 本轮按提案范围交付隔离原型与可复现报告，不改线上默认、不发布。来源为本轮用户消息，以及§1已登记的公开历史归档。
+- 最新只读完整归档截止2026-10-13T01:28:55.886Z：54 regular，全量/180/90天54/38/21；固定输入与实算在agent/RR54 docs/v32-history-input-20261013.json及v32-*-20261013.json。
+
+
+### U20261013-v32w v3.2星期影子在线接线（RR55，用户本轮点单续作）
+- 来源：2026-10-13用户要求按v3.2桌面提案实施并续完中断会话（原S1013-v32-implement额度耗尽，S1013-v32-resume接管收尾）。影子只观察，不改变默认参考、用卡建议或费率规划。
+- 回源：docs/weekday-proposal-20261013.md §7同次冻结配对与§8代码落点十项验收；RR54原型D041；发布分离D039；RR53资源护栏D040不得削弱。
+- 独立实证：final-native-ui.txt为含对比度修复的最终构建双主题原生检查（journal实际落盘5平台版本、weekday registry恰1、影子行全部与D60同窗/同快照配对、faults=0、晚间无伪造09:00 primary）；报告数字与代码恒等见report-equality-corrected.txt；交付包哈希与原标识核验见package-*.txt。
+- 本地合入，不push、不发布；QA用app.resetradar.rr55.qa junction与独立profile，生产用户数据未改写。
