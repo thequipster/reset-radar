@@ -1,0 +1,57 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR53
+
+ ❯ src/lib/__tests__/planning.v3.test.ts (12 tests | 1 failed | 11 skipped) 11ms
+   ❯ v3 planning/simulator behavioral acceptance (12)
+     × summary simulation retains every metric and action while omitting the unused trajectory 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/planning.v3.test.ts > v3 planning/simulator behavioral acceptance > summary simulation retains every metric and action while omitting the unused trajectory
+AssertionError: expected { loss: 0.5, …(10) } to deeply equal { loss: 0.5, …(10) }
+
+- Expected
++ Received
+
+@@ -43,7 +43,22 @@
+        "remaining": 0,
+        "resetsAt": 604800000,
+      },
+      "weeklyGeneration": 1,
+    },
+-   "trajectory": [],
++   "trajectory": [
++     {
++       "at": 0,
++       "short": 100,
++       "shortGeneration": 1,
++       "weekly": 100,
++       "weeklyGeneration": 1,
++     },
++     {
++       "at": 86400000,
++       "short": 100,
++       "shortGeneration": 2,
++       "weekly": 20,
++       "weeklyGeneration": 1,
++     },
++   ],
+  }
+
+ ❯ src/lib/__tests__/planning.v3.test.ts:27:21
+     25|     const summary=simulatePolicy(account(),[usableCard(3*DAY_MS)],poli…
+     26|     expect(detailed.trajectory.length).toBeGreaterThan(0);
+     27|     expect(summary).toEqual({...detailed,trajectory:[]});
+       |                     ^
+     28|   });
+     29|   it('uniform work first becomes insufficient when the remaining resou…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 skipped (12)
+   Start at  21:25:02
+   Duration  361ms (transform 54%, import 39%, tests 5%, worker 2%)
+
+exit=1 (expected nonzero)

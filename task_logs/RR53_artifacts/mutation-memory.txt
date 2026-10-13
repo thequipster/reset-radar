@@ -1,0 +1,54 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR53
+
+ ❯ src/lib/__tests__/planning.memory.test.ts (5 tests | 1 failed | 4 skipped) 1023ms
+   ❯ planning bounded memory without changing policy results (5)
+     × finishes all 36 scenarios and three rates within a 128MB heap 1021ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/planning.memory.test.ts > planning bounded memory without changing policy results > finishes all 36 scenarios and three rates within a 128MB heap
+AssertionError: 
+<--- Last few GCs --->
+
+[16824:00000228D42DA000]      685 ms: Mark-Compact (reduce) 127.0 (132.6) -> 126.5 (131.1) MB, pooled: 0 MB, 57.33 / 0.00 ms  (+ 0.1 ms in 0 steps since start of marking, biggest step 0.0 ms, walltime since start of marking 59 ms) (average mu = 0.138, cur[16824:00000228D42DA000]      763 ms: Mark-Compact 127.5 (131.1) -> 126.9 (134.6) MB, pooled: 0 MB, 78.16 / 0.00 ms  (average mu = 0.076, current mu = 0.002) allocation failure; scavenge might not succeed
+
+
+<--- JS stacktrace --->
+
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 00007FF7B5124287 node::SetCppgcReference+21127
+ 2: 00007FF7B508433B EVP_MD_meth_get_input_blocksize+102619
+ 3: 00007FF7B5C919F1 v8::Isolate::ReportExternalAllocationLimitReached+65
+ 4: 00007FF7B5C7E4A6 v8::Function::Experimental_IsNopFunction+3318
+ 5: 00007FF7B5ADAAF0 v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+33904
+ 6: 00007FF7B5AD3F3A v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+6330
+ 7: 00007FF7B5ACF755 v8::CpuProfileNode::GetScriptResourceNameStr+190293
+ 8: 00007FF7B5456A8D BIO_ssl_shutdown+189
+: expected 134 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 134
+
+ ❯ src/lib/__tests__/planning.memory.test.ts:36:38
+     34|    const child=spawnSync(process.execPath,['--max-old-space-size=128',…
+     35|    expect(child.error).toBeUndefined();
+     36|    expect(child.status,child.stderr).toBe(0);
+       |                                      ^
+     37|    expect(JSON.parse(child.stdout)).toEqual({metrics:1728,horizons:[21…
+     38|   }finally{rmSync(dir,{recursive:true,force:true});}
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 skipped (5)
+   Start at  21:24:59
+   Duration  1.55s (tests 71%, import 21%, transform 7%)
+
+exit=1 (expected nonzero)

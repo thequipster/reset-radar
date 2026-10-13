@@ -1,0 +1,86 @@
+{
+  "durationMs": 451901,
+  "rounds": 8,
+  "runs": [
+    {
+      "round": 1,
+      "ms": 18291,
+      "metrics": 1728,
+      "horizons": [
+        21,
+        28
+      ]
+    },
+    {
+      "round": 2,
+      "ms": 18761,
+      "metrics": 1728,
+      "horizons": [
+        21,
+        28
+      ]
+    },
+    {
+      "round": 3,
+      "ms": 21017,
+      "metrics": 1728,
+      "horizons": [
+        21,
+        28
+      ]
+    },
+    {
+      "round": 4,
+      "ms": 18758,
+      "metrics": 1728,
+      "horizons": [
+        21,
+        28
+      ]
+    },
+    {
+      "round": 5,
+      "ms": 21798,
+      "metrics": 1728,
+      "horizons": [
+        21,
+        28
+      ]
+    },
+    {
+      "round": 6,
+      "ms": 24506,
+      "metrics": 1728,
+      "horizons": [
+        21,
+        28
+      ]
+    },
+    {
+      "round": 7,
+      "ms": 22822,
+      "metrics": 1728,
+      "horizons": [
+        21,
+        28
+      ]
+    },
+    {
+      "round": 8,
+      "ms": 23189,
+      "metrics": 1728,
+      "horizons": [
+        21,
+        28
+      ]
+    }
+  ],
+  "ticks": 4432,
+  "errors": [],
+  "rendererPeakRSS": 581582848,
+  "rendererIdleRSSRange": [
+    94916608,
+    189247488
+  ],
+  "mainHeapEnd": 29137120
+}

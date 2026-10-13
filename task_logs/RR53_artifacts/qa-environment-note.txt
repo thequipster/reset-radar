@@ -1,0 +1,3 @@
+// QA目录为本次新建，避免将隔离环境的EXDEV误当生产缺陷。
+import {statSync} from 'node:fs';
+2026-10-13 隔离QA说明：app.resetradar.rr53.qa目录带Encrypted属性；同目录Node复制文件rename探针也返回EXDEV。原用户app.resetradar.desktop目录未带Encrypted，原有文件时间/大小均未变化。本轮不把隔离目录文件系统限制误报为生产快照缺陷，也不改快照写入协议。原生验证对象是生产worker资产的8次独立压力计算、renderer存活与响应，不是伪造真实额度成功数据。

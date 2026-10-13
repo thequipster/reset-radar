@@ -1,0 +1,50 @@
+[
+  {
+    "ProcessId": 21808,
+    "ParentProcessId": 5720,
+    "Name": "pwsh.exe",
+    "CommandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$qa='C:/Users/slsjz/Desktop/reset-radar/release-qa/RR53-qa'; New-Item -ItemType Directory -Force $qa; Copy-Item src-tauri/target/release/reset-radar.exe \\\"$qa/reset-radar.exe\\\"; Copy-Item release-qa/RR53/WebView2Loader.dll \\\"$qa/WebView2Loader.dll\\\"; Set-Content \\\"$qa/codex.cmd\\\" \\\"@echo off`nexit /b 1\\\"; $env:CODEX_BIN=\\\"$qa/codex.cmd\\\"; $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9793'; $env:WEBVIEW2_USER_DATA_FOLDER=\\\"$qa/webview-profile\\\"; $proc=Start-Process -FilePath \\\"$qa/reset-radar.exe\\\" -WorkingDirectory $qa -WindowStyle Hidden -PassThru; $env:CODEX_BIN=$null; $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=$null; $env:WEBVIEW2_USER_DATA_FOLDER=$null; Set-Content task_logs/RR53_artifacts/qa-pid.txt $proc.Id; $worker=(Get-ChildItem C:/Users/slsjz/Desktop/reset-radar_wt/RR53/dist/assets/v3Planning.worker-*.js).Name; Start-Sleep -Seconds 3; Get-CimInstance Win32_Process | Where-Object {$_.CommandLine -like '*RR53-qa*'} | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Depth 3 | Set-Content task_logs/RR53_artifacts/qa-process-start.json; node task_logs/RR53_artifacts/native-smoke.mjs 9793 $proc.Id \\\"/assets/$worker\\\" *> task_logs/RR53_artifacts/native-smoke.txt\""
+  },
+  {
+    "ProcessId": 4904,
+    "ParentProcessId": 21808,
+    "Name": "reset-radar.exe",
+    "CommandLine": "\"C:\\Users\\slsjz\\Desktop\\reset-radar\\release-qa\\RR53-qa\\reset-radar.exe\" "
+  },
+  {
+    "ProcessId": 10212,
+    "ParentProcessId": 4904,
+    "Name": "msedgewebview2.exe",
+    "CommandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\155.0.4283.45\\msedgewebview2.exe\" --embedded-browser-webview=1 --webview-exe-name=reset-radar.exe --webview-exe-version=0.2.0 --user-data-dir=\"C:\\Users\\slsjz\\Desktop\\reset-radar\\release-qa\\RR53-qa\\webview-profile\\EBWebView\" --noerrdialogs --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=9793 --lang=zh-CN --mojo-named-platform-channel-pipe=4904.420.15451482424591502703 /pfhostedapp:00de3f8acf0dd2b4ed08d9f8d965796223abe67d"
+  },
+  {
+    "ProcessId": 7836,
+    "ParentProcessId": 10212,
+    "Name": "msedgewebview2.exe",
+    "CommandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\155.0.4283.45\\msedgewebview2.exe\" --type=crashpad-handler --user-data-dir=C:\\Users\\slsjz\\Desktop\\reset-radar\\release-qa\\RR53-qa\\webview-profile\\EBWebView /prefetch:4 /pfhostedapp:00de3f8acf0dd2b4ed08d9f8d965796223abe67d --monitor-self-annotation=ptype=crashpad-handler --database=C:\\Users\\slsjz\\Desktop\\reset-radar\\release-qa\\RR53-qa\\webview-profile\\EBWebView\\Crashpad --annotation=IsOfficialBuild=1 --annotation=channel= --annotation=chromium-version=155.0.8059.40 \"--annotation=exe=C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\155.0.4283.45\\msedgewebview2.exe\" --annotation=plat=Win64 \"--annotation=prod=Edge WebView2\" --annotation=ver=155.0.4283.45 --initial-client-data=0x178,0x17c,0x180,0x110,0x188,0x7ffc8bd583e0,0x7ffc8bd583f0,0x7ffc8bd58400"
+  },
+  {
+    "ProcessId": 8580,
+    "ParentProcessId": 10212,
+    "Name": "msedgewebview2.exe",
+    "CommandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\155.0.4283.45\\msedgewebview2.exe\" --type=gpu-process --gpu-recent-crash-count=0 --noerrdialogs --user-data-dir=\"C:\\Users\\slsjz\\Desktop\\reset-radar\\release-qa\\RR53-qa\\webview-profile\\EBWebView\" --webview-exe-name=reset-radar.exe --webview-exe-version=0.2.0 --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --gpu-preferences=WAAAAAAAAADgAAAEAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --startup-read-main-dll --metrics-shmem-handle=1820,i,5848517007577622631,5488059589498199923,262144 --field-trial-handle=1972,i,4830741330705054348,15132628118539382164,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=1980,i,4376273347782992271,15256033247658015392,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=1968 /prefetch:2 /pfhostedapp:00de3f8acf0dd2b4ed08d9f8d965796223abe67d"
+  },
+  {
+    "ProcessId": 3684,
+    "ParentProcessId": 10212,
+    "Name": "msedgewebview2.exe",
+    "CommandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\155.0.4283.45\\msedgewebview2.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --noerrdialogs --user-data-dir=\"C:\\Users\\slsjz\\Desktop\\reset-radar\\release-qa\\RR53-qa\\webview-profile\\EBWebView\" --webview-exe-name=reset-radar.exe --webview-exe-version=0.2.0 --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2020,i,7303127130299540226,781492693342377049,524288 --field-trial-handle=1972,i,4830741330705054348,15132628118539382164,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=1980,i,4376273347782992271,15256033247658015392,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2160 /prefetch:11 /pfhostedapp:00de3f8acf0dd2b4ed08d9f8d965796223abe67d"
+  },
+  {
+    "ProcessId": 8408,
+    "ParentProcessId": 10212,
+    "Name": "msedgewebview2.exe",
+    "CommandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\155.0.4283.45\\msedgewebview2.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --noerrdialogs --user-data-dir=\"C:\\Users\\slsjz\\Desktop\\reset-radar\\release-qa\\RR53-qa\\webview-profile\\EBWebView\" --webview-exe-name=reset-radar.exe --webview-exe-version=0.2.0 --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2516,i,10282871985463084220,5353526308413355394,524288 --field-trial-handle=1972,i,4830741330705054348,15132628118539382164,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=1980,i,4376273347782992271,15256033247658015392,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2536 /prefetch:13 /pfhostedapp:00de3f8acf0dd2b4ed08d9f8d965796223abe67d"
+  },
+  {
+    "ProcessId": 15700,
+    "ParentProcessId": 10212,
+    "Name": "msedgewebview2.exe",
+    "CommandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\155.0.4283.45\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\slsjz\\Desktop\\reset-radar\\release-qa\\RR53-qa\\webview-profile\\EBWebView\" --webview-exe-name=reset-radar.exe --webview-exe-version=0.2.0 --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=9793 --video-capture-use-gpu-memory-buffer --lang=zh-CN --js-flags --device-scale-factor=2 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --ssd-no-pressure-read-main-dll --launch-time-ticks=3602856208 --metrics-shmem-handle=3836,i,18284886190619933031,17515158425348698106,1048576 --field-trial-handle=1972,i,4830741330705054348,15132628118539382164,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=1980,i,4376273347782992271,15256033247658015392,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3840 /pfhostedapp:00de3f8acf0dd2b4ed08d9f8d965796223abe67d /prefetch:1"
+  }
+]

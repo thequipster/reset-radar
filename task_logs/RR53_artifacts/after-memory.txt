@@ -1,0 +1,12 @@
+{"run":1,"ms":23769,"scenarios":576,"horizons":2,"rss":108019712,"heapTotal":67473408,"heapUsed":28867440,"external":1974690,"arrayBuffers":10475}
+{"run":2,"ms":24181,"scenarios":576,"horizons":2,"rss":110878720,"heapTotal":68259840,"heapUsed":8568880,"external":1974730,"arrayBuffers":10475}
+{"run":3,"ms":23216,"scenarios":576,"horizons":2,"rss":110698496,"heapTotal":67997696,"heapUsed":30931968,"external":1974730,"arrayBuffers":10475}
+{"run":4,"ms":23381,"scenarios":576,"horizons":2,"rss":111185920,"heapTotal":67997696,"heapUsed":20725488,"external":1974730,"arrayBuffers":10475}
+{"run":5,"ms":23941,"scenarios":576,"horizons":2,"rss":111833088,"heapTotal":67997696,"heapUsed":26247152,"external":1974730,"arrayBuffers":10475}
+{"run":6,"ms":23722,"scenarios":576,"horizons":2,"rss":112963584,"heapTotal":67997696,"heapUsed":37169136,"external":1974730,"arrayBuffers":10475}
+{"run":7,"ms":23731,"scenarios":576,"horizons":2,"rss":112586752,"heapTotal":67997696,"heapUsed":33617456,"external":1974730,"arrayBuffers":10475}
+{"run":8,"ms":23760,"scenarios":576,"horizons":2,"rss":113303552,"heapTotal":68521984,"heapUsed":23133272,"external":1974730,"arrayBuffers":10475}
+{"run":9,"ms":28828,"scenarios":576,"horizons":2,"rss":113590272,"heapTotal":68521984,"heapUsed":16952720,"external":1974730,"arrayBuffers":10475}
+{"run":10,"ms":28432,"scenarios":576,"horizons":2,"rss":113889280,"heapTotal":68521984,"heapUsed":14606232,"external":1974730,"arrayBuffers":10475}
+{"run":11,"ms":27280,"scenarios":576,"horizons":2,"rss":114180096,"heapTotal":68521984,"heapUsed":27546144,"external":1974730,"arrayBuffers":10475}
+{"run":12,"ms":31556,"scenarios":576,"horizons":2,"rss":114737152,"heapTotal":68521984,"heapUsed":44353976,"external":1974730,"arrayBuffers":10475}
