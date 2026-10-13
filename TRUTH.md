@@ -213,3 +213,9 @@
 
 ### U20261012-v31
 用户要求按桌面reset-radar-v3.1-算法修订报告.md修订算法；报告冲突处覆盖v3，默认60天半衰期/7天收缩、默认策略档为公开假设。界面维持RR49风格。
+
+### U20261013-oom 用户崩溃报告与修复授权（RR53）
+- 来源：2026-10-13本轮用户消息，要求修复规划worker内存耗尽并顺带修复发现的问题。用户转述Crashpad renderer OOM、v3.1三组费率放大世界构建规模；本卡未将转述堆值/归因当作亲自读取dump的结论。
+- 回源：docs/spec-algorithm-v3.md:608要求256共享路径；docs/DECISIONS.md D035/D037/D038要求全情景、共同前缀与预定费率；src/lib/v3/planning.ts:151起的全量world/基线保留及src/lib/v3/simulator.ts:112的轨迹记录为直接实现证据。
+- 独立实证：task_logs/RR53_artifacts/before.mjs来自main e7c389b；before-memory.txt（128MB）与before-golden.txt（2048MB）均V8 OOM；after-memory.txt为修复后同规模12轮且无强制GC。四组完整输出对照见before-golden-small.txt/after-golden.txt/golden.json及planning.memory.test.ts中的冻结SHA256。
+- 本地修复，不push、不发布；独立原生QA使用app.resetradar.rr53.qa/profile，生产数据未改写。
