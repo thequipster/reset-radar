@@ -11,3 +11,5 @@
 - 产物task_logs/RR53_artifacts/；报告docs/planning-memory-20261013.md；生产包release-qa/reset-radar-v31-RR53.zip（EXE/DLL/中文说明）。EXE SHA256 55139A03B5B47F0E9A46CBECB11C7F58E308997AAEF71E09DC2ACDEE948238AD。
 - 待用户：无阻塞；安装体验包时退出旧版后打开新版。排障遗产：隔离QA目录带Encrypted，rename探针EXDEV是测试目录文件系统限制，生产目录未带Encrypted且时间/大小未变；不据此修改快照协议。自有QA进程测试完已关闭，用户实例/数据未动。
 - →下轮：无本卡未完功能。长期真实账号数据仍按原机制自然积累。
+
+- 本地合入：main a0b074d/c69c7ee；源码、TRUTH、决策、报告与交付档及验收历史对分支a422528树恒等（git diff 0字节）。验收历史先追加收编d5d5018，避免未跟踪文件覆盖；main复验tsc0/57文件492全量0failed。生产包ZIP内部EXE哈希核验一致，originalIdentifier=true、qaIdentifier=false；zip哈希及检查在package-*.txt。临时worktree安全拆除，依赖主仓仍在，分支archive/RR53-merged-c69c7ee；wip原样归档RR53_progress.md。未push。2026-10-13 21:40:57 +08:00

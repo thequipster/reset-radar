@@ -1,0 +1,4 @@
+拆除清单：C:\Users\slsjz\Desktop\reset-radar_wt\RR53（本卡已提交worktree，836 tracked文件）
+依赖junction：C:\Users\slsjz\Desktop\reset-radar_wt\RR53\node_modules → C:\Users\slsjz\Desktop\reset-radar\node_modules
+活动wip：C:/Users/slsjz/Desktop/reset-radar/task_logs/RR53_wip.md（原字节保存RR53_progress.md）
+引用检查：git worktree list确认agent/RR53归属；BOARD记录交付分支/commit；报告引用artifact主仓路径；其他旧worktree不触碰。

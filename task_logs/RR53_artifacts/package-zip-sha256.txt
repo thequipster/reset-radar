@@ -1,0 +1,5 @@
+
+Algorithm : SHA256
+Hash      : CF71AF5C671CDD2E874B69E9D376E24A53BC50747ADCD8B8048E222975649BC8
+Path      : C:\Users\slsjz\Desktop\reset-radar\release-qa\reset-radar-v31-RR53.zip
+
