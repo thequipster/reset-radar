@@ -1,0 +1,24 @@
+RR54 v3.2 weekday isolated prototype mutation evidence
+Date: 2026-10-13 (Asia/Shanghai)
+Command: npx vitest run src/lib/__tests__/weekday.v32.test.ts
+
+Mutation: in predictWeekday, changed the next BJT midnight boundary from
+floor((from + offset) / DAY_MS) * DAY_MS - offset + DAY_MS to the same
+expression with + 2 * DAY_MS.
+
+Expected red checks: the full-week integrated hazard invariant and the
+Tue 09:00 -> Tue 24:00 (15h), Wed 00:00 -> Wed 09:00 (9h) segmentation.
+Observed: 2 tests failed; full-week hazard was 0.622883271358497 vs expected
+0.620466361415565, and cross-midnight segmentation returned one 24h Tuesday
+segment instead of 15h Tuesday plus 9h Wednesday. Failure locations pointed
+to weekday.v32.test.ts:16 and :33.
+
+Restoration: restored + DAY_MS. The final targeted run passed 5/5 tests.
+
+Review correction mutation (2026-10-13): temporarily changed the q_d prior
+from base.ratePerDay to base.lambdaAll, then reran the same command. The new
+independent hand-calculation test failed at weekday.v32.test.ts:27: expected
+first multiplier 0.9872538991395199, received 0.9872702315439499; 1 failed,
+7 passed. Restored base.ratePerDay. The full 8-test suite was rerun green.
+
+Parent independently reran prior mutation: exit=1; restored exit=0. Full raw output: v32-mutation-prior-raw-20261013.txt; restoration: v32-restored-20261013.txt. Original bytes restored in finally.

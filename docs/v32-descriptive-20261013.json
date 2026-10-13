@@ -1,0 +1,426 @@
+{
+  "generatedAt": "2026-10-13T13:46:38.557Z",
+  "method": {
+    "timeBasis": "coverage cutoff = coverageThrough ?? fetchedAt (fixed per document; never advanced to run time); cutoff shown in UTC and Beijing time",
+    "windowDays": [
+      180,
+      90
+    ],
+    "weekdayZones": [
+      "Asia/Shanghai",
+      "UTC",
+      "America/Los_Angeles"
+    ],
+    "windowBoundary": "recent windows use (cutoff - N*24h, cutoff]; full history includes its first event and events through cutoff",
+    "dateKeyMethod": "Intl.DateTimeFormat(...).formatToParts extracts year/month/day, avoiding locale-dependent formatted-string order",
+    "eventDays": "distinct local calendar dates containing at least one regular event",
+    "multiEventDays": "number of local dates containing at least two regular events",
+    "burstClusters": "maximal consecutive groups of at least two events where each adjacent gap is <= 24 hours",
+    "deduplication": "first occurrence of each regular event id retained; non-regular events excluded",
+    "chiSquare": "Beijing weekday counts against equal 1/7 expectation; df=6; tail formula specified by request; descriptive only"
+  },
+  "dataLimitations": [
+    "The upstream history is only as complete as its recorded pagination and historical coverage; the available history does not establish completeness before its earliest event.",
+    "The application archive is optional and may be absent; if present, only complete platform_history documents are considered, selected by greatest fetchedAt following src/lib/v3/runtime.ts latestArchivedHistory."
+  ],
+  "fixture": {
+    "source": "repository data/resets-history.json",
+    "fetchedAt": "2026-10-11T13:41:25.735Z",
+    "coverageThrough": null,
+    "cutoffUtc": "2026-10-11T13:41:25.735Z",
+    "cutoffBeijing": "2026-10-11T21:41:25+08:00",
+    "regularEventEntriesBeforeDeduplication": 54,
+    "uniqueRegularEventIds": 54,
+    "duplicateRegularEntriesRemoved": 0,
+    "eventTimeSpan": {
+      "startInclusive": "2025-09-17T04:02:52.000Z",
+      "endInclusive": "2026-10-11T04:01:09.000Z",
+      "validRegularEventsAfterCutoff": 0
+    },
+    "windows": [
+      {
+        "windowDays": "all",
+        "startExclusive": null,
+        "startInclusive": "2025-09-17T04:02:52.000Z",
+        "endExclusive": null,
+        "endInclusive": "2026-10-11T13:41:25.735Z",
+        "eventCount": 54,
+        "eventsPerZone": {
+          "Asia/Shanghai": {
+            "weekdayCounts": {
+              "Sun": 10,
+              "Mon": 4,
+              "Tue": 10,
+              "Wed": 10,
+              "Thu": 7,
+              "Fri": 5,
+              "Sat": 8
+            },
+            "tuesdaySaturdayCount": 18,
+            "tuesdaySaturdayShare": 0.3333333333333333,
+            "eventDays": 53,
+            "multiEventDays": 1
+          },
+          "UTC": {
+            "weekdayCounts": {
+              "Sun": 5,
+              "Mon": 5,
+              "Tue": 11,
+              "Wed": 8,
+              "Thu": 8,
+              "Fri": 6,
+              "Sat": 11
+            },
+            "tuesdaySaturdayCount": 22,
+            "tuesdaySaturdayShare": 0.4074074074074074,
+            "eventDays": 54,
+            "multiEventDays": 0
+          },
+          "America/Los_Angeles": {
+            "weekdayCounts": {
+              "Sun": 5,
+              "Mon": 9,
+              "Tue": 10,
+              "Wed": 7,
+              "Thu": 6,
+              "Fri": 7,
+              "Sat": 10
+            },
+            "tuesdaySaturdayCount": 20,
+            "tuesdaySaturdayShare": 0.37037037037037035,
+            "eventDays": 53,
+            "multiEventDays": 1
+          }
+        },
+        "adjacentAtMost24hBurstClusters": 3,
+        "beijingUniformWeekdayChiSquareDf6": {
+          "statistic": 4.851851851851851,
+          "descriptiveTailValue": 0.5629500139672893,
+          "note": "Descriptive reference value only; no claim of valid inferential significance."
+        }
+      },
+      {
+        "windowDays": 180,
+        "startExclusive": "2026-04-14T13:41:25.735Z",
+        "startInclusive": null,
+        "endExclusive": null,
+        "endInclusive": "2026-10-11T13:41:25.735Z",
+        "eventCount": 38,
+        "eventsPerZone": {
+          "Asia/Shanghai": {
+            "weekdayCounts": {
+              "Sun": 8,
+              "Mon": 4,
+              "Tue": 8,
+              "Wed": 4,
+              "Thu": 4,
+              "Fri": 3,
+              "Sat": 7
+            },
+            "tuesdaySaturdayCount": 15,
+            "tuesdaySaturdayShare": 0.39473684210526316,
+            "eventDays": 37,
+            "multiEventDays": 1
+          },
+          "UTC": {
+            "weekdayCounts": {
+              "Sun": 4,
+              "Mon": 5,
+              "Tue": 7,
+              "Wed": 2,
+              "Thu": 6,
+              "Fri": 4,
+              "Sat": 10
+            },
+            "tuesdaySaturdayCount": 17,
+            "tuesdaySaturdayShare": 0.4473684210526316,
+            "eventDays": 38,
+            "multiEventDays": 0
+          },
+          "America/Los_Angeles": {
+            "weekdayCounts": {
+              "Sun": 5,
+              "Mon": 7,
+              "Tue": 5,
+              "Wed": 4,
+              "Thu": 3,
+              "Fri": 6,
+              "Sat": 8
+            },
+            "tuesdaySaturdayCount": 13,
+            "tuesdaySaturdayShare": 0.34210526315789475,
+            "eventDays": 37,
+            "multiEventDays": 1
+          }
+        },
+        "adjacentAtMost24hBurstClusters": 3,
+        "beijingUniformWeekdayChiSquareDf6": {
+          "statistic": 5.105263157894736,
+          "descriptiveTailValue": 0.530385060115526,
+          "note": "Descriptive reference value only; no claim of valid inferential significance."
+        }
+      },
+      {
+        "windowDays": 90,
+        "startExclusive": "2026-07-13T13:41:25.735Z",
+        "startInclusive": null,
+        "endExclusive": null,
+        "endInclusive": "2026-10-11T13:41:25.735Z",
+        "eventCount": 23,
+        "eventsPerZone": {
+          "Asia/Shanghai": {
+            "weekdayCounts": {
+              "Sun": 5,
+              "Mon": 2,
+              "Tue": 5,
+              "Wed": 4,
+              "Thu": 2,
+              "Fri": 1,
+              "Sat": 4
+            },
+            "tuesdaySaturdayCount": 9,
+            "tuesdaySaturdayShare": 0.391304347826087,
+            "eventDays": 23,
+            "multiEventDays": 0
+          },
+          "UTC": {
+            "weekdayCounts": {
+              "Sun": 1,
+              "Mon": 3,
+              "Tue": 6,
+              "Wed": 2,
+              "Thu": 3,
+              "Fri": 1,
+              "Sat": 7
+            },
+            "tuesdaySaturdayCount": 13,
+            "tuesdaySaturdayShare": 0.5652173913043478,
+            "eventDays": 23,
+            "multiEventDays": 0
+          },
+          "America/Los_Angeles": {
+            "weekdayCounts": {
+              "Sun": 2,
+              "Mon": 4,
+              "Tue": 5,
+              "Wed": 2,
+              "Thu": 1,
+              "Fri": 3,
+              "Sat": 6
+            },
+            "tuesdaySaturdayCount": 11,
+            "tuesdaySaturdayShare": 0.4782608695652174,
+            "eventDays": 23,
+            "multiEventDays": 0
+          }
+        },
+        "adjacentAtMost24hBurstClusters": 0,
+        "beijingUniformWeekdayChiSquareDf6": {
+          "statistic": 4.695652173913044,
+          "descriptiveTailValue": 0.583397359241192,
+          "note": "Descriptive reference value only; no claim of valid inferential significance."
+        }
+      }
+    ]
+  },
+  "latestArchivedHistory": {
+    "source": "latest complete archived platform_history document",
+    "fetchedAt": "2026-10-13T01:28:56.656Z",
+    "coverageThrough": "2026-10-13T01:28:55.886Z",
+    "cutoffUtc": "2026-10-13T01:28:55.886Z",
+    "cutoffBeijing": "2026-10-13T09:28:55+08:00",
+    "regularEventEntriesBeforeDeduplication": 54,
+    "uniqueRegularEventIds": 54,
+    "duplicateRegularEntriesRemoved": 0,
+    "eventTimeSpan": {
+      "startInclusive": "2025-09-17T04:02:52.000Z",
+      "endInclusive": "2026-10-11T04:01:09.000Z",
+      "validRegularEventsAfterCutoff": 0
+    },
+    "windows": [
+      {
+        "windowDays": "all",
+        "startExclusive": null,
+        "startInclusive": "2025-09-17T04:02:52.000Z",
+        "endExclusive": null,
+        "endInclusive": "2026-10-13T01:28:55.886Z",
+        "eventCount": 54,
+        "eventsPerZone": {
+          "Asia/Shanghai": {
+            "weekdayCounts": {
+              "Sun": 10,
+              "Mon": 4,
+              "Tue": 10,
+              "Wed": 10,
+              "Thu": 7,
+              "Fri": 5,
+              "Sat": 8
+            },
+            "tuesdaySaturdayCount": 18,
+            "tuesdaySaturdayShare": 0.3333333333333333,
+            "eventDays": 53,
+            "multiEventDays": 1
+          },
+          "UTC": {
+            "weekdayCounts": {
+              "Sun": 5,
+              "Mon": 5,
+              "Tue": 11,
+              "Wed": 8,
+              "Thu": 8,
+              "Fri": 6,
+              "Sat": 11
+            },
+            "tuesdaySaturdayCount": 22,
+            "tuesdaySaturdayShare": 0.4074074074074074,
+            "eventDays": 54,
+            "multiEventDays": 0
+          },
+          "America/Los_Angeles": {
+            "weekdayCounts": {
+              "Sun": 5,
+              "Mon": 9,
+              "Tue": 10,
+              "Wed": 7,
+              "Thu": 6,
+              "Fri": 7,
+              "Sat": 10
+            },
+            "tuesdaySaturdayCount": 20,
+            "tuesdaySaturdayShare": 0.37037037037037035,
+            "eventDays": 53,
+            "multiEventDays": 1
+          }
+        },
+        "adjacentAtMost24hBurstClusters": 3,
+        "beijingUniformWeekdayChiSquareDf6": {
+          "statistic": 4.851851851851851,
+          "descriptiveTailValue": 0.5629500139672893,
+          "note": "Descriptive reference value only; no claim of valid inferential significance."
+        }
+      },
+      {
+        "windowDays": 180,
+        "startExclusive": "2026-04-16T01:28:55.886Z",
+        "startInclusive": null,
+        "endExclusive": null,
+        "endInclusive": "2026-10-13T01:28:55.886Z",
+        "eventCount": 38,
+        "eventsPerZone": {
+          "Asia/Shanghai": {
+            "weekdayCounts": {
+              "Sun": 8,
+              "Mon": 4,
+              "Tue": 8,
+              "Wed": 4,
+              "Thu": 4,
+              "Fri": 3,
+              "Sat": 7
+            },
+            "tuesdaySaturdayCount": 15,
+            "tuesdaySaturdayShare": 0.39473684210526316,
+            "eventDays": 37,
+            "multiEventDays": 1
+          },
+          "UTC": {
+            "weekdayCounts": {
+              "Sun": 4,
+              "Mon": 5,
+              "Tue": 7,
+              "Wed": 2,
+              "Thu": 6,
+              "Fri": 4,
+              "Sat": 10
+            },
+            "tuesdaySaturdayCount": 17,
+            "tuesdaySaturdayShare": 0.4473684210526316,
+            "eventDays": 38,
+            "multiEventDays": 0
+          },
+          "America/Los_Angeles": {
+            "weekdayCounts": {
+              "Sun": 5,
+              "Mon": 7,
+              "Tue": 5,
+              "Wed": 4,
+              "Thu": 3,
+              "Fri": 6,
+              "Sat": 8
+            },
+            "tuesdaySaturdayCount": 13,
+            "tuesdaySaturdayShare": 0.34210526315789475,
+            "eventDays": 37,
+            "multiEventDays": 1
+          }
+        },
+        "adjacentAtMost24hBurstClusters": 3,
+        "beijingUniformWeekdayChiSquareDf6": {
+          "statistic": 5.105263157894736,
+          "descriptiveTailValue": 0.530385060115526,
+          "note": "Descriptive reference value only; no claim of valid inferential significance."
+        }
+      },
+      {
+        "windowDays": 90,
+        "startExclusive": "2026-07-15T01:28:55.886Z",
+        "startInclusive": null,
+        "endExclusive": null,
+        "endInclusive": "2026-10-13T01:28:55.886Z",
+        "eventCount": 21,
+        "eventsPerZone": {
+          "Asia/Shanghai": {
+            "weekdayCounts": {
+              "Sun": 5,
+              "Mon": 2,
+              "Tue": 4,
+              "Wed": 3,
+              "Thu": 2,
+              "Fri": 1,
+              "Sat": 4
+            },
+            "tuesdaySaturdayCount": 8,
+            "tuesdaySaturdayShare": 0.38095238095238093,
+            "eventDays": 21,
+            "multiEventDays": 0
+          },
+          "UTC": {
+            "weekdayCounts": {
+              "Sun": 1,
+              "Mon": 2,
+              "Tue": 5,
+              "Wed": 2,
+              "Thu": 3,
+              "Fri": 1,
+              "Sat": 7
+            },
+            "tuesdaySaturdayCount": 12,
+            "tuesdaySaturdayShare": 0.5714285714285714,
+            "eventDays": 21,
+            "multiEventDays": 0
+          },
+          "America/Los_Angeles": {
+            "weekdayCounts": {
+              "Sun": 2,
+              "Mon": 3,
+              "Tue": 4,
+              "Wed": 2,
+              "Thu": 1,
+              "Fri": 3,
+              "Sat": 6
+            },
+            "tuesdaySaturdayCount": 10,
+            "tuesdaySaturdayShare": 0.47619047619047616,
+            "eventDays": 21,
+            "multiEventDays": 0
+          }
+        },
+        "adjacentAtMost24hBurstClusters": 0,
+        "beijingUniformWeekdayChiSquareDf6": {
+          "statistic": 3.9999999999999996,
+          "descriptiveTailValue": 0.6766764161830636,
+          "note": "Descriptive reference value only; no claim of valid inferential significance."
+        }
+      }
+    ]
+  }
+}

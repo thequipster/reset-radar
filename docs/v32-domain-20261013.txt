@@ -1,0 +1,10 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR54
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  21:52:39
+   Duration  277ms (transform 50%, import 42%, tests 5%, worker 3%)
+
+exit=0

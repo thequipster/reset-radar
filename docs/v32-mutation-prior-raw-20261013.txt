@@ -1,0 +1,48 @@
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR54
+
+ ❯ src/lib/__tests__/weekday.v32.test.ts (8 tests | 1 failed) 12ms
+   ❯ v3.2 星期效应影子提案 (8)
+     × q和乘数与独立手算一致，使用D60平滑率而不是原始lambdaAll 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/weekday.v32.test.ts > v3.2 星期效应影子提案 > q和乘数与独立手算一致，使用D60平滑率而不是原始lambdaAll
+AssertionError: expected [ 0.9872702315439499, …(6) ] to deeply equal [ 0.9872538991395199, …(6) ]
+
+- Expected
++ Received
+
+  [
+-   0.9872538991395199,
+-   1.0165175491344498,
+-   1.0165882781857725,
+-   1.0166595477855511,
+-   0.9878619545435751,
+-   0.987660727802257,
+-   0.9874580434088741,
++   0.9872702315439499,
++   1.0161112299552981,
++   1.015755574618908,
++   1.0153972011781627,
++   0.9890933917014019,
++   0.9884900444160388,
++   0.9878823265862396,
+  ]
+
+ ❯ src/lib/__tests__/weekday.v32.test.ts:27:31
+     25|     const q = model.exposures.map((exposure, d) => (model.counts[d] + …
+     26|     const mean = q.reduce((sum, value) => sum + value, 0) / 7;
+     27|     expect(model.multipliers).toEqual(q.map(value => value / mean));
+       |                               ^
+     28|     expect(model.rates).toEqual(model.multipliers.map(value => lambda …
+     29|     const oldLambdaAllQ = model.exposures.map((exposure, d) => (model.…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  21:56:13
+   Duration  269ms (transform 46%, import 42%, tests 8%, worker 3%)
+
