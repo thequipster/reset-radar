@@ -54,7 +54,7 @@ export function applyCardUse(state: VisibleState, cardId: string, at: number, me
 
 /** 同一world复用给所有策略。forecast是独立的当时可见预测函数，不能由world生成。 */
 export function simulatePolicy(initial: AccountState, cards: readonly ResetCard[], policy: Policy,
-  world: WorldPath, mechanisms: Mechanisms, forecastAt: (at: number, state: Readonly<VisibleState>) => DemandForecast): SimulationResult {
+  world: WorldPath, mechanisms: Mechanisms, forecastAt: (at: number, state: Readonly<VisibleState>) => DemandForecast, options: { recordTrajectory?: boolean } = {}): SimulationResult {
   let state: VisibleState = { ...initial, weekly: { ...initial.weekly }, short: { ...initial.short },
     cards: cards.map(c => ({ ...c })), weeklyGeneration: 0, shortGeneration: 0 };
   let loss = 0, consumedWeekly = 0, consumedShort = 0, expiredCards = 0, missedSafeDeadlines = 0;
@@ -109,7 +109,7 @@ export function simulatePolicy(initial: AccountState, cards: readonly ResetCard[
         if (next) { state = next; actions.push({ at, cardId: requested }); }
       }
     }
-    trajectory.push({ at, weekly: state.weekly.remaining, short: state.short.remaining,
+    if(options.recordTrajectory!==false)trajectory.push({ at, weekly: state.weekly.remaining, short: state.short.remaining,
       weeklyGeneration: state.weeklyGeneration, shortGeneration: state.shortGeneration });
     while (fixedIndex < fixed.length && fixed[fixedIndex]! <= at) fixedIndex++;
     const next = Math.min(world.end, state.weekly.resetsAt > at ? state.weekly.resetsAt : Infinity,
@@ -165,8 +165,8 @@ export function makePolicy(parameters: PolicyParameters, firstAction: 'wait' | s
     if (blocks.length === 0) return null;
     const predictedWorld: WorldPath = { start: now, end: Math.max(...blocks.map(b => b.end)), demand: blocks, platform: [], reviews: [now] };
     const emptyForecast = () => ({ weeklyCost: 0, shortCost: null, nextKnownSupplyAt: state.weekly.resetsAt, blocks: [] });
-    const keep = simulatePolicy(state, state.cards, NEVER_USE, predictedWorld, mechanisms, emptyForecast);
-    const use = simulatePolicy(state, state.cards, ({ now: t }) => t === now ? card.localId : null, predictedWorld, mechanisms, emptyForecast);
+    const keep = simulatePolicy(state, state.cards, NEVER_USE, predictedWorld, mechanisms, emptyForecast, {recordTrajectory:false});
+    const use = simulatePolicy(state, state.cards, ({ now: t }) => t === now ? card.localId : null, predictedWorld, mechanisms, emptyForecast, {recordTrajectory:false});
     return use.loss < keep.loss || use.loss <= keep.loss && use.consumedWeekly > keep.consumedWeekly ? card.localId : null;
   };
 }

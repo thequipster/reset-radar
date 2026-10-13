@@ -150,22 +150,24 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
     { shortAfterCard:'keep_deadline', weeklyContinuation:'unknown',shortContinuation:'unknown' },
     { shortAfterCard:'restart_duration', weeklyContinuation:'unknown',shortContinuation:'unknown' },
   ];
-  // 无权重手填压力各自单列，不能平均成概率；有概率的背景过程始终256条共享路径。
-  const worlds = scenarios.flatMap(sc => (sc.source==='platform_background'?backgrounds:[backgrounds[0]!]).flatMap(background=>mechanisms.flatMap((mechanism, mi) => {
-    return sampleGroups.map(({samples:group,id,pattern,daily})=>{
-      const probabilistic=empirical||sc.source==='platform_background'&&background.ratePerDay>0&&Number.isFinite(background.ratePerDay);
-      const grouped=probabilistic&&!empirical?Array.from({length:256},()=>group[0]!):group;
-      return {id:`${sc.id}:mechanism-${mi}:${id}${sc.source==='platform_background'?`:rate-${background.id}`:''}`,mechanism,probabilistic,pattern,daily,
-        paths:grouped.map((demand,path)=>({start:input.now,end,demand,reviews:input.reviews,platform:[...scenarioEvents(sc,input.now,end),...(sc.source==='platform_background'?(background.paths[path]??[]).map((at,i)=>({at,incidentId:`background-${path}-${i}`,weekly:true,short:false,reanchorWeekly:false})):[])]}as WorldPath))};
-    });
-  })));
-  const baselines = worlds.map(w => w.paths.map(path => simulatePolicy(input.account,input.cards,NEVER_USE,path,w.mechanism,()=>({weeklyCost:0,shortCost:null,nextKnownSupplyAt:input.account.weekly.resetsAt,blocks:[]}))));
+  // RR53：只保留一个情景的256条配对路径/基线，汇总后释放；不删情景、不改概率抽样。
   const known = input.cards.filter(c => c.state==='available' && c.reconciliation==='consistent' && c.confirmedAt!=null && c.safeDeadlineAt!=null && input.now<c.safeDeadlineAt-30*60_000)
     .sort((a,b)=>a.safeDeadlineAt!-b.safeDeadlineAt!||a.localId.localeCompare(b.localId));
-  const comparisons: PolicyComparison[]=[];
   const parameterOptions=enumeratePolicyParameters(input.explicitDemand?.every(b=>b.shortCost!=null)??false);
+  const comparisons: PolicyComparison[]=[];
   for(const parameters of known.length?parameterOptions:parameterOptions.slice(0,1)) for(const firstAction of ['wait',...known.map(c=>c.localId)]) {
-    const metrics = worlds.map((w,wi) => {
+    comparisons.push({id:`${firstAction}:${parameters.quantile}:${parameters.horizonHours}:${parameters.expiryLeadHours}:${parameters.useForShort}`,firstAction:firstAction==='wait'?null:firstAction,parameters,scenarios:[],
+      Ltail:0,Lmean:0,Eexpire:0,Nspent:0,dominated:false,firstCardDeadline:known.find(c=>c.localId===firstAction)?.safeDeadlineAt??undefined});
+  }
+  for(const sc of scenarios) for(const background of sc.source==='platform_background'?backgrounds:[backgrounds[0]!]) for(const [mi,mechanism] of mechanisms.entries()) for(const {samples:group,id,pattern,daily:scenarioDaily} of sampleGroups) {
+    const probabilistic=empirical||sc.source==='platform_background'&&background.ratePerDay>0&&Number.isFinite(background.ratePerDay);
+    const grouped=probabilistic&&!empirical?Array.from({length:256},()=>group[0]!):group;
+    const events=scenarioEvents(sc,input.now,end);
+    const paths=grouped.map((demand,path)=>({start:input.now,end,demand,reviews:input.reviews,platform:[...events,...(sc.source==='platform_background'?(background.paths[path]??[]).map((at,i)=>({at,incidentId:`background-${path}-${i}`,weekly:true,short:false,reanchorWeekly:false})):[])]}as WorldPath));
+    const baselines=paths.map(path=>simulatePolicy(input.account,input.cards,NEVER_USE,path,mechanism,()=>({weeklyCost:0,shortCost:null,nextKnownSupplyAt:input.account.weekly.resetsAt,blocks:[]}),{recordTrajectory:false}));
+    const w={id:`${sc.id}:mechanism-${mi}:${id}${sc.source==='platform_background'?`:rate-${background.id}`:''}`,mechanism,probabilistic,pattern,daily:scenarioDaily};
+    for(const comparison of comparisons) {
+      const {parameters}=comparison;
       const horizonMs = parameters.horizonHours===0 ? nextReviewDelay(input.reviews,input.now) : parameters.horizonHours*HOUR_MS;
       const daily = input.policyDefaultTier?w.daily:input.dailyRange ? parameters.quantile===0.5?input.dailyRange.median:parameters.quantile===0.8?input.dailyRange.high:input.dailyRange.p95 : input.todayBudget ?? 0;
       const forecastAt=(at:number,state:Readonly<VisibleState>):DemandForecast=>{
@@ -176,14 +178,15 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
           index===0&&today?input.todayBudget??todayDaily:daily);
         return {weeklyCost:blocks.reduce((s,b)=>s+b.weeklyCost,0),shortCost:blocks.every(b=>b.shortCost!=null)?blocks.reduce((s,b)=>s+(b.shortCost??0),0):null,nextKnownSupplyAt:state.weekly.resetsAt,blocks};
       };
-      const results=known.length===0?baselines[wi]!:w.paths.map(path=>simulatePolicy(input.account,input.cards,makePolicy(parameters,firstAction,input.now,w.mechanism),path,w.mechanism,forecastAt));
-      return summarize(w.id,results,baselines[wi]!,w.probabilistic);
-    });
-    const Nspent=Math.max(...metrics.map(m=>m.spent));
-    comparisons.push({id:`${firstAction}:${parameters.quantile}:${parameters.horizonHours}:${parameters.expiryLeadHours}:${parameters.useForShort}`,firstAction:firstAction==='wait'?null:firstAction,parameters,scenarios:metrics,
-      Ltail:Math.max(...metrics.map(m=>m.lossTail)),Lmean:Math.max(...metrics.map(m=>m.lossMean)),Eexpire:Math.max(...metrics.map(m=>m.expired)),Nspent,
-      firstCardDeadline:known.find(c=>c.localId===firstAction)?.safeDeadlineAt??undefined,
-      dominated:Nspent>0&&metrics.every(m=>m.deltaLoss<=0&&m.deltaConsumedWeekly<=0)});
+      const results=known.length===0?baselines:paths.map(path=>simulatePolicy(input.account,input.cards,makePolicy(parameters,comparison.firstAction??'wait',input.now,mechanism),path,mechanism,forecastAt,{recordTrajectory:false}));
+      comparison.scenarios.push(summarize(w.id,results,baselines,probabilistic));
+    }
+  }
+  for(const comparison of comparisons) {
+    const metrics=comparison.scenarios;
+    comparison.Ltail=Math.max(...metrics.map(m=>m.lossTail));comparison.Lmean=Math.max(...metrics.map(m=>m.lossMean));
+    comparison.Eexpire=Math.max(...metrics.map(m=>m.expired));comparison.Nspent=Math.max(...metrics.map(m=>m.spent));
+    comparison.dominated=comparison.Nspent>0&&metrics.every(m=>m.deltaLoss<=0&&m.deltaConsumedWeekly<=0);
   }
   // 第一张卡也必须有边际用途：同参数“先等”若所有机制都不差且少花卡，剔除冗余的现在空打。
   for(const current of comparisons.filter(c=>c.firstAction!=null)){

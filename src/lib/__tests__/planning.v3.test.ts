@@ -18,6 +18,14 @@ const world = (demand: DemandBlock[], end: number, reviews: number[] = [0]): Wor
   ({ start: 0, end, demand, platform: [], reviews });
 
 describe('v3 planning/simulator behavioral acceptance', () => {
+  it('summary simulation retains every metric and action while omitting the unused trajectory',()=>{
+    const w=world([block(0,DAY_MS,80),block(DAY_MS,2*DAY_MS,40)],2*DAY_MS,[0,DAY_MS]);
+    const policy=({now}:{now:number})=>now===0?'c1':null;
+    const detailed=simulatePolicy(account(),[usableCard(3*DAY_MS)],policy,w,fixed,forecast);
+    const summary=simulatePolicy(account(),[usableCard(3*DAY_MS)],policy,w,fixed,forecast,{recordTrajectory:false});
+    expect(detailed.trajectory.length).toBeGreaterThan(0);
+    expect(summary).toEqual({...detailed,trajectory:[]});
+  });
   it('uniform work first becomes insufficient when the remaining resource actually runs out',()=>{
     const result=simulatePolicy(account({weekly:{remaining:20,resetsAt:DAY_MS,durationMins:10080}}),[],NEVER_USE,
       world([block(0,10*HOUR_MS,40)],10*HOUR_MS),fixed,forecast);
