@@ -1,3 +1,5 @@
+import {WEEKDAY_VERSION} from './lib/v3/weekday';
+import {evaluateWeekdayJournal} from './lib/v3/runtime';
 // 应用根（RR09 → RR27 三态重构 → RR43 悬浮外壳：托盘常驻 + 迷你圆 + 贴边停靠）。
 // collapsed / peek / expanded 展示分层 + 主题记忆 + 数据生命周期接线。
 // UI 层零业务规则（ARCHITECTURE §2）——数字与建议一律产自 adapters 视图模型；
@@ -409,6 +411,7 @@ export default function App() {
   const planningWorker=useV3Planning(baseVM?.planningInput??null);
   const vm=useMemo(()=>baseVM?mergeV31Planning(baseVM,planningWorker.result):null,[baseVM,planningWorker.result]);
   const calibrationV3=useMemo(()=>evaluatePlatformJournal(journal.predictionContent,journal.historyDocument,modelNow),[journal.predictionContent,journal.historyDocument,modelNow]);
+  const weekdayCalibration=useMemo(()=>evaluateWeekdayJournal(journal.predictionContent,modelNow),[journal.predictionContent,modelNow]);
   const verdictSummaries=useMemo(()=>summarizeVerdicts(journal.predictionContent),[journal.predictionContent]);
   const [journalWriteError,setJournalWriteError]=useState<string|null>(null);
   useEffect(() => {
@@ -421,21 +424,36 @@ export default function App() {
     const prefix=`v3:${snapshotId}:${historySnapshotId}:${vm.now}:${vm.ledgerVersion}:${vm.preferenceVersion}`;
     void(async()=>{
       await journal.appendPrediction({...base,id:`${prefix}:platform`,target:'platform_notice',probability:vm.platformLongTerm.probability24h,modelVersion:'platform-v3:P0',featureContributions:vm.platformLongTerm.factors});
-      await journal.appendPrediction({...base,id:`${prefix}:d60`,target:'platform_notice',probability:vm.platformReference.decay.probability24h,modelVersion:'platform-v3.1:D60',featureContributions:[vm.platformReference.decay],assumptions:[...base.assumptions,'60天半衰期/7等效日收缩为固定假设，短期冻结发生率。']});
+      let weekdayFailure:string|null=null;
+      const d60={...base,id:`${prefix}:d60`,target:'platform_notice' as const,probability:vm.platformReference.decay.probability24h,modelVersion:'platform-v3.1:D60',featureContributions:[vm.platformReference.decay],assumptions:[...base.assumptions,'60天半衰期/7等效日收缩为固定假设，短期冻结发生率。']};
+      const weekday=vm.weekdayShadow;
+      if(weekday?.forecast&&Number.isFinite(weekday.forecast.probability)&&weekday.forecast.probability>=0&&weekday.forecast.probability<=1){
+        try{
+          const result=await journal.appendWeekdayPair(d60,{...base,id:`${prefix}:weekday`,target:'platform_notice',probability:weekday.forecast.probability,modelVersion:WEEKDAY_VERSION,
+            featureContributions:[{version:weekday.model.version,timezone:weekday.model.timezone,shrinkagePerWeekdayDays:weekday.model.shrinkagePerWeekdayDays,
+              counts:weekday.model.counts,exposures:weekday.model.exposures,multipliers:weekday.model.multipliers,rates:weekday.model.rates,baseRate:weekday.model.base.ratePerDay,
+              segments:weekday.forecast.segments,integratedHazard:weekday.forecast.integratedHazard}],assumptions:[...base.assumptions,'每星期28等效日收缩至D60；北京时间分段积分，影子不改变账号映射或用卡规划。']});
+          weekdayFailure=result.error;
+        }catch(error){weekdayFailure=String(error);await journal.appendPrediction(d60);try{await journal.stopWeekdayShadow(weekdayFailure,vm.now);}catch{/* 主链继续，故障仍显示。 */}}
+      }else{
+        await journal.appendPrediction(d60);
+        if(weekday?.forecast){weekdayFailure='星期影子概率非有限或越界，候选已停写';try{await journal.stopWeekdayShadow(weekdayFailure,vm.now);}catch{/* 保留故障提示与D60。 */}}
+      }
+
       await journal.appendPrediction({...base,id:`${prefix}:r90`,target:'platform_notice',probability:vm.r90Probability,modelVersion:'platform-v3.1:R90-shadow',featureContributions:[]});
       await journal.appendPrediction({...base,id:`${prefix}:platform-shadow`,target:'platform_notice',probability:vm.platform.shadow.probability24h,modelVersion:'platform-v3:P1-shadow',featureContributions:vm.platform.shadowFactors});
       // v3 §2.1：平台目标不依赖账号读取；失败账号不追加个人预测/规划的成功输入。
-      if(codex.status!=="ok"){if(alive)setJournalWriteError(null);return;}
+      if(codex.status!=="ok"){if(alive)setJournalWriteError(weekdayFailure);return;}
       await journal.appendPrediction({...base,id:`${prefix}:account`,target:'account_external_reset',probability:vm.supply?.accountProbability24h??null,modelVersion:'account-v3:learning',featureContributions:[]});
       await journal.appendPrediction({...base,id:`${prefix}:demand`,target:'demand',probability:null,modelVersion:'demand-v3:empirical',featureContributions:[vm.demand]});
       if(vm.accountKey)await journal.appendAccountMapping(vm.accountKey,vm.mapping,vm.now);
       if(vm.planning)await journal.appendPlanning({id:`${prefix}:planning`,predictionId:`${prefix}:platform`,seed:vm.planning.seed,
         candidates:vm.planning.comparisons.map(c=>({id:c.id,firstAction:c.firstAction,Ltail:c.Ltail,Lmean:c.Lmean,Nspent:c.Nspent,Eexpire:c.Eexpire})),
         selected:vm.planning.selected,alternatives:vm.planning.selected?.scenarios??[]});
-      if(alive)setJournalWriteError(null);
+      if(alive)setJournalWriteError(weekdayFailure);
     })().catch(e=>{if(alive)setJournalWriteError(String(e));});
     return()=>{alive=false;};
-  },[vm,codex,live,demo,journal.appendPrediction,journal.appendPlanning,journal.appendAccountMapping,journal.historyDocument]);
+  },[vm,codex,live,demo,journal.appendPrediction,journal.appendWeekdayPair,journal.stopWeekdayShadow,journal.appendPlanning,journal.appendAccountMapping,journal.historyDocument]);
 
   return (
     <main
@@ -493,6 +511,7 @@ export default function App() {
           controller={personal}
           calibration={calibrationV3}
           verdictSummaries={verdictSummaries}
+          weekdayCalibration={weekdayCalibration}
           phase={effectivePhase}
           readError={readError}
           logError={journal.error ?? journalWriteError ?? planningWorker.error}

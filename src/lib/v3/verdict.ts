@@ -1,3 +1,4 @@
+import {WEEKDAY_VERSION} from './weekday';
 import {completeHistoryDocument} from './runtime';
 import {fitPlatformModel, DAY_MS, type RegularEventInput} from './platform';
 
@@ -8,7 +9,7 @@ const supported=/^(?:platform-v3:P[01](?:-shadow)?|platform-v3\.1:(?:D60|R90-sha
 const uid=(v:unknown)=>typeof v==='string'&&v.length>0;
 function read(content:string){const predictions:Prediction[]=[], verdicts:Verdict[]=[];
   for(const line of content.split(/\r?\n/))try{const x=JSON.parse(line);if(x.kind==='verdict'&&uid(x.predictionId)&&Number.isSafeInteger(x.version))verdicts.push(x);
-    const r=x.record??x;if(x.kind==='prediction'&&r?.target==='platform_notice'&&uid(r.id)&&supported.test(r.modelVersion)&&
+    const r=x.record??x;if(x.kind==='prediction'&&r?.target==='platform_notice'&&uid(r.id)&&(supported.test(r.modelVersion)||r.modelVersion===WEEKDAY_VERSION)&&
       [r.issuedAt,r.trainingCutoff,r.windowStart,r.windowEnd].every(Number.isFinite)&&r.trainingCutoff<=r.issuedAt&&r.windowStart<=r.issuedAt&&r.windowEnd>r.windowStart&&
       (r.probability==null||(Number.isFinite(r.probability)&&r.probability>=0&&r.probability<=1)))predictions.push({...r,group:x.group,groupDate:x.groupDate});
   }catch{/* ignore malformed journal rows */}return {predictions,verdicts};}

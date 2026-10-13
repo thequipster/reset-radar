@@ -7,6 +7,7 @@ import { RadarLogo, SunIcon, MoonIcon, ChevronUp, CloseIcon, RefreshIcon, GripDo
 import { beijingFull, beijingShort, percentWhole, creditsLabel } from './format';
 import { ProgressRing } from './viz';
 import type {PlatformCalibrationV3} from '../lib/v3/runtime';
+import type {WeekdayCalibration} from '../lib/v3/weekdayEvaluation';
 import styles from './DashboardPanel.module.css';
 import extra from './V3Dashboard.module.css';
 import compact from './CompactBar.module.css';
@@ -15,6 +16,7 @@ import peek from './PeekCard.module.css';
 export interface V3PanelProps {
   vm:V3DashboardModel|null; controller:PersonalInputsController;
   calibration?:PlatformCalibrationV3;
+  weekdayCalibration?:WeekdayCalibration;
   verdictSummaries?: readonly {modelVersion:string;sampleCount:number;positiveCount:number;unknownCount:number;pendingCount:number;brier:number|null;logLoss:number|null}[];
   phase:string; readError:string|null; logError?:string|null;subscriptionError:boolean;refreshing:boolean;demo:boolean;
   activeTheme:'light'|'dark';onThemePreference:(theme:'light'|'dark')=>void;onRefresh:()=>void;onCollapse:()=>void;onClose:()=>void;
@@ -22,6 +24,10 @@ export interface V3PanelProps {
 const pct=(v:number|null|undefined)=>v==null?'—':`${(v*100).toFixed(1)}%`;
 const amount=(v:number|null|undefined)=>v==null?'学习中':`${v.toFixed(1)} 周额度百分点`;
 const statusText={act_now:'建议现在处理',wait:'先保留，下一次查看再决定',conditional:'条件建议 · 尚有未知',need_data:'还在学习你的用量',not_applicable:'暂无可执行用卡方案'};
+const weekdayEvidenceText:Record<WeekdayCalibration['evidenceStatus'],string>={
+  unregistered:'尚未登记',collecting:'正在收集线上配对样本',review_due:'到达预定评审点',reviewed_unverified:'已评审，仍未验证',eligible_for_manual_review:'达到人工评审门槛',stopped:'影子记录已停止',
+};
+const signedScore=(value:number|null|undefined)=>value==null?'—':`${value>0?'+':''}${value.toFixed(4)}`;
 function Section({icon,children}:{icon:ReactNode;children:ReactNode}){return <div className={styles.sectionHead}><span className={styles.sectionIcon}>{icon}</span><span className={styles.sectionTitle}>{children}</span></div>;}
 function Suggestion({vm,onOpen}:{vm:V3DashboardModel;onOpen?:()=>void}){
   const budget=vm.recommendation.weeklyBudgetToday;
@@ -106,6 +112,24 @@ export default function V3Dashboard(props:V3PanelProps){
         <div className={styles.metricGrid}>{[{label:'完整需求日',value:`${vm.demand.sampleDays} 天`},{label:'regular 公告',value:`${vm.platform.training.eventCount} 条`},{label:'完整间隔',value:`${vm.platform.training.completedGapCount} 段`},{label:'当前参考模型',value:extraVm?.platformReference?.activeModel??'P0'}].map(item=><div className={styles.metricMini} key={item.label}><span className={styles.metricMiniLabel}>{item.label}</span><strong className={styles.metricMiniValue}>{item.value}</strong></div>)}</div><p className={styles.mutedNote}>个人完整周需求日少于7日仅初步范围，14日起显示常规经验分位。</p>
         <details className={extra.expander}><summary>最近账号状态变化</summary><p>余额与截止变化会保留执行区间；仅靠时间接近无法确认是平台补给，来源未知时不记为未命中。</p>{vm.mapping.filter(m=>m.incidentId!=null||m.knownClassification!=='unobservable').slice(-10).map((m,i)=><p key={i}>{beijingFull(new Date(m.interval.fromExclusive).toISOString())} – {beijingFull(new Date(m.interval.toInclusive).toISOString())}：{m.knownClassification==='natural_reset'?'自然补给候选':m.knownClassification==='card_use'?'已记录用卡干预':m.status==='ambiguous'?'来源歧义':m.status==='hit'?'已确认平台命中':m.status==='miss'?'可辨识未命中':'不可观测'}。{m.reason}</p>)}</details>
         <p>参考启用与验证分开；60 日仅作回顾节点，现有回放尚未证明哪种模型更准。回放是历史证据，不代表线上成熟样本。</p>
+        {extraVm?.weekdayShadow&&<section className={`${extra.replayBlock} ${extra.weekdayShadow}`} aria-label="星期影子模型验证">
+          <h3>星期影子 · 当前参考保持不变</h3>
+          <p>星期影子 {extraVm.weekdayShadow.status==='shadow'&&extraVm.weekdayShadow.forecast?pct(extraVm.weekdayShadow.forecast.probability):'—'} · D60 配对参考 {pct(extraVm.platformReference?.decay.probability24h)} · 当前选中 {extraVm.platformReference?.activeModel??'P0'} {pct(vm.platform.probability24h)} · 差值 {extraVm.weekdayShadow.differencePoints==null?'—':`${extraVm.weekdayShadow.differencePoints>0?'+':''}${extraVm.weekdayShadow.differencePoints.toFixed(2)} 个百分点`}</p>
+          {extraVm.weekdayShadow.status==='unavailable'&&<p role="status">星期预测暂不可用：{extraVm.weekdayShadow.reason}</p>}
+          <p className={extra.note}>影子概率只用于配对观察；不改变用卡模拟或建议。</p>
+          <details><summary>训练覆盖与线上验证</summary>
+            <dl className={extra.details}>
+              <dt>训练覆盖</dt><dd>{extraVm.weekdayShadow.model.base.exposureDays.toFixed(1)} 天完整覆盖 · {extraVm.weekdayShadow.model.base.weightedExposureDays.toFixed(1)} 加权暴露天</dd>
+              <dt>有效配对日</dt><dd>{props.weekdayCalibration?.matchedCount??'—'}</dd>
+              <dt>正例 / 覆盖周</dt><dd>{props.weekdayCalibration?`${props.weekdayCalibration.positiveCount} / ${props.weekdayCalibration.weekCount}`:'—'}</dd>
+              <dt>ΔBrier（D60−星期）</dt><dd>{signedScore(props.weekdayCalibration?.deltaBrier)}</dd>
+              <dt>证据状态</dt><dd>{props.weekdayCalibration?weekdayEvidenceText[props.weekdayCalibration.evidenceStatus]:'等待线上评分数据'} · 未验证</dd>
+              <dt>正式评审</dt><dd>启用后第 90 / 180 / 365 天</dd>
+              <dt>下次评审</dt><dd>{!props.weekdayCalibration||props.weekdayCalibration.activationAt==null?'等待实验登记':props.weekdayCalibration.nextReviewAt==null?'预定评审已完成':`${beijingFull(new Date(props.weekdayCalibration.nextReviewAt).toISOString())} 北京时间`}</dd>
+            </dl>
+            {props.weekdayCalibration&&<p>待成熟 {props.weekdayCalibration.pendingCount} · 未知 {props.weekdayCalibration.unknownCount} · 缺配对 {props.weekdayCalibration.missingPairCount}；负值 ΔBrier 表示星期模型较差。无论达到何种状态，转正都须人工审阅。</p>}
+          </details>
+        </section>}
         {replay?.all&&<section className={extra.replayBlock} aria-label="历史回放对照"><h3>历史回放 · 全期</h3>{replayTable('all')}<details><summary>近期窗口对照</summary><h3>近 180 日</h3>{replayTable('recent180')}<h3>近 90 日</h3>{replayTable('recent90')}</details></section>}
         {props.verdictSummaries&&props.verdictSummaries.length>0&&<section className={extra.replayBlock} aria-label="线上 verdict 汇总"><h3>线上验证汇总</h3><p>只统计已追加的在线 verdict；当前汇总未证明 D60 已有成熟在线样本。</p><table className={extra.referenceTable}><thead><tr><th>模型</th><th>样本</th><th>正例</th><th>待覆盖</th><th>未知</th><th>Brier</th><th>Log loss</th></tr></thead><tbody>{props.verdictSummaries.map(row=><tr key={row.modelVersion}><th>{row.modelVersion}</th><td>{row.sampleCount}</td><td>{row.positiveCount}</td><td>{row.pendingCount}</td><td>{row.unknownCount}</td><td>{score(row.brier)}</td><td>{score(row.logLoss)}</td></tr>)}</tbody></table></section>}
         <dl className={extra.details}><dt>长期 P0 Brier</dt><dd>{score(replay?.all?.p0?.brier)}</dd></dl>

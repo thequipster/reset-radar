@@ -1,3 +1,5 @@
+import {WEEKDAY_VERSION} from '../lib/v3/weekday';
+import {weekdayExperiment,dueWeekdayReviews,weekdayRollbackReview,evaluateWeekdayJournal} from '../lib/v3/weekdayEvaluation';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { buildUsageObservations, type SnapshotV3, type UsageObservation } from "../lib/v3/observations";
@@ -64,6 +66,7 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
   const [predictionContent,setPredictionContent]=useState('');
   const activeAccount = useRef<string | null>(snapshot?.accountKey ?? null);
   const writer = useRef<Promise<unknown>>(Promise.resolve());
+  const weekdayStopped=useRef<string|null>(null);
   const enqueueWrite = useCallback(<T,>(operation: () => Promise<T>): Promise<T> => {
     const result = writer.current.catch(() => undefined).then(operation);
     writer.current = result;
@@ -143,6 +146,40 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
     });
   }, [enqueueWrite]);
 
+  const weekdayFault=async(reason:string,at:number)=>appendOnce('cards',{id:`weekday-fault:${WEEKDAY_VERSION}`,observedAt:new Date(at).toISOString(),kind:'weekday_fault',modelVersion:WEEKDAY_VERSION,at,reason});
+  const stopWeekdayShadow=useCallback(async(reason:string,at:number)=>{
+    weekdayStopped.current=reason;await enqueueWrite(()=>weekdayFault(reason,at));setError(`星期影子已停写：${reason}`);
+  },[enqueueWrite]);
+  const appendWeekdayPair=useCallback(async(d60Input:PredictionRecordV3,weekdayInput:PredictionRecordV3):Promise<{error:string|null}>=>{
+    const d60=freezePrediction(d60Input),weekday=freezePrediction(weekdayInput);
+    if(d60.modelVersion!=='platform-v3.1:D60'||weekday.modelVersion!==WEEKDAY_VERSION||d60.target!=='platform_notice'||weekday.target!==d60.target||
+      ['issuedAt','trainingCutoff','windowStart','windowEnd','platformHistorySnapshotId'].some(key=>d60[key as keyof PredictionRecordV3]!==weekday[key as keyof PredictionRecordV3])||
+      d60.windowEnd-d60.windowStart!==86400000||!d60.platformHistorySnapshotId||d60.platformHistorySnapshotId.endsWith(':unknown')||weekday.probability==null)
+      throw new Error('星期影子与D60缺同次冻结的24小时窗口/历史快照');
+    return enqueueWrite(async()=>{
+      let content=(await read('cards')).content;
+      const rows=content.split(/\r?\n/).flatMap(line=>{try{return [JSON.parse(line)];}catch{return [];}});
+      const stopped=rows.find(row=>row.kind==='weekday_fault'&&row.modelVersion===WEEKDAY_VERSION);
+      if(stopped)weekdayStopped.current=String(stopped.reason);
+      const scheduled=predictionGroupAt(d60.issuedAt,false);
+      const alreadyPrimary=scheduled.groupDate!=null&&rows.some(row=>row.kind==='prediction'&&row.group==='primary_daily'&&row.groupDate===scheduled.groupDate&&
+        row.record?.target==='platform_notice'&&['platform-v3.1:D60',WEEKDAY_VERSION].includes(row.record.modelVersion));
+      const grouping=predictionGroupAt(d60.issuedAt,alreadyPrimary);
+      const observedAt=new Date(d60.issuedAt).toISOString();
+      // D60先落盘，候选故障不能抹去主参考；两行沿用同一个冻结group，CAS串行防重启增样。
+      content=await appendOnce('cards',{id:d60.id,observedAt,kind:'prediction',...grouping,record:d60});
+      if(weekdayStopped.current)return {error:`星期候选此前已停写：${weekdayStopped.current}`};
+      try{
+        if(!rows.some(row=>row.kind==='weekday_experiment'&&row.record?.modelVersion===WEEKDAY_VERSION)){
+          // 同次实际计算的发布时钟；不用历史coverage/fetchedAt回填启用日期。
+          content=await appendOnce('cards',weekdayExperiment(d60.issuedAt));
+        }
+        content=await appendOnce('cards',{id:weekday.id,observedAt,kind:'prediction',...grouping,record:weekday});
+        setPredictionContent(content);return {error:null};
+      }catch(cause){const reason=String(cause);weekdayStopped.current=reason;try{await weekdayFault(reason,Date.now());}catch{/* 原写失败仍抛显式候选故障，不改旧行。 */}setError(`星期影子已停写：${reason}`);return {error:reason};}
+    });
+  },[enqueueWrite]);
+
   const appendPlanning = useCallback(async (input: PlanningJournalRecord) => {
     const record = freezePlanning(input);
     await enqueueWrite(() => appendOnce("cards", { id: record.id, observedAt: new Date().toISOString(), kind: "planning", record }));
@@ -154,6 +191,7 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
       const log=await read('cards'),now=Date.now();let content=log.content;
       const history=latestArchivedHistory(content,RESET_HISTORY_SOURCE);
       for(const v of settlePlatformPredictions(content,history,now)){if(!alive)return;content=await appendOnce('cards',{...v,observedAt:v.observedAtISO});}
+      for(const review of dueWeekdayReviews(content,now)){if(!alive)return;content=await appendOnce('cards',review);}
       // 每周一实际运行时回顾一次，不能靠每次render追赢家。
       const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
       const rows=content.split(/\r?\n/).flatMap(line=>{try{return [JSON.parse(line)]}catch{return []}});
@@ -162,6 +200,10 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
         const mature=rows.filter(r=>r.kind==='prediction'&&r.group==='primary_daily'&&verdicts.get(r.record.id)?.label!=null&&r.record.probability!=null).map(r=>({...r.record,groupDate:r.groupDate,label:verdicts.get(r.record.id)!.label!}));
         const review=weeklyFallbackReview(mature,now,rows.filter(r=>r.kind==='weekly_review').map(r=>r.record));
         content=await appendOnce('cards',{id:`weekly-review:${date}:${review.version}`,observedAt:new Date(now).toISOString(),kind:'weekly_review',reviewDate:date,record:review,summary:summarizeVerdicts(content)});
+      }
+      if(new Date(now+8*3_600_000).getUTCDay()===1&&!rows.some(r=>r.kind==='weekday_rollback_review'&&r.reviewDate===date)){
+        const record=weekdayRollbackReview(content,now);
+        if(evaluateWeekdayJournal(content,now).activationAt!=null)content=await appendOnce('cards',{id:`weekday-rollback:${WEEKDAY_VERSION}:${date}`,observedAt:new Date(now).toISOString(),kind:'weekday_rollback_review',reviewDate:date,record});
       }
       if(alive)setPredictionContent(content);
     }).catch(cause=>{if(alive)setError(`标签结算未完成：${String(cause)}`)});
@@ -211,7 +253,7 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
     return()=>{alive=false;};
   },[enabled,snapshot?.resetStatus?.fetchedAt,snapshot?.resetStatus?.status,enqueueWrite,refresh]);
 
-  return { observations,accountSnapshots, signalHistory, historyDocument,predictionContent,error:error??historyError, refresh, appendSnapshot, appendPrediction, appendPlanning,appendAccountMapping };
+  return { observations,accountSnapshots, signalHistory, historyDocument,predictionContent,error:error??historyError, refresh, appendSnapshot, appendPrediction,appendWeekdayPair,stopWeekdayShadow, appendPlanning,appendAccountMapping };
 }
 
 export interface PlatformSignalHistory {

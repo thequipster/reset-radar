@@ -54,11 +54,34 @@ describe('v3.2 星期效应影子提案', () => {
     expect(predictWeekday(model, cutoff, DAY_MS)?.probability).toBe(0);
   });
 
+  it('覆盖未知时保留未知星期率，不把缺数据伪装成零风险', () => {
+    const model = fitWeekdayModel(input([], []));
+    expect(model.base.ratePerDay).toBeNull();
+    expect(model.rates).toEqual(Array(7).fill(null));
+    expect(predictWeekday(model, cutoff, 0)).toBeNull();
+  });
+
+  it('拒绝缺项、非有限、负数星期率及非法模型数组', () => {
+    const model = fitWeekdayModel(input());
+    for (const rates of [[...model.rates.slice(0, 6)], [NaN, ...model.rates.slice(1)], [Infinity, ...model.rates.slice(1)], [-1, ...model.rates.slice(1)]]) {
+      expect(predictWeekday({ ...model, rates }, cutoff)).toBeNull();
+    }
+    expect(predictWeekday({ ...model, rates: Array(8).fill(0) }, cutoff)).toBeNull();
+  });
+
+  it('拒绝超出Date范围及超长视野，普通零时长仍有效', () => {
+    const model = fitWeekdayModel(input());
+    expect(predictWeekday(model, 8.64e15)).toBeNull();
+    expect(predictWeekday(model, cutoff, 8.64e15)).toBeNull();
+    expect(predictWeekday(model, cutoff, 3661 * DAY_MS)).toBeNull();
+    expect(predictWeekday(model, cutoff, 0)?.segments).toEqual([]);
+  });
+
   it('未来按BJT午夜切段，当前星期先走到午夜再走下一天', () => {
     const model = fitWeekdayModel(input());
     const now = bjt(62, 9), pred = predictWeekday(model, now, 24 * 60 * 60_000)!;
     expect(pred.segments.map(s => [s.weekday, (s.to - s.from) / 3_600_000])).toEqual([[2, 15], [3, 9]]);
-    expect(pred.integratedHazard).toBeCloseTo((15 * model.rates[2] + 9 * model.rates[3]) / 24, 12);
+    expect(pred.integratedHazard).toBeCloseTo((15 * model.rates[2]! + 9 * model.rates[3]!) / 24, 12);
   });
 
   it('排除覆盖空洞、非regular事件和训练截止之后才看到的记录', () => {
@@ -67,6 +90,24 @@ describe('v3.2 星期效应影子提案', () => {
     const model = fitWeekdayModel(input(events, gapCoverage));
     expect(model.counts.reduce((a, b) => a + b, 0)).toBeCloseTo(Math.exp(-Math.LN2 / 60 * 58), 12);
     expect(model.exposures.reduce((a, b) => a + b, 0)).toBeCloseTo(model.base.weightedExposureDays, 9);
+  });
+
+  it('重叠覆盖只累计一次，缺口仍保持未知且不计暴露', () => {
+    const gapCoverage = [{ from: bjt(1), to: bjt(20), complete: true as const }, { from: bjt(22), to: cutoff, complete: true as const }];
+    const overlapping = [...gapCoverage, { from: bjt(10), to: bjt(15), complete: true as const }, { from: bjt(22), to: bjt(23), complete: true as const }];
+    const expected = fitWeekdayModel(input([], gapCoverage)), actual = fitWeekdayModel(input([], overlapping));
+    expect(actual.exposures).toEqual(expected.exposures);
+    expect(actual.base.weightedExposureDays).toBe(expected.base.weightedExposureDays);
+  });
+
+  it('未来才可知的firstSeen或修订不改变冻结拟合', () => {
+    const visible = event(bjt(4), 'stable', { firstSeenAt: bjt(5), versionSeenAt: bjt(6) });
+    const future = event(bjt(4), 'future-revision', { firstSeenAt: cutoff + 1, versionSeenAt: cutoff + 1 });
+    const baseline = fitWeekdayModel(input([visible]));
+    const withFuture = fitWeekdayModel(input([visible, future]));
+    expect(withFuture.counts).toEqual(baseline.counts);
+    expect(withFuture.exposures).toEqual(baseline.exposures);
+    expect(withFuture.rates).toEqual(baseline.rates);
   });
 
   it('事件周几采用结束包含、开始排除的覆盖成员口径', () => {

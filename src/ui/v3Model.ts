@@ -7,6 +7,7 @@ import { aggregateUsageDays, type UsageObservation } from '../lib/v3/observation
 import { fitDemandModel, selectDemandDays, type WorkloadChoice } from '../lib/v3/demand';
 import { planActions,comparePolicies,scopeDefaultComparisons, type PlanningOutput, type Recommendation, type PlanningInput } from '../lib/v3/planning';
 import {coldStartAdvice,POLICY_DAILY_COST,type ColdStartAdvice} from '../lib/v3/coldStart';
+import {fitWeekdayModel,predictWeekday} from '../lib/v3/weekday';
 import {fitTrendModel,replayTrend,selectTrendReference,rateProbability,recentWindowRate} from '../lib/v3/trend';
 import {normalizeAccount,buildReviewTimes,normalizeSignalVersions} from '../lib/v3/inputs';
 import type { PersonalInputsState } from './usePersonalInputs';
@@ -37,6 +38,11 @@ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unkno
   let replay=typeof historyDocument==='object'&&historyDocument!=null?replayCache.get(historyDocument):undefined;
   if(!replay){replay=replayTrend({...trendInput,to:history.fetchedAt});if(typeof historyDocument==='object'&&historyDocument!=null)replayCache.set(historyDocument,replay);}
   const platformReference=selectTrendReference(fitTrendModel(trendInput),replay);
+  const weekdayModel=fitWeekdayModel(trendInput),weekdayForecast=predictWeekday(weekdayModel,now,DAY_MS);
+  const weekdayShadow={model:weekdayModel,forecast:weekdayForecast,
+    differencePoints:weekdayForecast==null||platformReference.decay.probability24h==null?null:(weekdayForecast.probability-platformReference.decay.probability24h)*100,
+    status:weekdayForecast==null?'unavailable' as const:'shadow' as const,
+    reason:weekdayForecast==null?'完整覆盖或有限发生率不足；星期候选不写入':'固定D60-W28-BJT影子，尚未验证；当前概率参考及用卡仍沿用D60/P0'};
   const platform=platformReference.activeModel==='D60'?{...platformLongTerm,probability24h:platformReference.decay.probability24h,probabilities:platformReference.decay.probabilities,globalRatePerDay:platformReference.decay.ratePerDay,
     factors:platformLongTerm.probability24h==null||platformReference.decay.probability24h==null?[]:[{key:'long_term',before:0,after:platformLongTerm.probability24h,explanation:'P0长期参考'},{key:'calendar_decay',before:platformLongTerm.probability24h,after:platformReference.decay.probability24h,explanation:'D60近期日历权重；60天半衰期/7等效日收缩是预定假设'}]}:platformLongTerm;
   const account=normalizeAccount(snapshot);
@@ -96,7 +102,7 @@ export function buildV3Dashboard(snapshot:ProviderSnapshot,historyDocument:unkno
   const result={provider:snapshot.provider,status:snapshot.status,message:snapshot.message,plan:snapshot.plan,updatedAt:snapshot.updatedAt,now,
     accountKey:snapshot.accountKey??null,account,remainingPercent:account?.weekly.remaining??snapshot.weeklyWindow?.remainingPercent??null,
     shortRemainingPercent:account?.short.remaining??snapshot.shortWindow?.remainingPercent??null,resetCredits:snapshot.resetCredits,
-    platformModel,platform,platformLongTerm,platformReference,r90Probability:rateProbability(recentWindowRate(trendInput),DAY_MS),supply,mapping,demand,planning,planningInput,recommendation,personal:data,coldContext,coldAdvice:initialAdvice,cardPreview:account?{weekly:100,short:100,weeklyDeadlineAt:weeklyDeadlineAfterCard(now)}:null,
+    platformModel,platform,platformLongTerm,platformReference,weekdayShadow,r90Probability:rateProbability(recentWindowRate(trendInput),DAY_MS),supply,mapping,demand,planning,planningInput,recommendation,personal:data,coldContext,coldAdvice:initialAdvice,cardPreview:account?{weekly:100,short:100,weeklyDeadlineAt:weeklyDeadlineAfterCard(now)}:null,
     ledgerVersion:`card-v${data.cardVersions.length}`,preferenceVersion:`preference-v${data.version}`,
     evidenceQuality:[...(coverage.length?[]:['平台历史覆盖不完整，概率可能不可评估。']),'历史firstSeenAt缺失时只作公告时间理想化参考。',`历史覆盖截至 ${Number.isFinite(history.fetchedAt)?new Date(history.fetchedAt).toISOString():'未知'}`],
   };return mergeV31Planning(result,planning);

@@ -88,3 +88,6 @@ export function latestArchivedHistory(content:string,fallback:unknown):unknown {
   }catch{/* 单条损坏不能抹去可用的完整历史。 */}
   return latest;
 }
+
+// 独立星期分支：不复用P0/P1的旧升级门槛。
+export {evaluateWeekdayJournal,dueWeekdayReviews,weekdayRollbackReview} from './weekdayEvaluation';
