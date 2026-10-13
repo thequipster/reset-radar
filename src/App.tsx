@@ -412,7 +412,7 @@ export default function App() {
   const verdictSummaries=useMemo(()=>summarizeVerdicts(journal.predictionContent),[journal.predictionContent]);
   const [journalWriteError,setJournalWriteError]=useState<string|null>(null);
   useEffect(() => {
-    if(!live||demo||!vm||!codex||codex.status!=="ok")return;
+    if(!live||demo||!vm||!codex)return;
     let alive=true;
     const snapshotId=`v3-${codex.accountKey??'unknown'}-${codex.rateLimitSnapshot?.observedAt??codex.updatedAt}`;
     const historySnapshotId=`platform-history:${(journal.historyDocument as {fetchedAt?:string})?.fetchedAt??'unknown'}`;
@@ -424,6 +424,8 @@ export default function App() {
       await journal.appendPrediction({...base,id:`${prefix}:d60`,target:'platform_notice',probability:vm.platformReference.decay.probability24h,modelVersion:'platform-v3.1:D60',featureContributions:[vm.platformReference.decay],assumptions:[...base.assumptions,'60天半衰期/7等效日收缩为固定假设，短期冻结发生率。']});
       await journal.appendPrediction({...base,id:`${prefix}:r90`,target:'platform_notice',probability:vm.r90Probability,modelVersion:'platform-v3.1:R90-shadow',featureContributions:[]});
       await journal.appendPrediction({...base,id:`${prefix}:platform-shadow`,target:'platform_notice',probability:vm.platform.shadow.probability24h,modelVersion:'platform-v3:P1-shadow',featureContributions:vm.platform.shadowFactors});
+      // v3 §2.1：平台目标不依赖账号读取；失败账号不追加个人预测/规划的成功输入。
+      if(codex.status!=="ok"){if(alive)setJournalWriteError(null);return;}
       await journal.appendPrediction({...base,id:`${prefix}:account`,target:'account_external_reset',probability:vm.supply?.accountProbability24h??null,modelVersion:'account-v3:learning',featureContributions:[]});
       await journal.appendPrediction({...base,id:`${prefix}:demand`,target:'demand',probability:null,modelVersion:'demand-v3:empirical',featureContributions:[vm.demand]});
       if(vm.accountKey)await journal.appendAccountMapping(vm.accountKey,vm.mapping,vm.now);

@@ -1,0 +1,54 @@
+恢复错误的账号总门控：if(!live||demo||!vm||!codex)return; -> if(!live||demo||!vm||!codex||codex.status!=="ok")return;
+RED
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR52
+
+ ❯ src/ui/__tests__/ui.platform-publication.test.ts (4 tests | 2 failed) 14ms
+   ❯ 平台发布独立于账号读取 (4)
+     × 账号error仍发布四个平台目标，保留概率与09:00发布时刻 9ms
+     × 账号stale仍发布四个平台目标，保留概率与09:00发布时刻 2ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Start at  09:35:17
+   Duration  560ms (import 80%, transform 16%, tests 3%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/ui/__tests__/ui.platform-publication.test.ts > 平台发布独立于账号读取 > 账号error仍发布四个平台目标，保留概率与09:00发布时刻
+ FAIL  src/ui/__tests__/ui.platform-publication.test.ts > 平台发布独立于账号读取 > 账号stale仍发布四个平台目标，保留概率与09:00发布时刻
+AssertionError: expected [] to deeply equal [ 'platform-v3:P0', …(3) ]
+
+- Expected
++ Received
+
+- [
+-   "platform-v3:P0",
+-   "platform-v3.1:D60",
+-   "platform-v3.1:R90-shadow",
+-   "platform-v3:P1-shadow",
+- ]
++ []
+
+ ❯ src/ui/__tests__/ui.platform-publication.test.ts:39:59
+     37|   it.each(['error','stale'])('账号%s仍发布四个平台目标，保留概率与09:00发布时刻',async stat…
+     38|     const actual=await publish(status),healthy=await publish('ok');
+     39|     expect(actual.predictions.map(row=>row.modelVersion)).toEqual(plat…
+       |                                                           ^
+     40|     expect(actual.predictions).toEqual(healthy.predictions.filter(row=…
+     41|     expect(actual.planning).toEqual([]);expect(actual.mappings).toEqua…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+RESTORED GREEN
+
+ RUN  v5.0.3 C:/Users/slsjz/Desktop/reset-radar_wt/RR52
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  09:35:20
+   Duration  498ms (import 80%, transform 16%, tests 3%, worker 1%)
+
