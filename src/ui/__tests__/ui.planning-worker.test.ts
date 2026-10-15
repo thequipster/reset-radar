@@ -1,10 +1,12 @@
 // RR56：规划 worker 调度——同签名复用、缓存命中不开 worker、收起面板不打断进行中的任务。
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { PlanningInput, PlanningOutput } from '../../lib/v3/planning';
-const react = vi.hoisted(() => ({ effect: null as null | (() => void | (() => void)), setState: vi.fn() }));
+type HookState = {signature:string|null;result:PlanningOutput|null;error:string|null};
+const react = vi.hoisted(() => ({ effect: null as null | (() => void | (() => void)), setState: vi.fn(), state: {signature:null,result:null,error:null} as HookState, memo:null as null|{deps:readonly unknown[];value:unknown}, memoCalls:0 }));
 vi.mock('react', () => ({
   useEffect: (effect: () => void | (() => void)) => { react.effect = effect; },
-  useState: () => [{ signature: null, result: null, error: null }, react.setState],
+  useMemo: (factory:()=>unknown,deps:readonly unknown[]) => {if(!react.memo||deps.some((dep,i)=>!Object.is(dep,react.memo!.deps[i]))){react.memo={deps,value:factory()};react.memoCalls++;}return react.memo.value;},
+  useState: () => [react.state, (next:HookState|((previous:HookState)=>HookState)) => {react.state=typeof next==='function'?next(react.state):next;react.setState(react.state);}],
 }));
 import { cancelPlanningJob, clearPlanningCache, recallPlanning, useV3Planning } from '../useV3Planning';
 import { planningSignature } from '../planningSignature';
@@ -18,6 +20,7 @@ class TestWorker {
 }
 const store = new Map<string, string>();
 beforeEach(() => {
+  react.state={signature:null,result:null,error:null};react.memo=null;react.memoCalls=0;
   react.setState.mockClear(); TestWorker.instances = [];
   vi.stubGlobal('Worker', TestWorker);
   vi.stubGlobal('window', { localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); }, removeItem: (k: string) => { store.delete(k); } } });
@@ -83,3 +86,6 @@ it('coarser buckets fold a 50-minute drift into one signature; finer buckets do 
   expect(planningSignature(later, 60 * 60_000)).toBe(planningSignature(base, 60 * 60_000));
   expect(planningSignature(later)).not.toBe(planningSignature(base));
 });
+
+it('does not rehash an unchanged input when only visibility changes',()=>{run(base);run(base,false);run(base,true);expect(react.memoCalls).toBe(1);expect(TestWorker.instances).toHaveLength(1);});
+it('reuses the state object for an already-current cache hit',async()=>{const {worker}=run(base);worker.onmessage!({data:{result:{modelVersion:'memo'}}} as MessageEvent);await flush();const previous=react.state;run(base,false);expect(react.state).toBe(previous);expect(worker.terminate).toHaveBeenCalledOnce();});

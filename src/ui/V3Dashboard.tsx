@@ -1,3 +1,4 @@
+import {RadarBrand,ResetCardArtwork} from './RadarArtwork';
 import { useMemo, useState, type ReactNode } from 'react';
 import type { V3DashboardModel } from './v3Model';
 import type { PersonalInputsController } from './usePersonalInputs';
@@ -22,6 +23,7 @@ export interface V3PanelProps {
   weekdayCalibration?:WeekdayCalibration;
   verdictSummaries?: readonly {modelVersion:string;sampleCount:number;positiveCount:number;unknownCount:number;pendingCount:number;brier:number|null;logLoss:number|null}[];
   phase:string; readError:string|null; logError?:string|null;subscriptionError:boolean;refreshing:boolean;demo:boolean;planningPending?:boolean;compactionNote?:string|null;
+  historyRefreshing?:boolean; historyError?:string|null;
   activeTheme:'light'|'dark';onThemePreference:(theme:'light'|'dark')=>void;onRefresh:()=>void;onCollapse:()=>void;onClose:()=>void;
 }
 const pct=(v:number|null|undefined)=>v==null?'—':`${(v*100).toFixed(1)}%`;
@@ -40,7 +42,7 @@ export function plainFromVm(vm:V3DashboardModel,controller:PersonalInputsControl
   const tier=vm.coldContext.selectedTier;
   return plainAdvice({now:vm.now,status:vm.status,updatedAt:vm.updatedAt,weekly:vm.account?{remaining:vm.account.weekly.remaining,resetsAt:vm.account.weekly.resetsAt}:null,short:vm.account?{remaining:vm.account.short.remaining,resetsAt:vm.account.short.resetsAt}:null,
     resetCredits:vm.resetCredits,advice:vm.coldAdvice,budgetToday:vm.recommendation.weeklyBudgetToday,expectedDailyUse:vm.coldAdvice.expectedConsumption??vm.expectedConsumption??(vm.coldAdvice.basis==='policy_default'?TIER_DAILY_PERCENT[tier]:null),
-    tier,basis:vm.coldAdvice.basis,cards:controller.state.cards,lastSafeActionAt:vm.recommendation.lastSafeActionAt,planningPending,sampleDays:vm.demand.sampleDays,sprint:controller.state.cardSprint??null});
+    tier,basis:vm.coldAdvice.basis,cards:controller.state.cards,lastSafeActionAt:vm.recommendation.lastSafeActionAt,planningPending,sampleDays:vm.demand.sampleDays,sprint:controller.state.cardSprint??null,cardRisk:vm.cardRisk});
 }
 const weekdayEvidenceText:Record<WeekdayCalibration['evidenceStatus'],string>={
   unregistered:'尚未登记',collecting:'正在收集线上配对样本',review_due:'到达预定评审点',reviewed_unverified:'已评审，仍未验证',eligible_for_manual_review:'达到人工评审门槛',stopped:'影子记录已停止',
@@ -48,24 +50,26 @@ const weekdayEvidenceText:Record<WeekdayCalibration['evidenceStatus'],string>={
 const signedScore=(value:number|null|undefined)=>value==null?'—':`${value>0?'+':''}${value.toFixed(4)}`;
 function Section({icon,children}:{icon:ReactNode;children:ReactNode}){return <div className={styles.sectionHead}><span className={styles.sectionIcon}>{icon}</span><span className={styles.sectionTitle}>{children}</span></div>;}
 /** 今天最多用多少 + 双环（周额度 / 短窗）。 */
-function TodayHero({vm,plain}:{vm:V3DashboardModel;plain:PlainAdvice}){
-  return <>
+function TodayHero({vm,plain,onPlan}:{vm:V3DashboardModel;plain:PlainAdvice;onPlan:()=>void}){
+  return <div className={extra.metricsGrid}>
     <section className={`${styles.suggestionBanner} ${extra.hero}`} aria-label="今日额度建议">
       <span className={styles.suggestionIcon}><SparkleIcon size={24}/></span>
-      <div className={styles.suggestionBody}><span className={styles.suggestionLabel}>今天怎么用</span>
-        <strong className={`${styles.suggestionNumber} ${plain.budget.percent==null?extra.learningTitle:''}`}>{plain.budget.headline}</strong>
-        <span className={styles.suggestionSub}>{plain.budget.detail}</span>
+      <div className={styles.suggestionBody}><span className={styles.suggestionLabel}>{plain.sprint?'风险优先 · 用卡计划':'下一步 · 用卡建议'}</span>
+        <strong className={`${styles.suggestionNumber} ${plain.budget.percent==null?extra.learningTitle:''}`}>{plain.card.headline}</strong>
+        <span className={styles.suggestionSub}>{plain.budget.headline}</span>
+        <button type="button" className={extra.heroAction} onClick={onPlan}>{plain.sprint?'管理我的卡与到期时间':'先选用卡窗口，再安排用量'}<ChevronRight size={14}/></button>
+        <details className={extra.heroDetails}><summary>查看额度分配依据</summary><p>{plain.budget.detail}</p></details>
       </div>
     </section>
     <div className={styles.quotaGrid}>{[{value:vm.remainingPercent,label:'本周额度还剩',window:vm.account?.weekly,color:styles.ringBlue},{value:vm.shortRemainingPercent,label:'短窗还剩',window:vm.account?.short,color:styles.ringGreen}].map(item=><div className={styles.quotaCard} key={item.label}><ProgressRing value={item.value} size={54} className={item.color} label={item.label}><span className={styles.ringCenter}>{percentWhole(item.value)}</span></ProgressRing><span className={styles.quotaText}><span className={styles.quotaLabel}>{item.label}</span><span className={styles.quotaSub}>{item.window?<><span className={styles.timeNoWrap}>{whenLabel(vm.now,item.window.resetsAt)}</span> 自动恢复</>:'恢复时间待读取'}</span></span></div>)}</div>
-  </>;
+  </div>;
 }
 // 小日历格子只有 50 px 宽：芯片显示 2–4 字短标签（必要时换行），完整说明放 title/aria-label。
 const MARK_SHORT:Record<string,string>={use:"用卡",decide:"再决定",expire:"最后期限",reset:"周额恢复",short:"短窗恢复",empty:"可能用完"};
 /** 未来 7 天：哪天用卡 / 哪天到期 / 哪天恢复 / 哪天可能用完。 */
 function WeekStrip({plain}:{plain:PlainAdvice}){
   const glyph={use:'★',decide:'？',expire:'⏰',reset:'↻',short:'↻',empty:'⚠'} as const;
-  return <ol className={extra.strip} aria-label="未来七天">{plain.strip.map(day=><li key={day.dateKey} className={`${extra.stripDay} ${day.today?extra.stripToday:''} ${day.marks.length?extra.stripBusy:''}`}><span className={extra.stripLabel}>{day.label}</span><span className={extra.stripDate}>{day.date}</span>{day.marks.map(m=>{const time=/\d{2}:\d{2}$/.exec(m.text)?.[0];return <span key={`${m.kind}:${m.text}`} className={`${extra.stripMark} ${extra[`mark_${m.kind}`]??''}`} title={m.text} aria-label={m.text}>{glyph[m.kind]}{MARK_SHORT[m.kind]}{time&&<em className={extra.stripTime}>{time}</em>}</span>;})}</li>)}</ol>;
+  return <ol className={extra.strip} aria-label="未来七天">{plain.strip.map(day=><li key={day.dateKey} className={`${extra.stripDay} ${day.today?extra.stripToday:''} ${day.marks.length?extra.stripBusy:''}`}><span className={extra.dayBeacon} data-action={day.marks.some(m=>m.kind==='use')?'use':'none'} aria-hidden="true"/><span className={extra.stripLabel}>{day.label}</span><span className={extra.stripDate}>{day.date}</span>{day.marks.map(m=>{const time=/\d{2}:\d{2}$/.exec(m.text)?.[0];return <span key={`${m.kind}:${m.text}`} className={`${extra.stripMark} ${extra[`mark_${m.kind}`]??''}`} title={m.text} aria-label={m.text}>{glyph[m.kind]}{MARK_SHORT[m.kind]}{time&&<em className={extra.stripTime}>{time}</em>}</span>;})}</li>)}</ol>;
 }
 /** RR57 冲刺模式：「这个周期我一定会用卡」→ 只回答哪天用（按最快用法：5 小时短窗 = 周额度 1/6，30 小时用完一周）。 */
 function SprintBox({plain,controller,onOpenCards}:{plain:PlainAdvice;controller:PersonalInputsController;onOpenCards:()=>void}){
@@ -75,22 +79,45 @@ function SprintBox({plain,controller,onOpenCards}:{plain:PlainAdvice;controller:
     <legend>这周期我一定会用卡？</legend>
     <div className={extra.choiceRow} role="group" aria-label="用卡模式">
       <button type="button" aria-pressed={!on} className={`${extra.choice} ${!on?extra.choiceOn:''}`} onClick={()=>set({enabled:false,hoursPerDay:hours})}><b>按用量算</b><small>够用就留着卡</small></button>
-      <button type="button" aria-pressed={on} className={`${extra.choice} ${on?extra.choiceOn:''}`} onClick={()=>set({enabled:true,hoursPerDay:hours})}><b>一定用卡，告诉我哪天</b><small>按最快用法排日程</small></button>
+      <button type="button" aria-pressed={on} className={`${extra.choice} ${on?extra.choiceOn:''}`} onClick={()=>set({enabled:true,hoursPerDay:hours})}><b>一定用卡，告诉我哪天</b><small>先选风险窗口，再安排用量</small></button>
     </div>
     {on&&<>
       <div className={extra.choiceRow} role="group" aria-label="每天能用几小时">
-        <span className={extra.sprintHint}>每天能用几小时？</span>
+        <span className={extra.sprintHint}>用卡后每天准备使用几小时？</span>
         {SPRINT_HOURS_OPTIONS.map(h=>{const sel=hours===h;return <button type="button" key={h} aria-pressed={sel} className={`${extra.choice} ${sel?extra.choiceOn:''}`} onClick={()=>set({enabled:true,hoursPerDay:h})}><b>{h>=24?'不停地用':`${h} 小时`}</b></button>;})}
       </div>
       {plain.sprint&&<>
         {plain.sprint.lines.length>0&&<ol className={extra.sprintList}>{plain.sprint.lines.map((line,i)=><li key={line.cardId}><strong>{i+1}. 「{line.label}」→ {line.when}</strong><span>{line.why}最晚 {line.latest}。</span></li>)}</ol>}
         <span className={extra.sprintHint}>{plain.sprint.note}{plain.sprint.needCards&&<> <button type="button" className={extra.linkButton} onClick={onOpenCards}>去登记卡的到期时间</button></>}</span>
-        <span className={extra.sprintHint}>{plain.sprint.assumptions[0]}</span>
+        <details className={extra.sprintDetails}><summary>查看规划假设与概率边界</summary><p>{plain.sprint.assumptions.join(" ")}</p></details>
       </>}
       {!plain.sprint&&<span className={extra.sprintHint}>先刷新拿到额度数据，再排日程。</span>}
     </>}
   </fieldset>;
 }
+/** Radar is a visual frame for the actual scalar probability, not invented risk axes. */
+function RiskPortrait({vm}:{vm:V3DashboardModel}){
+ const probability=vm.platform.probability24h;
+ return <section className={extra.radarPanel} aria-label="平台公告概率参考">
+   <div className={extra.panelHeading}><span><ShieldIcon size={17}/>概率雷达</span><span className={extra.microBadge}>参考模型 · 非承诺</span></div>
+   <div className={extra.radarBody}>
+     <div className={extra.radarGraphic}>
+       <svg viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="102"/><circle cx="120" cy="120" r="75"/><circle cx="120" cy="120" r="48"/><path d="M18 120H222M120 18V222M48 48L192 192M48 192L192 48"/><path className={extra.radarSweep} d="M120 120 L209 69 A102 102 0 0 1 209 171 Z"/><circle className={extra.radarDot} cx="209" cy="69" r="4"/></svg>
+       <div className={extra.radarReadout}><strong>{pct(probability)}</strong><span>未来 24 小时公告参考</span></div>
+     </div>
+     <div className={extra.radarFacts}><div><span>历史公告</span><strong>{vm.historyEventCount??'—'}<small> 条</small></strong></div><div><span>个人用量样本</span><strong>{vm.demand.sampleDays}<small> 天</small></strong></div><p>先观察窗口，再安排用量。<br/>公告概率不等于本账号回满概率。</p></div>
+   </div>
+   <div className={extra.radarFoot}><span className={extra.statusDot}/>未知不是低风险，数据不足时不强行推荐。</div>
+ </section>;
+}
+function AnnouncementBar(props:V3PanelProps){const vm=props.vm;return <section className={`${extra.inlineGroup} ${extra.announcementBar}`} aria-label="公告更新" aria-live="polite">
+        <div className={extra.choiceRow}><span className={extra.announcementTitle}><SpeakerIcon size={17}/><strong>公告与概率</strong></span><button type="button" className={extra.choice} onClick={props.onRefresh} disabled={props.refreshing||props.historyRefreshing||props.demo}><RefreshIcon size={14}/>{props.refreshing?'正在获取公告…':props.historyRefreshing?'正在更新完整历史与概率…':'立即更新公告并重算'}</button></div>
+        <span>{props.demo?'演示模式，不会获取实时公告。':`公告最近成功检查：${vm?.announcementStatus?.fetchedAt?beijingFull(vm.announcementStatus.fetchedAt):'尚无成功记录'}（北京时间）`}</span>
+        <details className={extra.syncDetails}><summary>查看来源与历史覆盖</summary><span>完整历史截至：{vm&&Number.isFinite(vm.historyFetchedAt)?beijingFull(new Date(vm.historyFetchedAt).toISOString()):'未知'} · {vm?.historyEventCount??0} 条。{props.historyRefreshing?'更新中，请勿按旧概率激活卡。':'历史更新后自动重新计算模型与用卡窗口。'}</span>
+        </details>{vm?.announcementStatus?.status==='error'&&<span role="alert">公告更新失败，保留旧值：{vm.announcementStatus.message}</span>}
+        {props.historyError&&<span role="alert">{props.historyError}</span>}
+        {vm?.announcementStatus?.latestReset&&<details className={extra.syncDetails}><summary>最近平台事件</summary><span>最近平台事件：{String(vm.announcementStatus.latestReset.announced_at??vm.announcementStatus.latestReset.announcedAt??'时间未知')}。平台事件不代表本账号已经回满，请以额度实读为准。</span></details>}
+      </section>;}
 export default function V3Dashboard(props:V3PanelProps){
   const {vm,controller}=props;const [tab,setTab]=useState(()=>initialPanelTab(window.location.hash));
   const [focusSection,setFocusSection]=useState<'budget'|'cards'|null>(null);
@@ -109,7 +136,7 @@ export default function V3Dashboard(props:V3PanelProps){
   const replayTable=(period:'all'|'recent180'|'recent90')=>replay?.[period]&&<table className={extra.referenceTable}><thead><tr><th>窗口</th>{replayModels.map(model=><th key={model}>{model.toUpperCase()}</th>)}</tr></thead><tbody><tr><th>样本数</th>{replayModels.map(model=><td key={model}>{replay[period]?.[model]?.count??0}</td>)}</tr><tr><th>正例数</th>{replayModels.map(model=><td key={model}>{replay[period]?.[model]?.positiveCount??0}</td>)}</tr><tr><th>Brier</th>{replayModels.map(model=><td key={model}>{score(replay[period]?.[model]?.brier)}</td>)}</tr><tr><th>Log loss</th>{replayModels.map(model=><td key={model}>{score(replay[period]?.[model]?.logLoss)}</td>)}</tr><tr><th>预测/实际比</th>{replayModels.map(model=><td key={model}>{score(replay[period]?.[model]?.predictedActualRatio)}</td>)}</tr></tbody></table>;
   const scheduled=vm?.supply?.incidents.find(i=>i.kind==='scheduled'&&i.status!=='cancelled'&&i.scheduledFor!=null);
   const copySummary=async()=>{if(!vm||!plain)return;try{await navigator.clipboard.writeText(`reset-radar${props.demo?'（演示）':''}\n本周额度还剩 ${percentWhole(vm.remainingPercent)} / 短窗 ${percentWhole(vm.shortRemainingPercent)} / ${creditsLabel(vm.resetCredits)}\n${plain.budget.headline}。${plain.budget.detail}\n${plain.card.headline}。${plain.card.detail}\n${plain.runway.headline}。${plain.runway.detail}\n（专业口径）${statusText[vm.recommendation.status]}：${vm.recommendation.reasons.join(' ')}；平台24h公告参考 ${pct(vm.platform.probability24h)}；账号补给 ${pct(vm.supply?.accountProbability24h)}\n观测 ${beijingFull(vm.updatedAt)} 北京时间`);setCopyState('ok');}catch{setCopyState('error');}};
-  return <div className={styles.shell} role="main" aria-label="reset-radar 展开面板">
+  return <div className={`${styles.shell} ${extra.studio}`} role="main" aria-label="reset-radar 展开面板">
     <header className={styles.header}>
       <div className={styles.headerDrag} data-tauri-drag-region><GripDots size={16}/><RadarLogo size={30} className={styles.logo}/><span className={styles.title}><span className={styles.titleMain}>reset-radar{vm?.plan&&<span className={styles.titleSubPlan}>{vm.plan}</span>}</span><span className={styles.titleSub}>Codex 额度：今天用多少、卡哪天用</span></span></div>
       <div className={styles.headerActions}>{props.demo&&<span className={styles.demoBadge}>演示</span>}
@@ -117,22 +144,37 @@ export default function V3Dashboard(props:V3PanelProps){
         <button className={styles.iconButton} onClick={props.onCollapse} aria-label="收起面板"><ChevronUp size={16}/></button><button className={styles.iconButton} onClick={props.onClose} aria-label="隐藏到托盘"><CloseIcon size={16}/></button>
       </div>
     </header>
-    <nav className={styles.tabBar} role="tablist" aria-label="面板模块">{PANEL_TABS.map(item=><button type="button" role="tab" aria-selected={tab===item.key} aria-controls={`v3-${item.key}`} id={`v3-tab-${item.key}`} key={item.key} className={`${styles.tabButton} ${tab===item.key?styles.tabButtonActive:''}`} onClick={()=>setTab(item.key)}>{TAB_DISPLAY[item.key]??item.label}</button>)}</nav>
-    {(props.logError||props.readError||props.subscriptionError)&&<p className={extra.warning} role="status">{props.logError??props.readError??'自动订阅不可用，请手动刷新。'}</p>}
+    <aside className={extra.sidebar} aria-label="工作台导航">
+      <div className={extra.brand}><RadarBrand size={38}/><div><strong>Reset Radar</strong><span>把握每一次使用窗口</span></div></div>
+      <span className={extra.navCaption}>WORKSPACE</span>
+      <nav className={`${styles.tabBar} ${extra.sideNav}`} role="tablist" aria-label="面板模块">{PANEL_TABS.map(item=>{
+        const Icon=item.key==='overview'?BarChartIcon:item.key==='planner'?CardStackIcon:item.key==='risk'?PulseIcon:DatabaseIcon;
+        return <button type="button" role="tab" aria-selected={tab===item.key} aria-controls={`v3-${item.key}`} id={`v3-tab-${item.key}`} key={item.key} className={`${styles.tabButton} ${extra.navItem} ${tab===item.key?`${styles.tabButtonActive} ${extra.navActive}`:''}`} onClick={()=>setTab(item.key)}><Icon size={18}/><span>{TAB_DISPLAY[item.key]??item.label}</span>{tab===item.key&&<span className={extra.navDot}/>}</button>;
+      })}</nav>
+      <div className={extra.sideNote}><ShieldIcon size={21}/><strong>先推荐时间<br/>再安排用量</strong><p>让每一份额度，<br/>留给真正重要的事。</p></div>
+      <div className={extra.accountTile}><span className={extra.accountAvatar}>C</span><div><strong>Codex 工作空间</strong><span>{vm?.plan??'额度与重置规划'}</span></div><span className={extra.statusDot}/></div>
+      <small className={extra.sideVersion}>RESET RADAR / LOCAL FIRST</small>
+    </aside>
+    {(props.logError||props.readError||props.subscriptionError)&&<p className={`${extra.warning} ${extra.topAlert}`} role="status">{props.logError??props.readError??'自动订阅不可用，请手动刷新。'}</p>}
     <div className={`${styles.page} ${extra.page}`} role="tabpanel" id={`v3-${tab}`} aria-labelledby={`v3-tab-${tab}`}>
+      <div className={extra.intro}><div><span className={extra.eyebrow}>YOUR QUOTA, WELL TIMED.</span><h1>{tab==='overview'?'把额度用在，恰好的时候。':tab==='planner'?'你的用量，由你安排。':tab==='risk'?'看清信号，再做决定。':'让每一次预测，都有依据。'}</h1><p>看清额度与重置信号，找到值得投入的时间窗口。</p></div><span className={extra.livePill}><span className={extra.statusDot}/>{props.demo?'演示工作空间':props.refreshing||props.historyRefreshing?'正在同步':vm?.status==='ok'?'已连接工作空间':'等待最新数据'}</span></div>
+      {(tab!=='overview'||!vm)&&<AnnouncementBar {...props}/>}
       {!vm?<div className={styles.stateBanner}><span className={styles.stateBody}><strong className={styles.stateTitle}>等待额度快照</strong><span className={styles.stateSub}>缺失数据不会填成满额。</span></span><button type="button" className={styles.primaryButton} onClick={props.onRefresh} disabled={props.refreshing}><RefreshIcon size={14}/>刷新额度</button></div>:<>
       {tab==='overview'&&plain&&<>
-        <div className={styles.notices}>
+        <TodayHero vm={vm} plain={plain} onPlan={()=>{if(!controller.state.cardSprint?.enabled)controller.setCardSprint?.({enabled:true,hoursPerDay:controller.state.cardSprint?.hoursPerDay??24});else openInputs('cards');}}/>
+        <AnnouncementBar {...props}/>
+        <details className={extra.sourceNotices} open={!!scheduled}><summary>额度来源与计划公告</summary><div className={styles.notices}>
           <div className={`${styles.noticeCard} ${vm.status==='ok'?styles.noticeCardOk:styles.noticeCardAnnouncement}`}><CheckIcon size={17} className={styles.noticeIcon}/><div className={styles.noticeBody}><strong className={styles.noticeTitle}>{vm.status==='ok'?'数据是新的':vm.status==='stale'?'数据有点旧了':'还没读到最新数据'}</strong><span className={styles.noticeSub}>上次读取 <span className={styles.timeNoWrap}>{whenLabel(vm.now,Date.parse(vm.updatedAt)||vm.now)}</span>{vm.message&&` · ${vm.message}`}</span></div></div>
           {scheduled&&<div className={`${styles.noticeCard} ${styles.noticeCardAnnouncement}`}><SpeakerIcon size={17} className={styles.noticeIcon}/><div className={styles.noticeBody}><strong className={styles.noticeTitle}>官方说要给大家重置额度</strong><span className={styles.noticeSub}>计划 <span className={styles.timeNoWrap}>{whenLabel(vm.now,scheduled.scheduledFor!)}</span>，到账前别指望它。</span></div></div>}
-        </div>
-        <TodayHero vm={vm} plain={plain}/>
+        </div></details>
+        <div className={extra.overviewGrid}><div className={extra.signalColumn}><RiskPortrait vm={vm}/><div className={extra.philosophyCard}><ResetCardArtwork className={extra.philosophyArt}/><strong>先选时机，不必急着耗尽。</strong><p>重置是外部信号，用量是你的选择。风险窗口优先于消耗速度。</p></div></div><section className={extra.schedulePanel}><div className={extra.panelHeading}><span><CalendarIcon size={17}/>用卡时间线</span><span className={extra.microBadge}>未来 7 天</span></div>
         <section className={`${extra.plan} ${extra[toneClass[plain.card.tone]]}`} aria-label="用卡建议"><span className={extra.planIcon}><CardStackIcon size={20}/></span><div className={extra.planBody}><span className={extra.planLabel}>重置卡{vm.resetCredits!=null&&`（手上 ${vm.resetCredits} 张）`}</span><strong className={extra.planTitle}>{plain.card.headline}</strong><span>{plain.card.detail}</span>
           <span className={extra.planActions}>{plain.card.tone==='now'&&actionCard&&<button type="button" onClick={()=>{controller.recordUse(actionCard.localId);props.onRefresh();}}>我已经用了，记一下</button>}{(plain.card.tone==='fill'||plain.card.tone==='none')&&<button type="button" onClick={()=>openInputs('cards')}>去填卡的信息</button>}{plain.card.tone==='refresh'&&<button type="button" onClick={props.onRefresh} disabled={props.refreshing}>刷新额度</button>}{plain.card.tone==='wait'&&plain.card.cardLabel&&<button type="button" onClick={()=>openInputs('cards')}>看卡的到期时间</button>}</span>
         </div></section>
         <SprintBox plain={plain} controller={optionalController} onOpenCards={()=>openInputs('cards')}/>
         <div className={styles.pacingRow}><span className={`${styles.pacingIcon} ${styles.pacingIconCyan}`}><ClockIcon size={17}/></span><div className={styles.pacingBody}><strong className={styles.pacingLabel}>{plain.runway.headline}</strong><span className={styles.pacingNote}>{plain.runway.detail}</span></div></div>
-        <WeekStrip plain={plain}/>
+        <div className={extra.calendarHeading}><span>一周日程</span><small>北京时间 · 横向查看完整日期</small></div><WeekStrip plain={plain}/><p className={extra.calendarFoot}>只标注已知日程；没有事件标记，不代表这一天安全。</p>
+        </section></div>
         <fieldset className={extra.inlineGroup}><legend>今天忙不忙？直接点一下，上面的量会跟着变</legend><div className={extra.choiceRow} role="group" aria-label="今天的工作量">{WORKLOAD_OPTIONS.map(o=>{const on=controller.state.effectiveWorkloadToday===o.value;return <button type="button" key={o.value} aria-pressed={on} className={`${extra.choice} ${on?extra.choiceOn:''}`} onClick={()=>controller.setWorkloadToday(on?null:o.value)}><b>{o.label}</b><small>{o.hint}</small></button>;})}</div>{controller.state.effectiveWorkloadToday==null&&<p className={styles.mutedNote}>没选的话按「正常」算。</p>}</fieldset>
         {(()=>{const w=vm.account;const exhausted=!!w&&(w.weekly.remaining<=0||w.short.remaining<=0);const full=!!w&&w.weekly.remaining>=100&&w.short.remaining>=100;if(!exhausted&&!full)return null;const on=optionalController.state.continueWorking?.value===true;return <div className={extra.inlineGroup}><span>{exhausted?'额度用完了。接下来还要继续干活吗？选了「要」才会建议你用卡。':'额度是满的。今天还要用 Codex 吗？不用的话卡就先留着。'}</span><div className={extra.choiceRow}><button type="button" aria-pressed={on} className={`${extra.choice} ${on?extra.choiceOn:''}`} onClick={()=>optionalController.setContinueWorking?.(!on)}><b>{on?'✓ 要继续干活':'要继续干活'}</b></button></div></div>;})()}
         {vm.demand.sampleDays>=7&&<div className={extra.inlineGroup}><span>{optionalController.state.planningMode==='learned'?'现在按你最近的实际用量来算。':`已经记录了 ${vm.demand.sampleDays} 天的用量，可以改成按你的习惯来算。`}</span><div className={extra.choiceRow}><button type="button" aria-pressed={optionalController.state.planningMode==='learned'} className={`${extra.choice} ${optionalController.state.planningMode==='learned'?extra.choiceOn:''}`} onClick={()=>optionalController.setPlanningMode?.(optionalController.state.planningMode==='learned'?'policy_default':'learned')}><b>{optionalController.state.planningMode==='learned'?'✓ 按我的习惯算':'按我的习惯算'}</b></button></div></div>}
@@ -218,20 +260,20 @@ export default function V3Dashboard(props:V3PanelProps){
 export function V3CompactBar({vm,phase,demo,onExpand,expandRef}:{vm:V3DashboardModel|null;phase?:string;demo:boolean;onExpand:()=>void;expandRef?:React.RefObject<HTMLButtonElement|null>}){
   const loading=!vm||phase==='initializing';
   const stale=vm?.status==='stale';const failed=phase==='read-error'||(vm!=null&&!['ok','stale'].includes(vm.status));
-  return <div className={compact.shell} role="group" aria-label="reset-radar 悬浮条" onClick={onExpand}>
+  return <div className={compact.shell} data-floating-surface="bar" role="group" aria-label="reset-radar 悬浮条" onClick={onExpand}>
     <span className={compact.dragHandle} data-tauri-drag-region title="拖动悬浮条"><GripDots size={18}/></span>
-    <span className={compact.brand}><RadarLogo size={30} className={compact.logo}/><span className={compact.brandText}><span className={compact.brandName}>CODEX<span className={`${compact.dot} ${loading||stale?compact.dotWarn:failed?compact.dotError:compact.dotOk}`} role="img" aria-label={loading?'读取中':failed?'采集失败':stale?'数据过期':'采集正常'}/></span><span className={compact.brandSub}>reset-radar{demo?' · 演示':vm?.plan?` · ${vm.plan}`:''}</span></span></span>
-    <span className={compact.metric} title="本周额度还剩"><span className={compact.metricText}><strong className={compact.metricValue}>{percentWhole(loading?null:vm.remainingPercent)}</strong><span className={compact.metricLabel}>本周还剩</span></span></span>
-    <span className={compact.metric} title="短窗额度剩余"><span className={extra.compactShortIcon}><PulseIcon size={18}/></span><span className={compact.metricText}><strong className={compact.metricValue}>{percentWhole(loading?null:vm.shortRemainingPercent)}</strong><span className={compact.metricLabel}>短窗</span></span></span>
+    <span className={compact.brand}><RadarBrand className={compact.logo}/><span className={compact.brandText}><span className={compact.brandName}>RADAR<span className={`${compact.dot} ${loading||stale?compact.dotWarn:failed?compact.dotError:compact.dotOk}`} role="img" aria-label={loading?'读取中':failed?'采集失败':stale?'数据过期':'采集正常'}/></span><span className={compact.brandSub}>{demo?'演示模式':vm?.plan??'CODEX'}</span></span></span>
+    <span className={compact.metric} title="本周额度还剩"><span className={compact.metricText}><strong className={compact.metricValue}>{percentWhole(loading?null:vm.remainingPercent)}</strong><span className={compact.metricLabel}>本周还剩</span><span className={compact.miniMeter} aria-hidden="true"><i style={{width:`${loading?0:Math.max(0,Math.min(100,vm.remainingPercent??0))}%`}}/></span></span></span>
+    <span className={compact.metric} title="短窗额度剩余"><span className={compact.metricText}><strong className={compact.metricValue}>{percentWhole(loading?null:vm.shortRemainingPercent)}</strong><span className={compact.metricLabel}>短窗</span><span className={compact.miniMeter} aria-hidden="true"><i style={{width:`${loading?0:Math.max(0,Math.min(100,vm.shortRemainingPercent??0))}%`}}/></span></span></span>
     <span className={compact.metric} title="可用重置卡数量"><span className={compact.cardIconBox}><CardStackIcon size={16}/></span><span className={compact.metricText}><strong className={compact.metricValue}>{creditsLabel(loading?null:vm.resetCredits)}</strong><span className={compact.metricLabel}>重置卡</span></span></span>
     <span className={compact.spacer}/><button type="button" className={compact.expandButton} onClick={event=>{event.stopPropagation();onExpand();}} ref={expandRef} aria-label="展开完整面板"><ChevronDown size={20}/></button>
   </div>;
 }
 export function V3Peek({vm,phase,demo,onOpen,cards=[],sprint=null}:{vm:V3DashboardModel|null;phase?:string;demo:boolean;onOpen:()=>void;cards?:readonly PersonalInputsController['state']['cards'][number][];sprint?:{enabled:boolean;hoursPerDay:number}|null}){
   const budget=vm?.recommendation.weeklyBudgetToday;
-  const peekCard=vm?plainAdvice({now:vm.now,status:vm.status,updatedAt:vm.updatedAt,weekly:vm.account?{remaining:vm.account.weekly.remaining,resetsAt:vm.account.weekly.resetsAt}:null,short:vm.account?{remaining:vm.account.short.remaining,resetsAt:vm.account.short.resetsAt}:null,resetCredits:vm.resetCredits,advice:vm.coldAdvice,budgetToday:budget??null,expectedDailyUse:vm.coldAdvice.expectedConsumption??null,tier:vm.coldContext.selectedTier,basis:vm.coldAdvice.basis,cards,lastSafeActionAt:vm.recommendation.lastSafeActionAt,planningPending:false,sampleDays:vm.demand.sampleDays,sprint}).card.headline:'';
-  if(!vm||phase==='initializing')return <div className={peek.shell} role="status"><span className={peek.rowLabel}>正在获取 Codex 使用数据…</span></div>;
-  return <div className={peek.shell}>
+  const peekCard=vm?plainAdvice({now:vm.now,status:vm.status,updatedAt:vm.updatedAt,weekly:vm.account?{remaining:vm.account.weekly.remaining,resetsAt:vm.account.weekly.resetsAt}:null,short:vm.account?{remaining:vm.account.short.remaining,resetsAt:vm.account.short.resetsAt}:null,resetCredits:vm.resetCredits,advice:vm.coldAdvice,budgetToday:budget??null,expectedDailyUse:vm.coldAdvice.expectedConsumption??null,tier:vm.coldContext.selectedTier,basis:vm.coldAdvice.basis,cards,lastSafeActionAt:vm.recommendation.lastSafeActionAt,planningPending:false,sampleDays:vm.demand.sampleDays,sprint,cardRisk:vm.cardRisk}).card.headline:'';
+  if(!vm||phase==='initializing')return <div className={peek.shell} data-floating-surface="peek" role="status"><span className={peek.rowLabel}>正在获取 Codex 使用数据…</span></div>;
+  return <div className={peek.shell} data-floating-surface="peek">
     <div className={peek.row}><span className={peek.rowLabel}>今天最多用</span><strong className={`${peek.rowValue} ${peek.rowValueAccent}`}>{budget?`约 ${percentLabel(budget.high)}（本周还剩 ${percentWhole(vm.remainingPercent)}）`:'还在算 · 先刷新额度'}</strong></div>
     <div className={peek.row}><span className={peek.rowLabel}>重置卡</span><span className={peek.rowValue}>{peekCard}</span></div>
     <div className={peek.footer}><span className={peek.observed}><ClockIcon size={13}/>{vm.status==='stale'?'上次读取':'读取于'} {beijingShort(vm.updatedAt)} 北京时间{vm.status==='stale'?' · 数据过期':''}</span>{demo&&<span className={peek.demoBadge}>演示数据</span>}<button type="button" className={peek.openButton} onClick={onOpen}><BarChartIcon size={14}/>看今天怎么用<ChevronRight size={13}/></button></div>

@@ -106,3 +106,16 @@
     transform: none;
   }
 }
+
+/* Static radar face. Arc updates only when quota changes: no interpolated SVG paint. */
+.orb{contain:layout paint;background:var(--bg-panel);overflow:hidden;font-family:inherit;box-shadow:var(--shadow-float)}
+.orb:before{content:"";position:absolute;inset:3px;border-radius:50%;background:url("../assets/ui/radar-emblem.webp") center/cover;opacity:.16;pointer-events:none}
+.orb>svg{position:relative;z-index:1;pointer-events:none}.orb[data-orb-metric="remaining"]{color:var(--accent-blue-bright)}
+.progress{transition:none}
+.value{padding-bottom:6px;font-weight:700;letter-spacing:-.8px;z-index:2}.unit{font-size:8px;transform:translateY(3px)}
+.metricHint{position:absolute;bottom:10px;left:0;right:0;line-height:8px;text-align:center;font-size:7px;font-weight:500;letter-spacing:1px;color:var(--text-secondary);pointer-events:none;z-index:2}
+.orb[data-orb-docked="true"] .metricHint{opacity:0}.orb:hover{transform:scale(1.04)}.orb:active{transform:scale(.98)}
+:global([data-theme="light"]) .orb{background:#ffffff;box-shadow:0 1px 3px #153e3b24}
+:global([data-theme="light"]) .orb:before{background:none;opacity:0}
+.orb,.orb:before,.orb>svg,.progress{animation:none}
+@media(prefers-reduced-motion:reduce){.orb:hover,.orb:active{transform:none}}

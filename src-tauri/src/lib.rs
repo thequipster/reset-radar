@@ -45,11 +45,11 @@ struct AppState {
 }
 
 /// 采集全部 provider（v1 仅 codex）。出处：参考 lib.rs:306 collect_snapshots_once 的精简。
-async fn collect_snapshots(state: &AppState) -> Vec<ProviderSnapshot> {
+async fn collect_snapshots(state: &AppState, force_status: bool) -> Vec<ProviderSnapshot> {
     let (mut quota, status) = tokio::join!(codex::fetch_snapshot(), async {
         let mut service = state.reset_status.lock().await;
-        service.get_or_insert_with(|| reset_status::ResetStatusService::new(None))
-            .snapshot().await
+        let service = service.get_or_insert_with(|| reset_status::ResetStatusService::new(None));
+        if force_status { service.force_snapshot().await } else { service.snapshot().await }
     });
     quota.reset_status = Some(status);
     vec![quota]
@@ -60,7 +60,7 @@ async fn collect_snapshots(state: &AppState) -> Vec<ProviderSnapshot> {
 async fn refresh_snapshots_in_background(app: &AppHandle) {
     let state = app.state::<AppState>();
     let _guard = state.fetch_lock.lock().await;
-    let values = collect_snapshots(&state).await;
+    let values = collect_snapshots(&state, false).await;
     if let Ok(mut cache) = state.snapshot_cache.lock() {
         *cache = Some((Instant::now(), values.clone()));
     }
@@ -174,7 +174,7 @@ async fn get_snapshots(
             }
         }
     }
-    let values = collect_snapshots(&state).await;
+    let values = collect_snapshots(&state, false).await;
     if let Ok(mut cache) = state.snapshot_cache.lock() {
         *cache = Some((Instant::now(), values.clone()));
     }
@@ -197,7 +197,7 @@ async fn refresh_snapshots(
     state: State<'_, AppState>,
 ) -> Result<Vec<ProviderSnapshot>, String> {
     let _guard = state.fetch_lock.lock().await;
-    let values = collect_snapshots(&state).await;
+    let values = collect_snapshots(&state, true).await;
     if let Ok(mut cache) = state.snapshot_cache.lock() {
         *cache = Some((Instant::now(), values.clone()));
     }

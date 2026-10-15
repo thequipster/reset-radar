@@ -19,8 +19,10 @@ export interface SprintInput {
   cards: readonly ResetCard[];
   /** 每天实际能开着用几小时：24 = 不停地用（字面的 30 小时），8/12/16 按比例拉长。 */
   hoursPerDay: number;
+  /** Omitted only by legacy callers. Current UI always supplies risk-first inputs. */
+  risk?: { ratePerDay: number | null; fetchedAt: number; scheduledAt: number | null };
 }
-export type SprintReason = "now" | "exhausted" | "after_reset" | "deadline";
+export type SprintReason = "now" | "exhausted" | "after_reset" | "deadline" | "low_risk";
 export interface SprintStep {
   cardId: string;
   label: string;
@@ -29,6 +31,10 @@ export interface SprintStep {
   /** 最晚时刻（安全截止减 30 分钟缓冲）。 */
   latestAt: number;
   reason: SprintReason;
+  windowStart?: number;
+  windowEnd?: number;
+  probability?: number;
+  prepareFrom?: number;
   /** 用卡那一刻还剩、会被覆盖掉的周额度百分比（最快用法下的估计）。 */
   overwritePercent: number;
   /** 这张卡回满的 100% 预计何时用完（下一张卡的参考时刻）。 */
@@ -85,6 +91,7 @@ function gainAt(state: QuotaState, u: number, rate: number): number {
 }
 
 export function sprintPlan(input: SprintInput): SprintPlan {
+  if (input.risk !== undefined) return riskFirstPlan(input);
   const rate = sprintRatePerHour(input.hoursPerDay);
   const assumptions = [
     `按最快用法算：一个 ${SPRINT_SHORT_WINDOW_HOURS} 小时短窗用完 = 周额度的 1/${SPRINT_WINDOWS_PER_WEEK}，连续用 ${SPRINT_HOURS_PER_WEEK} 小时用完一整周。`,
@@ -133,4 +140,60 @@ export function sprintPlan(input: SprintInput): SprintPlan {
     state = { at: useAt, quota: 100, nextReset: useAt + WEEK_MS };
   }
   return { rateHoursPerWeek: SPRINT_HOURS_PER_WEEK, hoursPerDay: input.hoursPerDay, exhaustAt, steps, unknownDeadline, assumptions };
+}
+
+/** Risk-first scheduling: remaining quota never determines the activation date.
+ * P0/D60 is stationary: equal-length unannounced windows have equal risk.
+ * Known resets split windows; equal-risk windows prefer the widest, then their midpoint.
+ * This is an announcement risk reference, NOT a calibrated account-reset probability.
+ */
+export function riskFirstPlan(input: SprintInput): SprintPlan {
+  const rate = sprintRatePerHour(input.hoursPerDay);
+  const duration = 100 / rate * HOUR_MS;
+  const risk = input.risk;
+  const available = input.cards.filter(c => c.state === "available");
+  const assumptions = [
+    "先选风险窗口，再安排用量；当前剩余额度不决定用卡日期。",
+    "当前正式模型是恒定发生率，同等时长的未知公告风险相同，不能声称哪一天更安全；持平时取避开已知重置的宽窗口中点。",
+    "概率指平台公告，不等于账号一定回满；低风险也不保证不会临时重置。激活前必须重新刷新公告与额度。",
+    "预留用卡后消耗整张卡额度的时间；30小时活跃用量是假设，不是平台保证。最多规划未来14天。"
+  ];
+  const result: SprintPlan = {rateHoursPerWeek: SPRINT_HOURS_PER_WEEK, hoursPerDay: input.hoursPerDay,
+    exhaustAt: null, steps: [], unknownDeadline: available.filter(c => c.safeDeadlineAt == null), assumptions};
+  if (!risk || risk.ratePerDay == null || !Number.isFinite(risk.ratePerDay) || risk.ratePerDay < 0 ||
+      !Number.isFinite(risk.fetchedAt) || input.now - risk.fetchedAt > 30 * 60_000 || risk.fetchedAt > input.now + 60_000) {
+    assumptions.unshift("公告历史缺失或超过30分钟未成功更新：先刷新公告，暂不指定用卡时间。");
+    return result;
+  }
+  const referenceRisk = 1-Math.exp(-risk.ratePerDay*duration/DAY_MS);
+  assumptions.push("低风险筛选上限暂定为35%的消耗期间公告风险，是可调整的规划偏好，不是已验证阈值；已知重置前后各避让12小时。 ");
+  if (referenceRisk > 0.35) { assumptions.unshift("当前消耗期间公告参考风险超过35%，暂不建议为了用卡而冲刺。"); return result; }
+  let earliest = input.now;
+  for (const card of available.filter(c => c.safeDeadlineAt != null && c.safeDeadlineAt - CARD_BUFFER_MS > input.now)
+      .sort((a,b) => a.safeDeadlineAt! - b.safeDeadlineAt! || a.localId.localeCompare(b.localId))) {
+    const latestAt = card.safeDeadlineAt! - CARD_BUFFER_MS;
+    const end = Math.min(input.now + 14 * DAY_MS, latestAt + duration);
+    let windows = [{from: earliest, to: end}];
+    // A known upcoming platform reset is not a probabilistic background event.
+    const resets = [risk.scheduledAt, input.weekly?.resetsAt].filter((at): at is number => at != null && Number.isFinite(at) && at > input.now);
+    for (const at of resets) {
+      const left = at - 12 * HOUR_MS, right = at + 12 * HOUR_MS;
+      windows = windows.flatMap(w => right <= w.from || left >= w.to ? [w] :
+        [{from:w.from,to:Math.min(w.to,left)},{from:Math.max(w.from,right),to:w.to}].filter(x=>x.to>x.from));
+    }
+    const feasible = windows.map(w => ({...w, last:Math.min(latestAt,w.to-duration)}))
+      .filter(w => w.last >= w.from).sort((a,b)=>(b.last-b.from)-(a.last-a.from)||a.from-b.from);
+    const window = feasible[0];
+    if (!window) continue;
+    const useAt = window.from + (window.last-window.from)/2;
+    const probability = 1-Math.exp(-risk.ratePerDay*duration/DAY_MS);
+    const prepareHours = (input.weekly?.remaining ?? 0) / rate;
+    result.steps.push({cardId:card.localId,label:card.label,useAt,latestAt,reason:"low_risk",
+      overwritePercent:0,burnedOutAt:useAt+duration,waitForResetAt:null,
+      windowStart:window.from,windowEnd:window.to,probability,
+      prepareFrom:Math.max(input.now,useAt-prepareHours*HOUR_MS)});
+    earliest = useAt + duration;
+  }
+  if (!result.steps.length) assumptions.unshift("目前没有能容纳完整消耗时长且避开已知重置的窗口；不强行推荐用卡。");
+  return result;
 }

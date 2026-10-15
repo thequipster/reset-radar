@@ -79,6 +79,7 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
   const [signalHistory, setSignalHistory] = useState<PlatformSignalHistory[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [historyError,setHistoryError]=useState<string|null>(null);
+  const [historyRefreshing,setHistoryRefreshing]=useState(false);
   const [historyDocument,setHistoryDocument]=useState<unknown>(RESET_HISTORY_SOURCE);
   const [predictionContent,setPredictionContent]=useState('');
   const [compaction,setCompaction]=useState<string|null>(null);
@@ -298,8 +299,9 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
 
   // 跟随已有15分钟status节流，一次新成功status拉完整分页；失败不延长历史覆盖。
   useEffect(()=>{
-    if(!enabled||snapshot?.resetStatus?.status!=='ok'||!snapshot.resetStatus.fetchedAt)return;
+    if(!enabled||snapshot?.resetStatus?.status!=='ok'||!snapshot.resetStatus.fetchedAt){setHistoryRefreshing(false);return;}
     let alive=true;
+    setHistoryRefreshing(true);
     void(async()=>{
       const raw=await invoke<unknown>('fetch_platform_history');
       if(!alive)return;
@@ -310,7 +312,7 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
         await appendOnce('cards',{id:`platform-history:${document.fetchedAt}`,observedAt:document.fetchedAt,kind:'platform_history',document});
       });
       if(alive){await refresh();setHistoryError(null);}
-    })().catch(cause=>{if(alive)setHistoryError(`平台完整历史刷新失败，未新增覆盖：${String(cause)}`);});
+    })().catch(cause=>{if(alive)setHistoryError(`平台完整历史刷新失败，未新增覆盖：${String(cause)}`);}).finally(()=>{if(alive)setHistoryRefreshing(false);});
     return()=>{alive=false;};
   },[enabled,snapshot?.resetStatus?.fetchedAt,snapshot?.resetStatus?.status,enqueueWrite,refresh,read,appendOnce]);
 
@@ -330,7 +332,7 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
     return()=>{alive=false;};
   },[enabled,enqueueWrite,loadCache,refresh]);
   const historyEpoch=`${(historyDocument as {fetchedAt?:string}|null)?.fetchedAt??'builtin'}`;
-  return { observations,accountSnapshots, signalHistory, historyDocument,historyEpoch,predictionContent,compaction,error:error??historyError, refresh, appendSnapshot, appendPrediction,appendWeekdayPair,stopWeekdayShadow, appendPlanning,appendAccountMapping };
+  return { observations,accountSnapshots, signalHistory, historyDocument,historyEpoch,predictionContent,compaction,historyRefreshing,historyError,error:error??historyError, refresh, appendSnapshot, appendPrediction,appendWeekdayPair,stopWeekdayShadow, appendPlanning,appendAccountMapping };
 }
 
 export interface PlatformSignalHistory {

@@ -16,7 +16,7 @@ export interface PeekCardProps {
 export default function PeekCard({ vm, phase, demo, onOpen }: PeekCardProps) {
   if (vm == null || phase === "initializing") {
     return (
-      <div className={styles.shell} role="status" aria-label="读取中">
+      <div className={styles.shell} data-floating-surface="peek" role="status" aria-label="读取中">
         <div className={styles.row}>
           <span className={styles.rowLabel}>正在获取 Codex 使用数据…</span>
           {demo && <span className={styles.demoBadge}>演示</span>}
@@ -31,7 +31,7 @@ export default function PeekCard({ vm, phase, demo, onOpen }: PeekCardProps) {
   const observed = beijingShort(vm.observedAt);
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-floating-surface="peek">
       {announcement != null && plannedAt != null ? (
         <div className={styles.row}>
           <SpeakerIcon size={16} className={styles.observedIcon} />

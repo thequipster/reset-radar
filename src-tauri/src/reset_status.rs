@@ -103,6 +103,12 @@ impl ResetStatusService {
         })
     }
 
+    /// Explicit user refresh bypasses polling TTL, preserving stale data on failure.
+    pub async fn force_snapshot(&mut self) -> ResetStatusSnapshot {
+        self.last_attempt_instant = None;
+        self.snapshot().await
+    }
+
     fn refresh_due(&self, now: Instant) -> bool {
         self.last_attempt_instant
             .map(|last| now.duration_since(last) >= STATUS_POLL_INTERVAL)

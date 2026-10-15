@@ -3,7 +3,7 @@
 //     重启应用也不必先烧 20 秒 CPU。
 //  2. enabled=false（面板收起且结果仍新鲜）时不开 worker。
 //  3. 正在跑的 worker 若新输入签名相同，不打断。
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PlanningInput, PlanningOutput } from "../lib/v3/planning";
 import { planningSignature } from "./planningSignature";
 
@@ -108,12 +108,12 @@ export function cancelPlanningJob(): void {
 
 export function useV3Planning(input: PlanningInput | null, options: PlanningScheduleOptions = {}) {
   const enabled = options.enabled ?? true;
-  const signature = input == null ? null : planningSignature(input, options.bucketMs);
+  const signature = useMemo(() => input == null ? null : planningSignature(input, options.bucketMs), [input, options.bucketMs]);
   const [state, setState] = useState<{ signature: string | null; result: PlanningOutput | null; error: string | null }>({ signature: null, result: null, error: null });
   useEffect(() => {
     if (!input || signature == null) return;
     const cached = recallPlanning(signature);
-    if (cached) { setState({ signature, result: cached, error: null }); return; }
+    if (cached) { setState(previous => previous.signature === signature && previous.result === cached && previous.error == null ? previous : { signature, result: cached, error: null }); return; }
     const inFlight = currentJob != null && !currentJob.done && currentJob.signature === signature;
     if (!enabled && !inFlight) return;
     let active = true;

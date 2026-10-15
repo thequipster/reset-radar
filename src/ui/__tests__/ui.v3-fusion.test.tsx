@@ -37,4 +37,20 @@ describe('原设计与v3融合',()=>{
   it('预览沿用气泡分行并标出旧观测，而不是实时语气',()=>{
     const html=renderToStaticMarkup(<V3Peek vm={{...vm,status:'stale'}} demo onOpen={()=>{}}/>);expect(html).toContain('今天最多用');expect(html).toContain('上次读取');expect(html).toContain('数据过期');expect(html).toContain('看今天怎么用');
   });
+  it('工作台首屏优先展示用卡决策，导航与刷新入口仍完整',()=>{
+    const html=panel();
+    expect(html).toContain('把额度用在，恰好的时候。');
+    expect(html).toContain('先选用卡窗口，再安排用量');
+    expect(html).toContain('立即更新公告并重算');
+    expect(html).toContain('查看额度分配依据');
+    expect(html.match(/role="tab"/g)).toHaveLength(4);
+    expect(html).toContain('没有事件标记，不代表这一天安全');
+  });
+  it('概率雷达只展示真实参考数值，不生成安全等级',()=>{
+    const html=panel('overview',{vm:{...vm,platform:{...vm.platform,probability24h:.123}}});
+    expect(html).toContain('12.3%');
+    expect(html).toContain('未来 24 小时公告参考');
+    expect(html).toContain('公告概率不等于本账号回满概率');
+    expect(html).not.toContain('放心使用');
+  });
 });

@@ -43,3 +43,9 @@ SOFTWARE.
 
 逐函数行号出处另见各文件头注释与 `task_logs/*_done.md`；来源登记见 `TRUTH.md` §1 来源 3。
 除上表外，本仓其余源码、文档、图稿为本工作区 AI 看板会话原创产出。
+
+## 本地字体（SIL Open Font License 1.1）
+
+- Manrope：来源 https://github.com/google/fonts/tree/main/ofl/manrope 。
+- Radar Sans SC：由 Noto Sans SC 生成的 GB2312+标点子集，已重命名；来源 https://github.com/google/fonts/tree/main/ofl/notosanssc 。
+- 原始版权及完整许可证随应用保留在 `public/licenses/fonts/`，构建后复制到 `dist/licenses/fonts/`。字体均本地加载，不安装到系统、不调用运行时 CDN。

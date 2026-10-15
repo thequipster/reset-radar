@@ -1,3 +1,6 @@
+@import "./fonts.css";
+@import "./floating.css";
+
 /* RR27 全局基座：主题 token 变量（值由 theme.ts 注入 data-theme 属性时随行内 style 覆盖
    不适用——CSS 变量直接写两套，theme.ts 的表与之对齐由域测试锁定）、reset、共享动效。
    深色=图3 主参考；浅色=图4 右半。 */
@@ -121,7 +124,7 @@ body,
 }
 
 body {
-  font-family: "Segoe UI", "MiSans", "HarmonyOS Sans SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  font-family: "Manrope", "Radar Sans SC", "Microsoft YaHei UI", system-ui, sans-serif;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;

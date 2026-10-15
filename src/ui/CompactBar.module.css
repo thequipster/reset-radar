@@ -198,3 +198,16 @@
   flex: 0 0 auto;
   white-space: nowrap;
 }
+
+/* Complete floating redesign; live quota values and 44px expansion target stay intact. */
+.shell{height:60px;gap:8px;padding:7px 9px 7px 7px;border-radius:20px;border-color:var(--border-strong);background:linear-gradient(115deg,#33654b25,transparent 70%),var(--bg-panel);box-shadow:inset 0 1px 0 #d3f6d71a,var(--shadow-float);font-family:inherit}
+.dragHandle{width:10px;overflow:hidden;opacity:.7}.brand{gap:6px;flex:0 1 82px;min-width:54px}.logo{width:30px;height:30px;border-radius:50%;object-fit:cover;filter:none;box-shadow:0 0 0 1px var(--border-subtle)}.brandText{gap:4px}.brandName{font-size:10px;letter-spacing:1px;font-weight:700;gap:4px}.brandSub{font-size:8px;letter-spacing:.1px}.dot{width:4px;height:4px}.dotOk{box-shadow:none}
+.metric{gap:5px;flex:0 1 auto;min-width:40px;padding-left:7px;border-left:1px solid var(--border-subtle)}.metricText{gap:3px}.metricValue{font-size:17px;font-weight:650;line-height:20px;letter-spacing:-.7px}.metricLabel{font-size:8px;line-height:10px;letter-spacing:.3px}.miniMeter{display:block;width:41px;height:3px;background:var(--ring-track);border-radius:6px;overflow:hidden}.miniMeter i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--accent-blue-bright),var(--success));max-width:100%}
+.cardIconBox{width:20px;height:25px;border-radius:6px;border:1px solid var(--border-strong);background:linear-gradient(135deg,var(--bg-card-hover),var(--bg-inset));color:var(--accent-blue-bright)}.cardIconBox svg{width:13px;height:13px}.spacer{flex:1 1 0;min-width:0}.expandButton{width:44px;height:44px;border-radius:13px;background:linear-gradient(140deg,#43845d22,transparent),var(--bg-inset);box-shadow:inset 0 1px 0 #d3f6d710;color:var(--accent-blue-bright);border-color:var(--border-subtle)}
+:global([data-theme="light"]) .shell{background:linear-gradient(115deg,#e6f5e9,transparent 70%),var(--bg-panel);box-shadow:inset 0 1px 0 #ffffff,var(--shadow-float)}
+@media(max-width:420px){.shell{gap:5px;padding-left:6px;padding-right:6px}.brand{min-width:31px;flex-basis:31px}.brandText{display:none}.metric{padding-left:5px;min-width:35px}.metricValue{font-size:15px}.miniMeter{width:32px}.cardIconBox{display:none}}
+
+:global([data-theme="light"]) .shell{background:#fff;border-color:var(--border-subtle);box-shadow:var(--shadow-float)}
+:global([data-theme="light"]) .logo{box-shadow:none}
+:global([data-theme="light"]) .expandButton{background:#f1f7f5;box-shadow:none;border-color:var(--border-subtle)}
+:global([data-theme="light"]) .cardIconBox{background:#f1f7f5}

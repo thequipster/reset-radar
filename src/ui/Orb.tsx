@@ -101,7 +101,7 @@ export default function Orb({
   const fontSize = readout.value.length <= 2 ? 20 : readout.value.length === 3 ? 17 : 14;
 
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} data-floating-surface="orb">
       <div className={styles.shift}>
         <button
           ref={orbRef}
@@ -178,6 +178,7 @@ export default function Orb({
               transform={`rotate(-90 ${ORB_DIAMETER / 2} ${ORB_DIAMETER / 2})`}
             />
           </svg>
+          <span className={styles.metricHint} aria-hidden="true">{metric==='remaining'?'周余':metric==='risk'?'公告':'预算'}</span>
           <span className={styles.value} style={{ fontSize }}>
             {readout.value}
             {readout.unit !== "" && <span className={styles.unit}>{readout.unit}</span>}

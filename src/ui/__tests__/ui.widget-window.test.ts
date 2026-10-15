@@ -3,18 +3,18 @@ import { describe, expect, it } from "vitest";
 import { COLLAPSED_SIZE, EXPANDED_SIZE, PEEK_SIZE, targetWidgetSize } from "../widgetWindow";
 
 describe("targetWidgetSize（三态窗口尺寸契约）", () => {
-  it("collapsed=460×76（RR21 实证悬浮条）；peek=460×212；expanded=460×690", () => {
+  it("collapsed=460×76（RR21 实证悬浮条）；peek=460×212；expanded=1080×800", () => {
     expect(COLLAPSED_SIZE).toEqual({ width: 460, height: 76 });
     expect(PEEK_SIZE).toEqual({ width: 460, height: 212 });
-    expect(EXPANDED_SIZE).toEqual({ width: 460, height: 690 });
+    expect(EXPANDED_SIZE).toEqual({ width: 1080, height: 800 });
     expect(targetWidgetSize("collapsed")).toEqual(COLLAPSED_SIZE);
     expect(targetWidgetSize("peek")).toEqual(PEEK_SIZE);
     expect(targetWidgetSize("expanded")).toEqual(EXPANDED_SIZE);
   });
 
-  it("三态同宽 460（RR13 实证胶囊自然宽基线，窄窗不横滚的宽度前提）", () => {
-    for (const state of ["collapsed", "peek", "expanded"] as const) {
-      expect(targetWidgetSize(state).width).toBe(460);
-    }
+  it("仅展开工作台加宽，迷你条与预览保持原尺寸", () => {
+    expect(targetWidgetSize("collapsed").width).toBe(460);
+    expect(targetWidgetSize("peek").width).toBe(460);
+    expect(targetWidgetSize("expanded").width).toBe(1080);
   });
 });

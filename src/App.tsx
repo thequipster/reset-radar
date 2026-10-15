@@ -23,6 +23,7 @@ import { evaluatePlatformJournal } from './lib/v3/runtime';
 import { useV3Journal } from "./ui/useV3Journal";
 import { usePersonalInputs } from "./ui/usePersonalInputs";
 import { useV3Planning } from "./ui/useV3Planning";
+import { needsPlanning, needsCalibration } from "./ui/planningSchedule";
 import { MODEL_BUCKET_MS, isDailyPublishBucket, modelBucketStart, msUntilNextBucket } from "./ui/modelClock";
 import { DAY_MS } from "./lib/beijing";
 import {summarizeVerdicts} from './lib/v3/verdict';
@@ -447,12 +448,13 @@ export default function App() {
         : null,
     [codex, modelNow, personal.state, journal.observations, journal.signalHistory,journal.historyDocument,journal.accountSnapshots],
   );
-  // 展开/预览时 15 分钟一桶，收起只剩迷你圆在看 → 60 分钟一桶；同签名直接命中缓存，不再重跑蒙特卡洛。
-  const planningWorker=useV3Planning(baseVM?.planningInput??null,{enabled:live||demo,bucketMs:display==="collapsed"?4*MODEL_BUCKET_MS:MODEL_BUCKET_MS});
+  // 收起的周余/公告/卡数不需要蒙特卡洛；预算指标、预览与面板仍按需计算。
+  // 展开/收起保持同一15分钟签名，避免仅切形态就重复跑规划；不停止既有任务或后台公告刷新。
+  const planningWorker=useV3Planning(baseVM?.planningInput??null,{enabled:(live||demo)&&needsPlanning(display,form,metric),bucketMs:MODEL_BUCKET_MS});
   const vm=useMemo(()=>baseVM?mergeV31Planning(baseVM,planningWorker.result):null,[baseVM,planningWorker.result]);
-  const calibrationV3=useMemo(()=>evaluatePlatformJournal(journal.predictionContent,journal.historyDocument,modelNow),[journal.predictionContent,journal.historyDocument,modelNow]);
-  const weekdayCalibration=useMemo(()=>evaluateWeekdayJournal(journal.predictionContent,modelNow),[journal.predictionContent,modelNow]);
-  const verdictSummaries=useMemo(()=>summarizeVerdicts(journal.predictionContent),[journal.predictionContent]);
+  const calibrationV3=useMemo(()=>needsCalibration(display)?evaluatePlatformJournal(journal.predictionContent,journal.historyDocument,modelNow):undefined,[display,journal.predictionContent,journal.historyDocument,modelNow]);
+  const weekdayCalibration=useMemo(()=>needsCalibration(display)?evaluateWeekdayJournal(journal.predictionContent,modelNow):undefined,[display,journal.predictionContent,modelNow]);
+  const verdictSummaries=useMemo(()=>needsCalibration(display)?summarizeVerdicts(journal.predictionContent):undefined,[display,journal.predictionContent]);
   const [journalWriteError,setJournalWriteError]=useState<string|null>(null);
   // RR56 日志节流：预测/规划行只在 (a) 北京 09:00 主槽、(b) 实质输入变化、(c) 距上次写入 ≥ 1 小时 时追加。
   // 过去每次 VM 重建（每分钟）都写 8 行，每行都要把 16 MB 日志整份搬过 IPC 两次。
@@ -568,6 +570,8 @@ export default function App() {
           logError={journal.error ?? journalWriteError ?? planningWorker.error}
           subscriptionError={subscriptionError}
           refreshing={refreshing}
+          historyRefreshing={journal.historyRefreshing}
+          historyError={journal.historyError}
           demo={demo}
           planningPending={planningWorker.pending}
           compactionNote={journal.compaction}

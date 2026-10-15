@@ -9,8 +9,8 @@ export const COLLAPSED_SIZE = { width: 460, height: 76 } as const;
 /** 迷你预览：460 宽同条；212=02-spec §3.1（条 76 + 预览内容区 136）。 */
 export const PEEK_SIZE = { width: 460, height: 212 } as const;
 
-/** 展开面板：460 宽沿基线；690=02-spec §3.1 目标高（内容纵向滚动，maxHeight 不越工作区）。 */
-export const EXPANDED_SIZE = { width: 460, height: 690 } as const;
+/** 工作台展开为1080×800；App按屏幕工作区夹紧，窄屏由响应式布局降级。 */
+export const EXPANDED_SIZE = { width: 1080, height: 800 } as const;
 
 /** 迷你圆（RR43）：圆直径 56 + 四周 8px 透明边（阴影与贴边位移的余量）→ 窗口 72×72。 */
 export const ORB_DIAMETER = 56;

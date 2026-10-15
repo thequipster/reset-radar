@@ -1,0 +1,15 @@
+/* One floating-surface palette shared by orb, bar and peek. Keep the 8px transparent margin. */
+[data-floating-surface]{--bg-panel:#0b191b;--bg-header:#0b191b;--bg-card:#122323;--bg-card-hover:#19332f;--bg-inset:#102522;--ring-track:#263f38;--border-subtle:#30483f;--border-strong:#426f5e;--text-primary:#edf7f1;--text-secondary:#abc4b6;--text-tertiary:#8fae9d;--accent-blue:#27765e;--accent-blue-bright:#7ee4bc;--accent-blue-deep:#1e5945;--accent-cyan:#7ee4bc;--accent-purple-text:#a4e0c5;--success:#7ee4bc;--success-dim:#213f31;--glow-blue:none;--logo-ring-main:#7ee4bc;--logo-ring-inner:#439e79;--logo-grad-hi:#7ee4bc99;--logo-grad-lo:#439e791a;--logo-glow:none;font-family:"Manrope","Radar Sans SC","Microsoft YaHei UI",system-ui,sans-serif}
+[data-theme="light"] [data-floating-surface]{--bg-panel:#f6fbf7;--bg-header:#f6fbf7;--bg-card:#ffffff;--bg-card-hover:#e7f4eb;--bg-inset:#e9f4ed;--ring-track:#d7e6db;--border-subtle:#c4d8cb;--border-strong:#8eb9a0;--text-primary:#173b2a;--text-secondary:#466a54;--text-tertiary:#557d62;--accent-blue:#246c48;--accent-blue-bright:#246c48;--accent-blue-deep:#1c5038;--accent-cyan:#246c48;--accent-purple-text:#256b4b;--success:#28764c;--success-dim:#e0f1e4;--logo-ring-main:#28764c;--logo-ring-inner:#55a776;--logo-grad-hi:#28764c99;--logo-grad-lo:#55a7761a}
+
+[data-floating-surface]{--shadow-float:0 2px 4px #00000060}
+[data-theme="light"] [data-floating-surface]{--shadow-float:0 2px 4px #1d50352b}
+
+/* Light is a paper/ink theme, not the dark jewel with its opacity lowered. */
+[data-theme="light"] [data-floating-surface]{--bg-panel:#ffffff;--bg-header:#ffffff;--bg-card:#ffffff;--bg-card-hover:#edf5f4;--bg-inset:#f1f6f5;--ring-track:#dce8e6;--border-subtle:#d4e2df;--border-strong:#abc9c3;--text-primary:#193a38;--text-secondary:#496863;--text-tertiary:#577873;--accent-blue:#087f78;--accent-blue-bright:#087b73;--accent-cyan:#087b73;--success:#167657;--shadow-float:0 1px 3px #153e3b24}
+.rr-themed-art{display:inline-grid;vertical-align:middle;flex-shrink:0;overflow:hidden;border-radius:50%}
+.rr-themed-art>img{grid-area:1/1;width:100%;height:100%;object-fit:cover;display:block}
+.rr-themed-art>.rr-art-light{display:none}
+[data-theme="light"] .rr-themed-art>.rr-art-dark{display:none}
+[data-theme="light"] .rr-themed-art>.rr-art-light{display:block}
+[data-radar-art="card"]{border-radius:12px}

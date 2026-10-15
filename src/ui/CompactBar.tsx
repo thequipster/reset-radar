@@ -43,7 +43,7 @@ export default function CompactBar({ vm, phase, demo, onExpand, expandRef }: Com
   const riskText = loading ? "—" : percent1(vm.riskPercent);
 
   return (
-    <div className={styles.shell} role="group" aria-label="reset-radar 悬浮条" onClick={onExpand}>
+    <div className={styles.shell} data-floating-surface="bar" role="group" aria-label="reset-radar 悬浮条" onClick={onExpand}>
       <span className={styles.dragHandle} data-tauri-drag-region title="拖动悬浮条">
         <GripDots size={18} />
       </span>

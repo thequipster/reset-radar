@@ -33,6 +33,7 @@ export interface PlainAdviceInput {
   sampleDays: number;
   /** RR57 冲刺模式：用户说这个周期一定会用卡，只要「哪天用」，不按学到的用量算。 */
   sprint?: { enabled: boolean; hoursPerDay: number } | null;
+  cardRisk?: import("../lib/v3/sprintPlan").SprintInput["risk"];
 }
 
 export type CardTone = "now" | "wait" | "none" | "fill" | "refresh";
@@ -124,23 +125,25 @@ export function plainAdvice(input: PlainAdviceInput): PlainAdvice {
   // ②′ 冲刺模式：用户说这个周期一定会用卡，只排「哪天用」，不看学到的用量。
   let sprint: PlainAdvice["sprint"] = null;
   if (input.sprint?.enabled && weekly && card.tone !== "refresh") {
-    const plan = sprintPlan({ now, weekly, cards: input.cards, hoursPerDay: input.sprint.hoursPerDay });
+    const plan = sprintPlan({ now, weekly, cards: input.cards, hoursPerDay: input.sprint.hoursPerDay, risk: input.cardRisk });
     const lines: SprintLine[] = plan.steps.map((step) => {
       const when = step.reason === "now" ? "现在" : whenLabel(now, step.useAt);
-      const why = step.reason === "now" ? "额度已经见底，现在用最不浪费。"
+      const why = step.reason === "low_risk" ? `先选窗口 ${whenLabel(now,step.windowStart!)} 至 ${whenLabel(now,step.windowEnd!)}，取可激活区间中点；用卡后消耗期间的平台公告参考风险约 ${percentLabel(step.probability!*100)}（不等于账号重置概率）。可从 ${whenLabel(now,step.prepareFrom!)} 开始安排现有额度用量；若准备来不及，不必强行耗尽，先刷新重算。`
+        : step.reason === "now" ? "额度已经见底，现在用最不浪费。"
         : step.reason === "exhausted" ? "按最快用法，那时手上的额度刚好用完，用卡最不浪费。"
         : step.reason === "after_reset" ? `先等 ${whenLabel(now, step.waitForResetAt!)} 自动恢复，把恢复的额度用完再用卡；提前用会白白浪费一次自然恢复。`
         : `${step.waitForResetAt ? `先等 ${whenLabel(now, step.waitForResetAt)} 自动恢复，再用恢复的额度；` : ""}卡再晚就过期了，只能那时候用；那时大约还剩 ${step.overwritePercent}% 会被覆盖掉，在那之前尽量多用。`;
       return { cardId: step.cardId, label: step.label, when, why, latest: whenLabel(now, step.latestAt), useAt: step.useAt, reason: step.reason };
     });
     const dayHours = input.sprint.hoursPerDay >= 24 ? "一天 24 小时不停地用" : `一天用 ${input.sprint.hoursPerDay} 小时`;
-    const note = plan.steps.length === 0
+    const note = input.cardRisk !== undefined ? (plan.steps.length ? "日期由风险窗口先定，你再围绕它安排用量；相同风险窗口不代表已验证的安全期。" : plan.assumptions[0]!) : plan.steps.length === 0
       ? (plan.unknownDeadline.length ? `有 ${plan.unknownDeadline.length} 张卡还没填到期时间，排不出哪天用；到「我的设置」补一下。`
         : (input.resetCredits ?? 0) > 0 ? `服务端说手上有 ${input.resetCredits} 张卡，但这里还没登记它的到期时间；到「我的设置 → 我的卡」加进来，就能算出哪天用。`
         : "现在没有能排日程的卡。")
       : `按${dayHours}算，${plan.exhaustAt != null && plan.exhaustAt > now ? `现在这 ${percentLabel(weekly.remaining)} 大约 ${whenLabel(now, plan.exhaustAt)} 用完；` : ""}每用一张卡回满后再过约 ${Math.round(100 / (100 / plan.rateHoursPerWeek * Math.min(24, input.sprint.hoursPerDay) / 24))} 小时用完。`;
     sprint = { lines, note, assumptions: plan.assumptions, plan, needCards: plan.steps.length === 0 && (plan.unknownDeadline.length > 0 || (input.resetCredits ?? 0) > 0) };
     const first = plan.steps[0];
+    if (!first && input.cardRisk !== undefined) card = {tone:"wait",headline:"先更新公告或等待合适窗口",detail:note,cardLabel:null,cardId:null,deadlineAt:null,decideAt:null};
     if (first) {
       const c = input.cards.find((x) => x.localId === first.cardId) ?? null;
       const rest = plan.steps.length > 1 ? `之后 ${plan.steps.slice(1).map((st) => `「${st.label}」${relativeDayLabel(now, st.useAt)}`).join("、")}。` : "";
@@ -167,6 +170,13 @@ export function plainAdvice(input: PlainAdviceInput): PlainAdvice {
     runway = weekly.remaining <= 0
       ? { headline: "周额度已经用完", detail: first ? `按日程 ${whenLabel(now, first.useAt)} 用「${first.label}」回满。` : `${whenLabel(now, weekly.resetsAt)} 自动恢复。`, exhaustAt: now }
       : { headline: `${dayHours}，最快 ${whenLabel(now, exhaustAt)} 能把这 ${percentLabel(weekly.remaining)} 用完`, detail: first ? `${first.useAt <= exhaustAt + 60_000 ? "用完就" : `${relativeDayLabel(now, first.useAt)}`}用「${first.label}」回满，再过约 ${Math.round((first.burnedOutAt - first.useAt) / 3_600_000)} 小时又能用完一整周的量。` : `周额度 ${whenLabel(now, weekly.resetsAt)} 自动恢复。`, exhaustAt };
+  }
+
+  if (sprint && input.cardRisk !== undefined) {
+    const first=sprint.plan.steps[0];
+    budget.percent=null; budget.headline=first?`围绕 ${whenLabel(now,first.useAt)} 用卡安排用量`:"暂不安排冲刺用量";
+    budget.detail="日期不是按当前用量倒推；可以灵活调整工作安排，不必为了耗尽额度而无意义地使用。";
+    runway={headline:first?"先定用卡时间，再安排消耗":"暂无合适的用卡窗口",detail:first?`参考准备起点 ${whenLabel(now,first.prepareFrom!)}；用卡前刷新公告，确认剩余额度与到期时间。`:sprint.note,exhaustAt:null};
   }
 
   // ④ 未来 7 天
