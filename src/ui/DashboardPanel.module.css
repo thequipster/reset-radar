@@ -10,7 +10,7 @@
   border-radius: 16px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-panel);
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-float);
   color: var(--text-primary);
   font-size: 12px;
   height: calc(100% - 16px);

@@ -344,3 +344,8 @@
 | 2026-10-13 23:00:45 +08:00 | S1013-v32-resume | 接管开工 | RR55 | LIGHT | 原会话S1013-v32-implement额度耗尽中断（22:54最后心跳）；门禁已全绿，接手剩余：最终构建双主题复验、交付包、文档与本地合入；不push |
 | 2026-10-13 23:06:29 +08:00 | S1013-v32-resume | MERGE占槽 | RR55 | MERGE | 终轮双主题复验/打包/worktree提交(3c3bf50/d28aee7)齐备；先收编主仓协调文件再cherry-pick |
 | 2026-10-13 23:09:40 +08:00 | S1013-v32-resume | 收工/MERGE释放 | RR55 | — | 影子接线闭环：cherry-pick树恒等、main tsc/525复绿、包校验通过；用户数据未动，未push |
+| 2026-10-14 21:08:00 +08:00 | S1014-arena-rr56 | 开工 | RR56 | LIGHT | 用户点单三项必修：风扇/「今日建议量」选不了/文案太专业；Arena 代理经 Local Bridge 在主仓工作目录改动，不提交不 push |
+| 2026-10-14 21:08:30 +08:00 | S1014-arena-rr56 | 收工 | RR56 | — | 规划器提速（结果逐位不变）+签名缓存+日志 CAS/压缩+自动缩圆修正+人话文案；tsc 0/546 测试/Rust lib 45 绿；真实数据默认收起 CPU 0 核（原 1.1–1.3 核）；包 release-qa/reset-radar-RR56.zip；未提交未 push，详见 task_logs/RR56_done.md |
+| 2026-10-14 21:54:19 +08:00 | S1014-arena-rr57 | 开工 | RR57 | LIGHT | 用户追加两项：收起条四周矩形底色；「这周期一定用卡，告诉我哪天用」。Arena 代理经 Local Bridge 改主仓工作目录，不提交不 push |
+| 2026-10-14 21:54:19 +08:00 | S1014-arena-rr57 | 收工 | RR57 | — | 外壳阴影改收边 token（--shadow-float）消方框；新增 sprintPlan 纯函数 + 概览「一定用卡」开关（哪天用/为什么/最晚）；tsc 0/vitest 559 绿；QA 19/19、收起 CPU 0 核；包 release-qa/reset-radar-RR56.zip 已重打；未提交 |
+| 2026-10-15 21:29:00 +08:00 | S1015-user-ship | 用户指令 | — | — | 用户明示授权提交并 push RR56/RR57（本会话复跑门禁：tsc 0/vite build/vitest 559/cargo lib 45 全绿）；清理 release-qa 旧版本只留 RR56 包；桌面放最新版快捷方式供用户试用 |

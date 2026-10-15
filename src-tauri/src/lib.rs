@@ -131,7 +131,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_snapshots, refresh_snapshots, platform_history::fetch_platform_history, read_observation_log, append_observation_log, read_prediction_log, append_prediction_log, read_calibration_summary,
+            get_snapshots, refresh_snapshots, platform_history::fetch_platform_history, read_observation_log, append_observation_log, stat_observation_log, append_observation_log_by_hash, rewrite_observation_log, read_prediction_log, append_prediction_log, read_calibration_summary,
             shell::shell_geometry, shell::shell_set_bounds, shell::shell_set_visible, shell::shell_is_visible, shell::shell_quit
         ])
         .run(tauri::generate_context!())
@@ -274,4 +274,20 @@ fn read_observation_log(state: State<'_, AppState>, kind: String) -> Result<obse
 fn append_observation_log(state: State<'_, AppState>, kind: String, expected_content: String, line: String) -> Result<observations::AppendResult, String> {
     let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
     observations::append_line(dir.as_ref().ok_or("application config directory unavailable")?, &kind, &expected_content, &line)
+}
+/// RR56：指纹版 CAS 三件——前端缓存整份日志，IPC 只传指纹与新行，不再每次追加往返十几 MB。
+#[tauri::command]
+fn stat_observation_log(state: State<'_, AppState>, kind: String) -> Result<observations::LogStat, String> {
+    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
+    observations::stat_log(dir.as_ref().ok_or("application config directory unavailable")?, &kind)
+}
+#[tauri::command]
+fn append_observation_log_by_hash(state: State<'_, AppState>, kind: String, expected_sha256: String, line: String) -> Result<observations::HashedWrite, String> {
+    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
+    observations::append_line_by_hash(dir.as_ref().ok_or("application config directory unavailable")?, &kind, &expected_sha256, &line)
+}
+#[tauri::command]
+fn rewrite_observation_log(state: State<'_, AppState>, kind: String, expected_sha256: String, content: String) -> Result<observations::HashedWrite, String> {
+    let dir = state.cache_dir.lock().map_err(|e| e.to_string())?;
+    observations::rewrite_log(dir.as_ref().ok_or("application config directory unavailable")?, &kind, &expected_sha256, &content)
 }

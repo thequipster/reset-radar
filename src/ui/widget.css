@@ -36,6 +36,9 @@
   --glow-purple: 0 6px 28px rgba(147, 51, 234, 0.40);
   --shadow-panel: 0 12px 40px rgba(0, 0, 0, 0.55);
   --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.35);
+  /* RR57 浮窗外壳（圆/条/卡/面板）专用：窗口四周只有 8px 透明边，更大的阴影会被窗口边界切成一个半透明方框。
+     偏移 2 + 模糊 4（高斯尾巴也在 8px 内），阴影在到达窗口边缘前已衰减为 0。 */
+  --shadow-float: 0 2px 4px rgba(0, 0, 0, 0.5);
   /* RR34：a 段 #a855f7→#9333ea（白字 3.96→5.38 达标）；banner 副文案/决策图标 token 化。 */
   --purple-banner-a: #9333ea;
   --purple-banner-b: #7c3aed;
@@ -86,6 +89,7 @@
   --glow-purple: 0 6px 20px rgba(147, 51, 234, 0.15);
   --shadow-panel: 0 8px 24px rgba(20, 40, 80, 0.14);
   --shadow-card: 0 1px 3px rgba(20, 40, 80, 0.08);
+  --shadow-float: 0 2px 4px rgba(20, 40, 80, 0.25);
   /* RR34：横幅浅紫渐变白字 1.23–1.51 实锤缺陷 → 换深紫渐变（与深色统一，紫语义保持）；
      大数字紫→白；--warn 提深一档（状态点 2.99→4.71，与 --warn-text 同值语义）。 */
   --purple-banner-a: #9333ea;

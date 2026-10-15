@@ -19,10 +19,13 @@ afterEach(()=>vi.unstubAllGlobals());
 describe('RR51 冷启动与预览提示',()=>{
   it('不足七个完整需求日时提供两条醒目填写入口',()=>{
     const html=panel({vm:{...vm,demand:{...vm.demand,sampleDays:0}}});
-    expect(html).toContain('还在学习你的用量');expect(html).toContain('填写今天用量');expect(html).toContain('补充卡台账');expect(html).toContain('马上得到条件建议');
+    // RR56：人话版——入口文案改成“填今天打算用多少 / 补卡的到期时间”，并说明满 7 天后按习惯算。
+    expect(html).toContain('还在学习你的用量');expect(html).toContain('填今天打算用多少');expect(html).toContain('补卡的到期时间');expect(html).toContain('满 7 天后按你的习惯算');
   });
   it('预览明确双窗及周截止推算且提醒不会执行用卡',()=>{
     const html=panel({vm:{...vm,demand:{...vm.demand,sampleDays:0}}},'planner');
+    expect(html).toContain('用卡之后会怎样');expect(html).toContain('不会真的帮你用卡');
+    // 专业细节折叠区仍保留原口径，供自查。
     expect(html).toContain('周窗预计回满');expect(html).toContain('短窗截止待刷新确认');expect(html).toContain('此预览不会执行用卡');
   });
   it('个人输入入口打开台账并滚动聚焦预算或卡标签',()=>{

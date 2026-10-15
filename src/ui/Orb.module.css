@@ -22,7 +22,7 @@
   border: none;
   border-radius: 50%;
   background: var(--bg-panel);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-float);
   cursor: pointer;
   display: grid;
   place-items: center;

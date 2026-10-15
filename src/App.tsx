@@ -11,7 +11,7 @@ import { buildV3Dashboard, mergeV31Planning, v3OrbReadout } from "./ui/v3Model";
 import {
   AUTO_COLLAPSE_BLUR_DELAY_MS, AUTO_COLLAPSE_IDLE_MS, DOCK_REDOCK_DELAY_MS, PEEK_CLOSE_DELAY_MS,
   PEEK_OPEN_DELAY_MS, escapeEvent, hashSegments, initialDisplayState, initialRestForm,
-  nextDisplayState, shouldAutoCollapse, type DisplayEvent, type DisplayState, type RestForm,
+  nextDisplayState, shouldAutoCollapse, shouldDeferAutoCollapse, type DisplayEvent, type DisplayState, type RestForm,
 } from "./ui/appState";
 import DashboardPanel, { V3CompactBar as CompactBar, V3Peek as PeekCard } from "./ui/V3Dashboard";
 import Orb from "./ui/Orb";
@@ -23,6 +23,7 @@ import { evaluatePlatformJournal } from './lib/v3/runtime';
 import { useV3Journal } from "./ui/useV3Journal";
 import { usePersonalInputs } from "./ui/usePersonalInputs";
 import { useV3Planning } from "./ui/useV3Planning";
+import { MODEL_BUCKET_MS, isDailyPublishBucket, modelBucketStart, msUntilNextBucket } from "./ui/modelClock";
 import { DAY_MS } from "./lib/beijing";
 import {summarizeVerdicts} from './lib/v3/verdict';
 import { useSnapshots } from "./ui/useSnapshots";
@@ -55,12 +56,29 @@ export default function App() {
   const [override, setOverride] = useState(themeOverride);
   const resolvedTheme = override ?? resolveTheme(themePref, systemDark);
   const { snapshots, live, phase, readError, subscriptionError, refreshing, refresh } = useSnapshots();
-  const [clock, setClock] = useState(() => Date.now());
-  useEffect(() => {
-    let minute: ReturnType<typeof setInterval> | undefined;
-    const start = setTimeout(() => { setClock(Date.now()); minute = setInterval(() => setClock(Date.now()), 60_000); }, 60_000 - Date.now() % 60_000);
-    return () => { clearTimeout(start); if (minute) clearInterval(minute); };
+  // RR56 模型时钟：过去每 60 s 推一次 clock → 重建 VM → 重跑 18–32 s 的规划 worker + 写 8 条日志，
+  // 这就是"一打开就起风扇"的根源。现在只在 15 分钟桶切换、窗口重新可见或用户展开面板时推进；
+  // 规划/日志各自再按签名与小时去重，倒计时文案最多滞后一个桶。
+  const [modelTick, setModelTick] = useState(() => Date.now());
+  const modelTickRef = useRef(modelTick);
+  const bumpModelTick = useCallback((minAgeMs = 60_000) => {
+    const now = Date.now();
+    if (now - modelTickRef.current < minAgeMs && modelBucketStart(now) === modelBucketStart(modelTickRef.current)) return;
+    modelTickRef.current = now;
+    setModelTick(now);
   }, []);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      timer = setTimeout(() => { bumpModelTick(0); schedule(); }, msUntilNextBucket(Date.now()));
+    };
+    schedule();
+    const onVisible = () => { if (document.visibilityState === "visible") bumpModelTick(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { if (timer) clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
+  }, [bumpModelTick]);
+  // 用户主动看（预览 / 展开）时把"模型 now"对到当前时刻，文案不滞后。
+  useEffect(() => { if (display !== "collapsed") bumpModelTick(); }, [display, bumpModelTick]);
   const expandButtonRef = useRef<HTMLButtonElement | null>(null);
   const orbRef = useRef<HTMLButtonElement | null>(null);
 
@@ -212,36 +230,56 @@ export default function App() {
   }, [clearTimers, display]);
 
   // RR43 自动缩圆：展开态失焦（600ms 宽限）或闲置到点 → 收起成圆。
+  // RR56：原生下拉/日期选择器弹出时外壳会瞬时失焦——指针仍在窗口内或焦点在表单控件上时暂缓，
+  // 等指针真正离开窗口（且仍未回焦）再起 600ms 计时；表单输入也算“在用”。
   useEffect(() => {
     if (!shouldAutoCollapse(display)) return;
     let cancelled = false;
     let unlisten: (() => void) | null = null;
     let blurTimer: number | null = null;
+    let shellFocused = true;
+    let pointerInside = true;
     let idleTimer: number | null = window.setTimeout(() => dispatch("auto-collapse"), AUTO_COLLAPSE_IDLE_MS);
     const resetIdle = (): void => {
       if (idleTimer != null) window.clearTimeout(idleTimer);
       idleTimer = window.setTimeout(() => dispatch("auto-collapse"), AUTO_COLLAPSE_IDLE_MS);
     };
+    const clearBlur = (): void => {
+      if (blurTimer != null) window.clearTimeout(blurTimer);
+      blurTimer = null;
+    };
+    const armBlur = (): void => {
+      if (shellFocused || blurTimer != null) return;
+      if (shouldDeferAutoCollapse({ pointerInside, activeTag: document.activeElement?.tagName })) return;
+      blurTimer = window.setTimeout(() => dispatch("auto-collapse"), AUTO_COLLAPSE_BLUR_DELAY_MS);
+    };
     void onShellFocusChanged((focused) => {
+      shellFocused = focused;
       if (focused) {
-        if (blurTimer != null) window.clearTimeout(blurTimer);
-        blurTimer = null;
+        clearBlur();
         resetIdle();
         return;
       }
-      blurTimer = window.setTimeout(() => dispatch("auto-collapse"), AUTO_COLLAPSE_BLUR_DELAY_MS);
+      armBlur();
     }).then((fn) => {
       if (cancelled) fn();
       else unlisten = fn;
     });
+    const onPointerEnter = (): void => { pointerInside = true; clearBlur(); };
+    const onPointerLeave = (): void => { pointerInside = false; armBlur(); };
+    const root = document.documentElement;
+    root.addEventListener("mouseenter", onPointerEnter);
+    root.addEventListener("mouseleave", onPointerLeave);
     // 面板内的任何操作都算“在用”，重置闲置计时。
-    const activity = ["pointerdown", "pointermove", "keydown", "wheel"] as const;
+    const activity = ["pointerdown", "pointermove", "keydown", "wheel", "focusin", "input", "change"] as const;
     for (const name of activity) window.addEventListener(name, resetIdle);
     return () => {
       cancelled = true;
       unlisten?.();
       if (idleTimer != null) window.clearTimeout(idleTimer);
-      if (blurTimer != null) window.clearTimeout(blurTimer);
+      clearBlur();
+      root.removeEventListener("mouseenter", onPointerEnter);
+      root.removeEventListener("mouseleave", onPointerLeave);
       for (const name of activity) window.removeEventListener(name, resetIdle);
     };
   }, [dispatch, display]);
@@ -399,7 +437,8 @@ export default function App() {
   const effectivePhase = scenarioPhase ?? phase;
   const codex = effectiveSnapshots.find((item) => item.provider === "codex") ?? effectiveSnapshots[0] ?? null;
   const journal = useV3Journal(codex, live && !demo);
-  const modelNow = useMemo(() => Date.now(), [clock, codex?.updatedAt,journal.historyDocument]);
+  // 09:00 桶内统一用桶起点，保证每日主预测仍落在 primary_daily（journal.predictionGroupAt 只认 09:00 整分）。
+  const modelNow = useMemo(() => { const now = Date.now(); return isDailyPublishBucket(now) ? modelBucketStart(now) : now; }, [modelTick, codex?.updatedAt, journal.historyEpoch]);
   const personal = usePersonalInputs(demo ? null : codex?.accountKey ?? null, codex?.resetCredits ?? null, modelNow);
   const baseVM = useMemo(
     () =>
@@ -408,17 +447,29 @@ export default function App() {
         : null,
     [codex, modelNow, personal.state, journal.observations, journal.signalHistory,journal.historyDocument,journal.accountSnapshots],
   );
-  const planningWorker=useV3Planning(baseVM?.planningInput??null);
+  // 展开/预览时 15 分钟一桶，收起只剩迷你圆在看 → 60 分钟一桶；同签名直接命中缓存，不再重跑蒙特卡洛。
+  const planningWorker=useV3Planning(baseVM?.planningInput??null,{enabled:live||demo,bucketMs:display==="collapsed"?4*MODEL_BUCKET_MS:MODEL_BUCKET_MS});
   const vm=useMemo(()=>baseVM?mergeV31Planning(baseVM,planningWorker.result):null,[baseVM,planningWorker.result]);
   const calibrationV3=useMemo(()=>evaluatePlatformJournal(journal.predictionContent,journal.historyDocument,modelNow),[journal.predictionContent,journal.historyDocument,modelNow]);
   const weekdayCalibration=useMemo(()=>evaluateWeekdayJournal(journal.predictionContent,modelNow),[journal.predictionContent,modelNow]);
   const verdictSummaries=useMemo(()=>summarizeVerdicts(journal.predictionContent),[journal.predictionContent]);
   const [journalWriteError,setJournalWriteError]=useState<string|null>(null);
+  // RR56 日志节流：预测/规划行只在 (a) 北京 09:00 主槽、(b) 实质输入变化、(c) 距上次写入 ≥ 1 小时 时追加。
+  // 过去每次 VM 重建（每分钟）都写 8 行，每行都要把 16 MB 日志整份搬过 IPC 两次。
+  const journalGateRef=useRef<{key:string;at:number;dailyDate:string|null}>({key:'',at:0,dailyDate:null});
   useEffect(() => {
     if(!live||demo||!vm||!codex)return;
+    const historySnapshotId=`platform-history:${(journal.historyDocument as {fetchedAt?:string})?.fetchedAt??'unknown'}`;
+    const materialKey=[codex.accountKey??'unknown',codex.status,historySnapshotId,vm.ledgerVersion,vm.preferenceVersion,vm.recommendation?.action??'',vm.recommendation?.cardId??'',
+      Math.round(vm.remainingPercent??-1),(vm.platformLongTerm?.probability24h??-1).toFixed(2),vm.coldContext?.selectedTier??'',vm.planning?.seed??''].join('|');
+    const dailyBucket=isDailyPublishBucket(vm.now);
+    const dailyDate=dailyBucket?new Date(vm.now+8*3_600_000).toISOString().slice(0,10):null;
+    const gate=journalGateRef.current;
+    const due=gate.key!==materialKey||vm.now-gate.at>=3_600_000||(dailyBucket&&gate.dailyDate!==dailyDate);
+    if(!due)return;
+    journalGateRef.current={key:materialKey,at:vm.now,dailyDate:dailyDate??gate.dailyDate};
     let alive=true;
     const snapshotId=`v3-${codex.accountKey??'unknown'}-${codex.rateLimitSnapshot?.observedAt??codex.updatedAt}`;
-    const historySnapshotId=`platform-history:${(journal.historyDocument as {fetchedAt?:string})?.fetchedAt??'unknown'}`;
     const base={issuedAt:vm.now,windowStart:vm.now,windowEnd:vm.now+DAY_MS,trainingCutoff:vm.platformModel.cutoff,inputSnapshotId:snapshotId,
       cardLedgerVersion:vm.ledgerVersion,preferenceVersion:vm.preferenceVersion,assumptions:vm.recommendation.assumptions,evidenceQuality:vm.evidenceQuality,platformHistorySnapshotId:historySnapshotId};
     const prefix=`v3:${snapshotId}:${historySnapshotId}:${vm.now}:${vm.ledgerVersion}:${vm.preferenceVersion}`;
@@ -502,7 +553,7 @@ export default function App() {
       )}
       {display === "peek" && form === "bar" && (
         <div onPointerEnter={onPointerEnterPeek} onPointerLeave={onPointerLeaveWidget} className="rr-fade-in">
-          <PeekCard vm={vm} phase={effectivePhase} demo={demo} onOpen={activate} />
+          <PeekCard vm={vm} cards={personal.state.cards} sprint={personal.state.cardSprint ?? null} phase={effectivePhase} demo={demo} onOpen={activate} />
         </div>
       )}
       {display === "expanded" && (
@@ -518,6 +569,8 @@ export default function App() {
           subscriptionError={subscriptionError}
           refreshing={refreshing}
           demo={demo}
+          planningPending={planningWorker.pending}
+          compactionNote={journal.compaction}
           activeTheme={resolvedTheme}
           onThemePreference={onThemePreference}
           onRefresh={refresh}

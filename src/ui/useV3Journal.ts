@@ -11,9 +11,41 @@ import {settlePlatformPredictions,summarizeVerdicts,weeklyFallbackReview} from '
 import {RESET_HISTORY_SOURCE} from './history';
 import {normalizeAccount} from '../lib/v3/inputs';
 import type {AccountObservationSnapshot,AccountObservationInterval} from '../lib/v3/supply';
+import {compactCardsLog, slimPlanningRecord} from '../lib/v3/journalCompact';
 
 type LogRead = { path: string; content: string };
 type AppendResult = "appended" | "conflict" | "busy";
+type LogStat = { path: string; bytes: number; sha256: string };
+type HashedWrite = { status: AppendResult; bytes: number; sha256: string };
+type LogKind = "usage" | "cards";
+type JournalRow = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- JSONL 行按需读取字段
+/**
+ * RR56：整份日志只从磁盘读一次，之后在内存里增量维护（内容 / 指纹 / 已有 id / 已解析行）。
+ * 以前每追加一行都要 read 16 MB → 逐行 JSON.parse 查重 → 再把 16 MB 当 expectedContent 发回 Rust，
+ * 一分钟 8 次——这是风扇与卡顿的第二大来源。
+ */
+type LogCache = { content: string; sha256: string | null; bytes: number | null; ids: Set<string>; rows: JournalRow[] };
+/** 压缩阈值：至少能省下 1 MB 才值得重写一次日志。 */
+export const COMPACT_MIN_SAVED_CHARS = 1_000_000;
+
+const utf8 = typeof TextEncoder === "undefined" ? null : new TextEncoder();
+const utf8Length = (text: string): number => utf8 ? utf8.encode(text).length : text.length;
+
+function parseRows(content: string): { ids: Set<string>; rows: JournalRow[] } {
+  const ids = new Set<string>(); const rows: JournalRow[] = [];
+  for (const line of content.split(/\r?\n/)) {
+    if (!line) continue;
+    try { const row = JSON.parse(line); if (row && typeof row === "object") { rows.push(row); if (typeof row.id === "string") ids.add(row.id); } } catch { /* tolerate a damaged JSONL row */ }
+  }
+  return { ids, rows };
+}
+
+function sameHistoryDocument(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  const x = a as { fetchedAt?: unknown; events?: unknown[]; coverage?: unknown[] } | null, y = b as typeof x;
+  if (!x || !y || typeof x !== "object" || typeof y !== "object") return false;
+  return x.fetchedAt === y.fetchedAt && (x.events?.length ?? -1) === (y.events?.length ?? -1) && (x.coverage?.length ?? -1) === (y.coverage?.length ?? -1);
+}
 
 export function normalizeProviderSnapshotV3(snapshot: ProviderSnapshot): SnapshotV3 | null {
   const accountKey = snapshot.accountKey;
@@ -37,23 +69,8 @@ export function normalizeProviderSnapshotV3(snapshot: ProviderSnapshot): Snapsho
   };
 }
 
-async function read(kind: "usage" | "cards"): Promise<LogRead> {
+async function readLog(kind: LogKind): Promise<LogRead> {
   return invoke<LogRead>("read_observation_log", { kind });
-}
-
-async function appendOnce(kind: "usage" | "cards", row: { id: string; observedAt: string; [key: string]: unknown }): Promise<string> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const log = await read(kind);
-    if (log.content.split(/\r?\n/).some((line) => {
-      try { return JSON.parse(line).id === row.id; } catch { return false; }
-    })) return log.content;
-    const result = await invoke<AppendResult>("append_observation_log", {
-      kind, expectedContent: log.content, line: JSON.stringify(row),
-    });
-    if (result === "appended") return `${log.content}${log.content && !log.content.endsWith("\n") ? "\n" : ""}${JSON.stringify(row)}\n`;
-    if (result === "busy") throw new Error("观测日志正在写入，请稍后重试");
-  }
-  throw new Error("观测日志更新冲突，请稍后重试");
 }
 
 export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean) {
@@ -64,43 +81,88 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
   const [historyError,setHistoryError]=useState<string|null>(null);
   const [historyDocument,setHistoryDocument]=useState<unknown>(RESET_HISTORY_SOURCE);
   const [predictionContent,setPredictionContent]=useState('');
+  const [compaction,setCompaction]=useState<string|null>(null);
   const activeAccount = useRef<string | null>(snapshot?.accountKey ?? null);
   const writer = useRef<Promise<unknown>>(Promise.resolve());
   const weekdayStopped=useRef<string|null>(null);
+  // 注意：以上三个 useRef 的顺序被 ui.weekday-journal 测试按下标引用，新增 ref 只能排在后面。
+  const caches = useRef<Partial<Record<LogKind, LogCache>>>({});
+  const ioMode = useRef<"hash" | "legacy" | null>(null);
   const enqueueWrite = useCallback(<T,>(operation: () => Promise<T>): Promise<T> => {
     const result = writer.current.catch(() => undefined).then(operation);
     writer.current = result;
     return result;
   }, []);
 
-  const refresh = useCallback(async (accountKey: string | null = activeAccount.current) => {
-    const log = await read("usage");
-    const snapshots: SnapshotV3[] = [];
-    for (const line of log.content.split(/\r?\n/)) {
-      try {
-        const row = JSON.parse(line) as SnapshotV3;
-        // Old observations.jsonl records retain their meaning and are never
-        // mistaken for v3 snapshots merely because their fields look similar.
-        if (row?.schemaVersion === 3 && row.rawSnapshot && typeof row.id === "string" && typeof row.observedAt === "string" && typeof row.accountKey === "string") snapshots.push(row);
-      } catch { /* tolerate a damaged JSONL row */ }
+  /** 读一次磁盘并建立缓存；force=true 丢弃缓存重读（CAS 冲突或字节数对不上时）。 */
+  const loadCache = useCallback(async (kind: LogKind, force = false): Promise<LogCache> => {
+    const existing = caches.current[kind];
+    if (existing && !force) return existing;
+    const log = await readLog(kind);
+    let sha256: string | null = null, bytes: number | null = null;
+    if (ioMode.current !== "legacy") {
+      try { const stat = await invoke<LogStat>("stat_observation_log", { kind }); ioMode.current = "hash"; sha256 = stat.sha256; bytes = stat.bytes; }
+      catch { ioMode.current = "legacy"; } // 旧内核没有指纹命令：退回整份内容 CAS。
     }
+    const cache: LogCache = { content: log.content, sha256, bytes, ...parseRows(log.content) };
+    caches.current[kind] = cache;
+    return cache;
+  }, []);
+
+  const read = useCallback(async (kind: LogKind): Promise<LogRead> => ({ path: kind, content: (await loadCache(kind)).content }), [loadCache]);
+
+  const appendOnce = useCallback(async (kind: LogKind, row: { id: string; observedAt: string; [key: string]: unknown }): Promise<string> => {
+    const line = JSON.stringify(row);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const cache = await loadCache(kind, attempt > 0);
+      if (cache.ids.has(row.id)) return cache.content;
+      const separator = cache.content && !cache.content.endsWith("\n") ? "\n" : "";
+      const next = `${cache.content}${separator}${line}\n`;
+      const commit = (sha256: string | null, bytes: number | null) => {
+        cache.ids.add(row.id); cache.rows.push(JSON.parse(line));
+        caches.current[kind] = { content: next, sha256, bytes, ids: cache.ids, rows: cache.rows };
+        return next;
+      };
+      if (ioMode.current === "hash" && cache.sha256 != null) {
+        const written = await invoke<HashedWrite>("append_observation_log_by_hash", { kind, expectedSha256: cache.sha256, line });
+        if (written.status === "appended") {
+          const expectedBytes = (cache.bytes ?? 0) + utf8Length(`${separator}${line}\n`);
+          if (written.bytes !== expectedBytes) { caches.current[kind] = undefined; return (await loadCache(kind, true)).content; } // 有别的写者插队：以磁盘为准
+          return commit(written.sha256, written.bytes);
+        }
+        if (written.status === "busy") throw new Error("观测日志正在写入，请稍后重试");
+        continue; // conflict：重读后重试（可能是别的实例已写入同一行）
+      }
+      const result = await invoke<AppendResult>("append_observation_log", { kind, expectedContent: cache.content, line });
+      if (result === "appended") return commit(null, null);
+      if (result === "busy") throw new Error("观测日志正在写入，请稍后重试");
+    }
+    throw new Error("观测日志更新冲突，请稍后重试");
+  }, [loadCache]);
+
+  const refresh = useCallback(async (accountKey: string | null = activeAccount.current) => {
+    const usage = await loadCache("usage");
+    // Old observations.jsonl records retain their meaning and are never
+    // mistaken for v3 snapshots merely because their fields look similar.
+    const snapshots = usage.rows.filter((row): row is SnapshotV3 => row?.schemaVersion === 3 && !!row.rawSnapshot && typeof row.id === "string" && typeof row.observedAt === "string" && typeof row.accountKey === "string");
     if (activeAccount.current === accountKey){
       const scoped=accountKey==null?[]:snapshots.filter(row=>row.accountKey===accountKey);
       setObservations(buildUsageObservations(scoped));
       setAccountSnapshots(scoped.flatMap(row=>{const normalized=normalizeAccount(row.rawSnapshot as ProviderSnapshot);return normalized?[normalized]:[]}));
     }
-    const cardLog = await read("cards");
-    setSignalHistory(readSignalHistory(cardLog.content));
-    setPredictionContent(cardLog.content);
-    setHistoryDocument(latestArchivedHistory(cardLog.content,RESET_HISTORY_SOURCE));
-  }, []);
+    const cards = await loadCache("cards");
+    setSignalHistory(readSignalHistoryRows(cards.rows));
+    setPredictionContent(cards.content);
+    const latest = latestArchivedHistory(cards.content,RESET_HISTORY_SOURCE);
+    setHistoryDocument((previous: unknown) => sameHistoryDocument(previous, latest) ? previous : latest); // 身份稳定：否则每次刷新都会让模型时钟、规划与日志全部重跑
+  }, [loadCache]);
 
   const appendSnapshot = useCallback(async (input: ProviderSnapshot) => {
     const row = normalizeProviderSnapshotV3(input);
     if (!row) return;
     await enqueueWrite(() => appendOnce("usage", { ...row, observedAt: new Date(Date.parse(String(row.observedAt))).toISOString() }));
     await refresh(input.accountKey ?? null);
-  }, [enqueueWrite, refresh]);
+  }, [enqueueWrite, refresh, appendOnce]);
 
   const appendSignals = useCallback(async (input: ProviderSnapshot) => {
     const status = input.resetStatus;
@@ -110,7 +172,7 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
     const currentValues = [status.scheduledReset ?? null, status.activeWatch ?? null] as const;
     const signalKinds = ["scheduled_reset", "active_watch"] as const;
     await enqueueWrite(async () => {
-      const history = readSignalHistory((await read("cards")).content);
+      const history = readSignalHistoryRows((await loadCache("cards")).rows);
       // A repeated/stale provider cache is not a newly observed signal version.
       for (let i = 0; i < signalKinds.length; i += 1) {
         const signalKind = signalKinds[i]!;
@@ -126,30 +188,27 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
       }
     });
     await refresh(input.accountKey ?? null);
-  }, [enqueueWrite, refresh]);
+  }, [enqueueWrite, refresh, loadCache, appendOnce]);
 
   const appendPrediction = useCallback(async (input: PredictionRecordV3) => {
     const record = freezePrediction(input);
     const observedAt = new Date(record.issuedAt).toISOString();
     const scheduledGroup = predictionGroupAt(record.issuedAt, false);
     await enqueueWrite(async () => {
-      const log = await read("cards");
-      const alreadyPrimary = scheduledGroup.groupDate != null && log.content.split(/\r?\n/).some((line) => {
-        try {
-          const row = JSON.parse(line);
-          return row.group === "primary_daily" && row.groupDate === scheduledGroup.groupDate &&
-            row.record?.target === record.target && row.record?.modelVersion === record.modelVersion;
-        } catch { return false; }
-      });
+      const cache = await loadCache("cards");
+      if (cache.ids.has(record.id)) return cache.content;
+      const alreadyPrimary = scheduledGroup.groupDate != null && cache.rows.some((row) =>
+        row.group === "primary_daily" && row.groupDate === scheduledGroup.groupDate &&
+        row.record?.target === record.target && row.record?.modelVersion === record.modelVersion);
       const grouping = predictionGroupAt(record.issuedAt, alreadyPrimary);
       return appendOnce("cards", { id: record.id, observedAt, kind: "prediction", ...grouping, record });
     });
-  }, [enqueueWrite]);
+  }, [enqueueWrite, loadCache, appendOnce]);
 
-  const weekdayFault=async(reason:string,at:number)=>appendOnce('cards',{id:`weekday-fault:${WEEKDAY_VERSION}`,observedAt:new Date(at).toISOString(),kind:'weekday_fault',modelVersion:WEEKDAY_VERSION,at,reason});
+  const weekdayFault=useCallback(async(reason:string,at:number)=>appendOnce('cards',{id:`weekday-fault:${WEEKDAY_VERSION}`,observedAt:new Date(at).toISOString(),kind:'weekday_fault',modelVersion:WEEKDAY_VERSION,at,reason}),[appendOnce]);
   const stopWeekdayShadow=useCallback(async(reason:string,at:number)=>{
     weekdayStopped.current=reason;await enqueueWrite(()=>weekdayFault(reason,at));setError(`星期影子已停写：${reason}`);
-  },[enqueueWrite]);
+  },[enqueueWrite,weekdayFault]);
   const appendWeekdayPair=useCallback(async(d60Input:PredictionRecordV3,weekdayInput:PredictionRecordV3):Promise<{error:string|null}>=>{
     const d60=freezePrediction(d60Input),weekday=freezePrediction(weekdayInput);
     if(d60.modelVersion!=='platform-v3.1:D60'||weekday.modelVersion!==WEEKDAY_VERSION||d60.target!=='platform_notice'||weekday.target!==d60.target||
@@ -157,8 +216,8 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
       d60.windowEnd-d60.windowStart!==86400000||!d60.platformHistorySnapshotId||d60.platformHistorySnapshotId.endsWith(':unknown')||weekday.probability==null)
       throw new Error('星期影子与D60缺同次冻结的24小时窗口/历史快照');
     return enqueueWrite(async()=>{
-      let content=(await read('cards')).content;
-      const rows=content.split(/\r?\n/).flatMap(line=>{try{return [JSON.parse(line)];}catch{return [];}});
+      const cache=await loadCache('cards');let content=cache.content;
+      const rows=cache.rows;
       const stopped=rows.find(row=>row.kind==='weekday_fault'&&row.modelVersion===WEEKDAY_VERSION);
       if(stopped)weekdayStopped.current=String(stopped.reason);
       const scheduled=predictionGroupAt(d60.issuedAt,false);
@@ -178,12 +237,14 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
         setPredictionContent(content);return {error:null};
       }catch(cause){const reason=String(cause);weekdayStopped.current=reason;try{await weekdayFault(reason,Date.now());}catch{/* 原写失败仍抛显式候选故障，不改旧行。 */}setError(`星期影子已停写：${reason}`);return {error:reason};}
     });
-  },[enqueueWrite]);
+  },[enqueueWrite,loadCache,appendOnce,weekdayFault]);
 
+  // RR56：规划记录只留结论与种子（≈1 KB），情景明细不再落盘（无人回读，却占了日志 85%）。
   const appendPlanning = useCallback(async (input: PlanningJournalRecord) => {
-    const record = freezePlanning(input);
+    const record = slimPlanningRecord(freezePlanning(input));
     await enqueueWrite(() => appendOnce("cards", { id: record.id, observedAt: new Date().toISOString(), kind: "planning", record }));
-  }, [enqueueWrite]);
+  }, [enqueueWrite, appendOnce]);
+
   // v3.1：原预测字节不变；成熟标签与迟到纠正独立追加到同一CAS日志。
   useEffect(()=>{
     if(!enabled)return;let alive=true;
@@ -208,7 +269,7 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
       if(alive)setPredictionContent(content);
     }).catch(cause=>{if(alive)setError(`标签结算未完成：${String(cause)}`)});
     return()=>{alive=false;};
-  },[enabled,historyDocument,snapshot?.updatedAt,enqueueWrite]);
+  },[enabled,historyDocument,snapshot?.updatedAt,enqueueWrite,read,appendOnce]);
 
   const appendAccountMapping=useCallback(async(accountKey:string,rows:readonly AccountObservationInterval[],observedAt:number)=>{
     await enqueueWrite(async()=>{
@@ -218,11 +279,11 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
         await appendOnce('cards',{id,observedAt:new Date(observedAt).toISOString(),kind:'account_mapping',accountKey,record:row});
       }
     });
-  },[enqueueWrite]);
+  },[enqueueWrite,appendOnce]);
 
   useEffect(() => {
     activeAccount.current = snapshot?.accountKey ?? null;
-    if (!enabled) { setObservations([]);setAccountSnapshots([]); setError(null);setHistoryError(null); setPredictionContent(''); setHistoryDocument(RESET_HISTORY_SOURCE); return; }
+    if (!enabled) { caches.current={}; setObservations([]);setAccountSnapshots([]); setError(null);setHistoryError(null); setPredictionContent(''); setHistoryDocument(RESET_HISTORY_SOURCE); return; }
     let alive = true;
     void (async () => {
       try {
@@ -251,9 +312,25 @@ export function useV3Journal(snapshot: ProviderSnapshot | null, enabled: boolean
       if(alive){await refresh();setHistoryError(null);}
     })().catch(cause=>{if(alive)setHistoryError(`平台完整历史刷新失败，未新增覆盖：${String(cause)}`);});
     return()=>{alive=false;};
-  },[enabled,snapshot?.resetStatus?.fetchedAt,snapshot?.resetStatus?.status,enqueueWrite,refresh]);
+  },[enabled,snapshot?.resetStatus?.fetchedAt,snapshot?.resetStatus?.status,enqueueWrite,refresh,read,appendOnce]);
 
-  return { observations,accountSnapshots, signalHistory, historyDocument,predictionContent,error:error??historyError, refresh, appendSnapshot, appendPrediction,appendWeekdayPair,stopWeekdayShadow, appendPlanning,appendAccountMapping };
+  // RR56：启动后把历史遗留的大块规划行压缩一次（持锁 CAS 整体重写，Rust 侧先留 .bak）。
+  useEffect(()=>{
+    if(!enabled)return;let alive=true;
+    void enqueueWrite(async()=>{
+      const cache=await loadCache('cards');
+      if(ioMode.current!=='hash'||cache.sha256==null)return;
+      const plan=compactCardsLog(cache.content,COMPACT_MIN_SAVED_CHARS);
+      if(!plan)return;
+      const written=await invoke<HashedWrite>('rewrite_observation_log',{kind:'cards',expectedSha256:cache.sha256,content:plan.content});
+      if(written.status!=='appended'){caches.current.cards=undefined;return;}
+      caches.current.cards={content:plan.content,sha256:written.sha256,bytes:written.bytes,...parseRows(plan.content)};
+      if(alive)setCompaction(`已压缩 ${plan.compactedRows} 条历史规划记录（约省 ${(plan.savedChars/1_048_576).toFixed(1)} MB）`);
+    }).then(()=>refresh()).catch(cause=>{if(alive)setCompaction(`历史日志压缩未完成：${String(cause)}`);});
+    return()=>{alive=false;};
+  },[enabled,enqueueWrite,loadCache,refresh]);
+  const historyEpoch=`${(historyDocument as {fetchedAt?:string}|null)?.fetchedAt??'builtin'}`;
+  return { observations,accountSnapshots, signalHistory, historyDocument,historyEpoch,predictionContent,compaction,error:error??historyError, refresh, appendSnapshot, appendPrediction,appendWeekdayPair,stopWeekdayShadow, appendPlanning,appendAccountMapping };
 }
 
 export interface PlatformSignalHistory {
@@ -264,16 +341,17 @@ export interface PlatformSignalHistory {
   value: ResetStatusSnapshot["scheduledReset"] | ResetStatusSnapshot["activeWatch"];
 }
 
-function readSignalHistory(content: string): PlatformSignalHistory[] {
+function readSignalHistoryRows(parsed: readonly JournalRow[]): PlatformSignalHistory[] {
   const rows: PlatformSignalHistory[] = [];
-  for (const line of content.split(/\r?\n/)) {
-    try {
-      const row = JSON.parse(line);
-      if (row?.kind === "platform_signal" &&
-          ["scheduled_reset", "active_watch"].includes(row.signalKind) &&
-          typeof row.observedAt === "string" && typeof row.firstSeenAt === "string" &&
-          ["first_seen", "changed", "cancelled"].includes(row.change)) rows.push(row as PlatformSignalHistory);
-    } catch { /* tolerate damaged historical JSONL rows */ }
+  for (const row of parsed) {
+    if (row?.kind === "platform_signal" &&
+        ["scheduled_reset", "active_watch"].includes(row.signalKind) &&
+        typeof row.observedAt === "string" && typeof row.firstSeenAt === "string" &&
+        ["first_seen", "changed", "cancelled"].includes(row.change)) rows.push(row as PlatformSignalHistory);
   }
   return rows.sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
+}
+
+export function readSignalHistory(content: string): PlatformSignalHistory[] {
+  return readSignalHistoryRows(parseRows(content).rows);
 }

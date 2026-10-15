@@ -11,7 +11,7 @@
   border-radius: 999px;
   border: 1px solid var(--border-strong);
   background: var(--bg-panel);
-  box-shadow: var(--shadow-panel), var(--glow-blue);
+  box-shadow: var(--shadow-float); /* RR57：原 panel 阴影 + 蓝光超出 8px 透明边，被窗口切成方框 */
   color: var(--text-primary);
   font-size: 13px;
   user-select: none;

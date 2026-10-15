@@ -166,19 +166,32 @@ function evaluateHorizon(input: PlanningInput, days: number, seed: number): { se
     const paths=grouped.map((demand,path)=>({start:input.now,end,demand,reviews:input.reviews,platform:[...events,...(sc.source==='platform_background'?(background.paths[path]??[]).map((at,i)=>({at,incidentId:`background-${path}-${i}`,weekly:true,short:false,reanchorWeekly:false})):[])]}as WorldPath));
     const baselines=paths.map(path=>simulatePolicy(input.account,input.cards,NEVER_USE,path,mechanism,()=>({weeklyCost:0,shortCost:null,nextKnownSupplyAt:input.account.weekly.resetsAt,blocks:[]}),{recordTrajectory:false}));
     const w={id:`${sc.id}:mechanism-${mi}:${id}${sc.source==='platform_background'?`:rate-${background.id}`:''}`,mechanism,probabilistic,pattern,daily:scenarioDaily};
+    // RR56：视野内没有后续查看时段时，策略只在起点按 firstAction 行动，27 组参数的结果逐位相同；同一首动作只仿真一次。
+    const parameterFree=!input.reviews.some(t=>t>input.now&&t<end);
+    const sharedResults=new Map<string,SimulationResult[]>();
     for(const comparison of comparisons) {
       const {parameters}=comparison;
       const horizonMs = parameters.horizonHours===0 ? nextReviewDelay(input.reviews,input.now) : parameters.horizonHours*HOUR_MS;
       const daily = input.policyDefaultTier?w.daily:input.dailyRange ? parameters.quantile===0.5?input.dailyRange.median:parameters.quantile===0.8?input.dailyRange.high:input.dailyRange.p95 : input.todayBudget ?? 0;
+      // RR56：预测段只取决于时刻（不取决于路径状态），同一时刻在 256 条路径间复用；仿真方只读这些段。
+      const forecastByAt=new Map<number,{weeklyCost:number;shortCost:number|null;blocks:DemandBlock[]}>();
       const forecastAt=(at:number,state:Readonly<VisibleState>):DemandForecast=>{
-        const today = beijingDayFloor(at)===beijingDayFloor(input.now);
-        const todayRange=input.todayRange??input.dailyRange;
-        const todayDaily=input.policyDefaultTier?daily:todayRange?parameters.quantile===0.5?todayRange.median:parameters.quantile===0.8?todayRange.high:todayRange.p95:daily;
-        const blocks=makeBlocks({...input,demandPattern:w.pattern,now:at,todayBudget:today?input.todayBudget:null},Math.min(end,at+horizonMs),index=>
-          index===0&&today?input.todayBudget??todayDaily:daily);
-        return {weeklyCost:blocks.reduce((s,b)=>s+b.weeklyCost,0),shortCost:blocks.every(b=>b.shortCost!=null)?blocks.reduce((s,b)=>s+(b.shortCost??0),0):null,nextKnownSupplyAt:state.weekly.resetsAt,blocks};
+        let cached=forecastByAt.get(at);
+        if(!cached){
+          const today = beijingDayFloor(at)===beijingDayFloor(input.now);
+          const todayRange=input.todayRange??input.dailyRange;
+          const todayDaily=input.policyDefaultTier?daily:todayRange?parameters.quantile===0.5?todayRange.median:parameters.quantile===0.8?todayRange.high:todayRange.p95:daily;
+          const blocks=makeBlocks({...input,demandPattern:w.pattern,now:at,todayBudget:today?input.todayBudget:null},Math.min(end,at+horizonMs),index=>
+            index===0&&today?input.todayBudget??todayDaily:daily);
+          cached={weeklyCost:blocks.reduce((s,b)=>s+b.weeklyCost,0),shortCost:blocks.every(b=>b.shortCost!=null)?blocks.reduce((s,b)=>s+(b.shortCost??0),0):null,blocks};
+          forecastByAt.set(at,cached);
+        }
+        return {weeklyCost:cached.weeklyCost,shortCost:cached.shortCost,nextKnownSupplyAt:state.weekly.resetsAt,blocks:cached.blocks};
       };
-      const results=known.length===0?baselines:paths.map(path=>simulatePolicy(input.account,input.cards,makePolicy(parameters,comparison.firstAction??'wait',input.now,mechanism),path,mechanism,forecastAt,{recordTrajectory:false}));
+      const shareKey=comparison.firstAction??'wait';
+      const results=known.length===0?baselines:parameterFree&&sharedResults.has(shareKey)?sharedResults.get(shareKey)!
+        :paths.map(path=>simulatePolicy(input.account,input.cards,makePolicy(parameters,comparison.firstAction??'wait',input.now,mechanism),path,mechanism,forecastAt,{recordTrajectory:false}));
+      if(parameterFree)sharedResults.set(shareKey,results);
       comparison.scenarios.push(summarize(w.id,results,baselines,probabilistic));
     }
   }

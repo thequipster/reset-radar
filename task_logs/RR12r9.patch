@@ -1,0 +1,281 @@
+From 13d3b85ef42039af087bdd3c61d99d892e60de21 Mon Sep 17 00:00:00 2001
+From: thequipster <256361972+thequipster@users.noreply.github.com>
+Date: Sun, 11 Oct 2026 21:47:20 +0800
+Subject: [PATCH] =?UTF-8?q?docs:=20REVIEW=20round=209=20=E2=80=94=20relay?=
+ =?UTF-8?q?=20close-out:=20seven-gate=20chain=20(272/272+38/38=20worktree?=
+ =?UTF-8?q?=20re-run=20post-refresh+check-release=2013+cargo=200),=20calib?=
+ =?UTF-8?q?ration=20fresh=2060/54=20n=3D0=20honest,=20E2E=20source-identit?=
+ =?UTF-8?q?y=200-byte=20diff=20inherits=20r8=20dual-PASS=20audit=20(no=20p?=
+ =?UTF-8?q?wsh/desktop=20on=20Bridge=20channel,=20recorded=20honestly),=20?=
+ =?UTF-8?q?7=20gap=20rulings=20zero=20new=20cards,=20main=20history-rewrit?=
+ =?UTF-8?q?e=20erratum=20(6f6a991->27d0e8e=20tree-identical),=20RR26=20wor?=
+ =?UTF-8?q?ktree=20confirmed=20intentional=20(user=20ref=20images)=20(S101?=
+ =?UTF-8?q?1-2137)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ data/calibration.json                         |  8 +--
+ data/resets-history.json                      |  4 +-
+ docs/calibration-latest.md                    |  8 +--
+ docs/review-20261011-round9.md                | 57 +++++++++++++++++++
+ .../RR12r9_artifacts/calibration-refresh.txt  | 10 ++++
+ .../check-release-worktree.txt                |  4 ++
+ .../RR12r9_artifacts/e2e-source-identity.txt  | 12 ++++
+ task_logs/RR12r9_artifacts/gates-chain.txt    | 18 ++++++
+ .../RR12r9_artifacts/node38-worktree.txt      |  4 ++
+ task_logs/RR12r9_done.md                      | 20 +++++++
+ 10 files changed, 135 insertions(+), 10 deletions(-)
+ create mode 100644 docs/review-20261011-round9.md
+ create mode 100644 task_logs/RR12r9_artifacts/calibration-refresh.txt
+ create mode 100644 task_logs/RR12r9_artifacts/check-release-worktree.txt
+ create mode 100644 task_logs/RR12r9_artifacts/e2e-source-identity.txt
+ create mode 100644 task_logs/RR12r9_artifacts/gates-chain.txt
+ create mode 100644 task_logs/RR12r9_artifacts/node38-worktree.txt
+ create mode 100644 task_logs/RR12r9_done.md
+
+diff --git a/data/calibration.json b/data/calibration.json
+index fe9598d..bcb74c7 100644
+--- a/data/calibration.json
++++ b/data/calibration.json
+@@ -1,11 +1,11 @@
+ {
+   "schema": "reset-radar/calibration@1",
+-  "generatedAt": "2026-10-11T13:23:45.579Z",
++  "generatedAt": "2026-10-11T13:41:25.735Z",
+   "state": "fresh",
+   "historySource": {
+     "state": "fresh",
+-    "fetchedAt": "2026-10-11T13:23:45.579Z",
+-    "asOf": "2026-10-11T13:23:45.579Z",
++    "fetchedAt": "2026-10-11T13:41:25.735Z",
++    "asOf": "2026-10-11T13:41:25.735Z",
+     "ageDays": 0,
+     "totalEvents": 60,
+     "quotaResetEvents": 54,
+@@ -57,7 +57,7 @@
+     "skipped": 0,
+     "files": [
+       {
+-        "path": "C:\\Users\\slsjz\\Desktop\\reset-radar\\data\\predictions.jsonl",
++        "path": "C:\\Users\\slsjz\\Desktop\\reset-radar_wt\\RR12\\data\\predictions.jsonl",
+         "label": "仓内归档",
+         "missing": false,
+         "rows": 1
+diff --git a/data/resets-history.json b/data/resets-history.json
+index c329456..80a84a1 100644
+--- a/data/resets-history.json
++++ b/data/resets-history.json
+@@ -1,13 +1,13 @@
+ {
+   "schema": "reset-radar/resets-history@1",
+-  "fetchedAt": "2026-10-11T13:23:45.579Z",
++  "fetchedAt": "2026-10-11T13:41:25.735Z",
+   "sources": {
+     "resets": "https://codex-resets.com/api/v1/resets?limit=100&order=desc",
+     "status": "https://codex-resets.com/api/v1/status"
+   },
+   "upstream": {
+     "apiVersion": "v1",
+-    "generatedAt": "2026-10-11T13:19:13.394Z",
++    "generatedAt": "2026-10-11T13:40:57.112Z",
+     "pagination": {
+       "has_more": false,
+       "next_cursor": null
+diff --git a/docs/calibration-latest.md b/docs/calibration-latest.md
+index 9f872b4..844d82c 100644
+--- a/docs/calibration-latest.md
++++ b/docs/calibration-latest.md
+@@ -1,9 +1,9 @@
+ # 校准报告（calibration-latest）
+ 
+-> 生成：2026-10-11T13:23:45.579Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
++> 生成：2026-10-11T13:41:25.735Z｜命令：`node scripts/calibrate.mjs > docs/calibration-latest.md`
+ 
+-- 重置历史：data/resets-history.json —— 60 条原始事件 / 54 条额度重置（仅regular；排除 6 条）（fetchedAt 2026-10-11T13:23:45.579Z）
+-- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-11T13:23:45.579Z
++- 重置历史：data/resets-history.json —— 60 条原始事件 / 54 条额度重置（仅regular；排除 6 条）（fetchedAt 2026-10-11T13:41:25.735Z）
++- as_of（数据新鲜度时刻）= 夹具 fetchedAt：2026-10-11T13:41:25.735Z
+ 
+ ## Watch同样本比较（前瞻24h窗口）
+ 
+@@ -14,7 +14,7 @@
+ 
+ - 仅同一次预先留存的baseline与watch预测配对，窗口(start,end]已被历史覆盖；不从当前watch或四舍五入因子倒填旧预测。样本不足时指标为空，不能据此宣称25%权重更好。
+ 
+-- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：4 行有效；合计 5 行有效
++- 预测日志来源：仓内归档 C:\Users\slsjz\Desktop\reset-radar_wt\RR12\data\predictions.jsonl：1 行有效；应用日志 C:\Users\slsjz\AppData\Roaming\app.resetradar.desktop\predictions.jsonl：4 行有效；合计 5 行有效
+ - 计分窗口：0 个（每天首条合法预测的未来24h，已被历史覆盖；其中发生重置 0 个）
+ 
+ - 排除：旧行无窗口 3；非法 0；事后记录 1；待窗口完成 1；超出历史覆盖 0；同日后补 0。旧预测不倒填；事件只匹配(start,end]，不是预测当日。
+diff --git a/docs/review-20261011-round9.md b/docs/review-20261011-round9.md
+new file mode 100644
+index 0000000..8c3eca5
+--- /dev/null
++++ b/docs/review-20261011-round9.md
+@@ -0,0 +1,57 @@
++# REVIEW 第 9 轮报告 — 2026-10-11
++
++> 执行链：S1011-2133（21:33 领取，七门主跑，21:35 收工转下轮）→ S1011-2137（21:40 续作领取，
++> 收尾三件+产物批落库）。base main **27d0e8e**（=6f6a991 内容恒等，见 §5 勘误）。
++> 用户门控期维持（D031）：RR30 等 CI 首跑、v0.3 等点单。
++
++## 1. 七门（执行链详见 task_logs/RR12r9_artifacts/gates-chain.txt）
++
++| 门 | 结果 | 执行 |
++|---|---|---|
++| npx tsc --noEmit | rc 0 | 班1 @main 6f6a991≡27d0e8e |
++| npx vitest run | 272/272，0 failed | 班1 同上 |
++| npm run build | rc 0（1.05s） | 班1 同上 |
++| npm run test:node | 38/38 | 班1 + **班2 数据刷新后 worktree 复跑同**（落库前终验） |
++| node scripts/check-release.mjs | 13 链接可达+版本同步 0.1.0 | 班1 + **班2 复跑同** |
++| cargo check --tests | rc 0 | 班1（rustup 真实路径口径） |
++| 校准管线 | fresh：60 事件/54 重置，n=0 如实 | **班2 worktree 内刷新**（三件 M） |
++
++降级口径如实：班2 通道（Arena Local Bridge）禁 shell/解释器且 worktree 无 node_modules
++junction 可建 → vitest/tsc/build/cargo 沿用班1 结果，内容恒等双证兜底（§5）+ MERGE 后主仓全量复跑。
++
++## 2. E2E / 识图
++
++源码恒等新证：`git diff 67494a2..27d0e8e -- src/ src-tauri/` = **0 字节** ⇒ r8 双 PASS
++识图审计（A–G 全 PASS，RR40 在位+过期态诚实二轮实证）对当前 main 有效。本班无 pwsh/桌面
++控制，未重采未识图（如实，不谎报）；下一班有 shell 通道按 §9.1 补新图。详见 artifacts/e2e-source-identity.txt。
++
++## 3. 差距逐条定夺（零悬空）
++
++| # | 差距 | 定夺 |
++|---|---|---|
++| G1 | 识图复核通道缺失（Bridge 班无 pwsh/desktop_control） | 不立卡：通道能力差异非项目差距；r8 审计 1h 前+源码恒等；shell 班可补 |
++| G2 | main 历史重写（21:38:46，6f6a991→27d0e8e 等四枚 sha 漂移） | 不立卡：树 diff 0 字节纯元数据；看板 sha 以本报告+BOARD 🟢条目勘误为准 |
++| G3 | ../reset-radar_wt/RR26 worktree+agent/RR26 分支长存 | 不立卡不清理：BACKLOG 12:33:26 明载「RR26 有用户未跟踪六张参考图故保留 worktree」=有意保留，本轮复核确认 |
++| G4 | RR30 CI 首跑未发生 | 🟣维持（用户门控 D031） |
++| G5 | v0.3 点单 | 🟣维持（D031） |
++| G6 | 校准计分 n=0 | 不立卡：运行时积累（r6–r8 同判续认） |
++| G7 | r8 十二条差距 | 源码零变化 ⇒ 逐条复核维持原裁决，零新卡 |
++
++**本轮零新卡。**
++
++## 4. 产物批清单
++
++data/resets-history.json + data/calibration.json + docs/calibration-latest.md（刷新三件）+
++本报告 + task_logs/RR12r9_artifacts/ 五件 + task_logs/RR12r9_done.md（随批）；patch=task_logs/RR12r9.patch 留主仓 untracked 待 r10 收编（RR42 先例）+ 看板协调。
++
++## 5. 勘误与观察
++
++- **历史重写勘误**：21:38:46 main 被重写（reflog：6f6a991→27d0e8e；链上 eba8b42→de6b375、
++  67494a2→ef83762、03c7069→6c64a1d 同款漂移）；逐对 diff 抽验 6f6a991..27d0e8e = 0 字节。
++  看板/账本所记旧 sha 内容均有效，此后引用以重写后 sha 为准。
++- cargo 经 Bridge 须 `rustup which cargo` 真实路径（班1 遗产，续记）。
++
++## 6. 下一班
++
++- 无🟠无🟡 ⇒ REVIEW 第 10 轮（§9.1 全量；有 shell 通道则补双主题新图识图）。
++- RR30/v0.3 维持用户门控；RR26 worktree 勿动（用户参考图）。
+diff --git a/task_logs/RR12r9_artifacts/calibration-refresh.txt b/task_logs/RR12r9_artifacts/calibration-refresh.txt
+new file mode 100644
+index 0000000..bee993f
+--- /dev/null
++++ b/task_logs/RR12r9_artifacts/calibration-refresh.txt
+@@ -0,0 +1,10 @@
++$ node scripts/review-calibration.mjs   (cwd=../reset-radar_wt/RR12, 2026-10-11T13:41:25Z=21:41+08)
++exit code 0
++
++[fetch-history] 事件 60 条，跨度 2025-09-17T04:02:52Z → 2026-10-11T04:01:09Z
++北京星期分布 Mon:4 Tue:10 Wed:12 Thu:8 Fri:7 Sat:9 Sun:10
++重置历史：60 条原始事件 / 54 条额度重置（仅 regular；排除 6 条）
++预测日志：仓内 1 行 + 应用 4 行 = 5 行有效；计分窗口 0 个（n=0 如实）
++watch 同样本 n=0（暂无可计分窗口，不据此宣称 25% 权重更好）
++产物：data/resets-history.json + data/calibration.json + docs/calibration-latest.md（worktree 内三件 M）
++与 r8（21:2x）对比：60/54 同，n=0 同=如实（无新可计分窗口）
+diff --git a/task_logs/RR12r9_artifacts/check-release-worktree.txt b/task_logs/RR12r9_artifacts/check-release-worktree.txt
+new file mode 100644
+index 0000000..b0ae222
+--- /dev/null
++++ b/task_logs/RR12r9_artifacts/check-release-worktree.txt
+@@ -0,0 +1,4 @@
++$ node scripts/check-release.mjs   (cwd=../reset-radar_wt/RR12)
++exit code 0
++
++check-release OK：版本同步 0.1.0；README 相对链接 13 条全部可达
+diff --git a/task_logs/RR12r9_artifacts/e2e-source-identity.txt b/task_logs/RR12r9_artifacts/e2e-source-identity.txt
+new file mode 100644
+index 0000000..f5a8680
+--- /dev/null
++++ b/task_logs/RR12r9_artifacts/e2e-source-identity.txt
+@@ -0,0 +1,12 @@
++E2E / 识图复核（第 9 轮）——通道限制如实记录
++============================================
++1) 源码恒等（新证，本班实测）：
++   git diff --stat 67494a2..HEAD -- src/ src-tauri/  → 空（0 字节）
++   git diff --stat 6f6a991..27d0e8e                  → 空（0 字节）
++   ⇒ 当前 main 27d0e8e 的 src/src-tauri 与 r7 重建 exe（03c7069 源）及 r8 复用面同源。
++2) 截图重采/识图：本班（S1011-2137，Arena Local Bridge 通道）不可达——
++   request_command 拒 pwsh/cmd（Shells and system command-string interpreters are disabled），
++   workspace_info desktop_control=false。未重采、未识图，不谎报。
++3) 继承审计：r8（S1011-2120，~1h 前）双主题新图 A–G 全 PASS（RR40 修复在位+
++   过期态诚实显示连续二轮实证），其 exe 与当前 main 源码恒等（上项 1）⇒ 审计结论对
++   27d0e8e 有效。下一班若有 shell/桌面通道，按 §9.1 补新图独立复核。
+diff --git a/task_logs/RR12r9_artifacts/gates-chain.txt b/task_logs/RR12r9_artifacts/gates-chain.txt
+new file mode 100644
+index 0000000..f1fcfdd
+--- /dev/null
++++ b/task_logs/RR12r9_artifacts/gates-chain.txt
+@@ -0,0 +1,18 @@
++七门执行链（REVIEW 第 9 轮，双班接力）
++=====================================
++[班1] S1011-2133（21:35，主仓 cwd=. @ main 6f6a991；经 Bridge request_command 实跑）：
++  npx tsc --noEmit                    → rc 0
++  npx vitest run                      → 29 files / 272 passed / 0 failed
++  npm run build (tsc && vite build)   → rc 0, built in 1.05s
++  npm run test:node                   → 38 pass / 0 fail, rc 0
++  node scripts/check-release.mjs      → OK 版本同步 0.1.0 + 13 链接可达
++  cargo check --tests (src-tauri)     → rc 0（注：cargo 须用 rustup which cargo 真实路径）
++[班2] S1011-2137（21:4x-22:0x，worktree ../reset-radar_wt/RR12 @ agent/RR12=27d0e8e）：
++  数据刷新后复跑（落库前终验，Bridge 通道降级口径*）：
++  node scripts/run-node-tests.mjs     → 38 pass / 0 fail, rc 0
++  node scripts/check-release.mjs      → OK 版本同步 0.1.0 + 13 链接可达
++  MERGE 后主仓全量复跑（§8 步骤3）：见 BOARD 🟢条目与本目录 gates-main-postmerge.txt
++* 降级说明：Bridge 通道禁 shell/解释器（pwsh/cmd 均拒），worktree 无 node_modules
++  junction 可建 → vitest/tsc/build/cargo 四门沿用班1 在 main 的实跑结果；
++  内容恒等自证：git diff 6f6a991..27d0e8e = 0 字节（21:38:46 历史重写仅元数据，
++  reflog+diff 双证）→ 班1 门禁对 27d0e8e 同等有效；合入后主仓全量复跑兜底。
+diff --git a/task_logs/RR12r9_artifacts/node38-worktree.txt b/task_logs/RR12r9_artifacts/node38-worktree.txt
+new file mode 100644
+index 0000000..a14d6d3
+--- /dev/null
++++ b/task_logs/RR12r9_artifacts/node38-worktree.txt
+@@ -0,0 +1,4 @@
++$ node scripts/run-node-tests.mjs   (cwd=../reset-radar_wt/RR12, base agent/RR12@27d0e8e)
++$ node --version: (bridge request_command, exit code 0)
++
++# tests 38# suites 6# pass 38# fail 0# cancelled 0# skipped 0# todo 0# duration_ms 401.4859
+diff --git a/task_logs/RR12r9_done.md b/task_logs/RR12r9_done.md
+new file mode 100644
+index 0000000..f312928
+--- /dev/null
++++ b/task_logs/RR12r9_done.md
+@@ -0,0 +1,20 @@
++# RR12 第 9 轮 REVIEW — done（S1011-2137 续作收尾）
++
++- 双班接力：S1011-2133（21:33 领取，七门主跑，21:35 收工转下轮）→ S1011-2137（21:40 续作领取）。
++- 分支/commit：agent/RR12（base main **27d0e8e**；单 commit，交付 sha 见 BOARD 🟢条目）。
++- 交付面：刷新数据三件（data/resets-history.json+data/calibration.json+docs/calibration-latest.md）
++  +docs/review-20261011-round9.md+task_logs/RR12r9_artifacts/ 五件+本 done。
++  patch=task_logs/RR12r9.patch（untracked，待 r10 批收编=RR42 先例）。
++- 七门：tsc rc0/vitest 272/272 0failed/build 1.05s/node 38/38/check-release 13/cargo rc0
++  （班1 @6f6a991≡27d0e8e 内容恒等）+班2 worktree 数据刷新后复跑 node 38/38+check-release 13
++  （落库前终验）+MERGE 后主仓全量复跑（结果记 BOARD 🟢条目）。降级口径=gates-chain.txt 如实。
++- 变异红验：本轮零代码变更（纯 docs+data 批），无变异面——沿 r6/r7/r8 docs-only 等价口径
++  （门禁咬合证由班2 复跑+主仓复跑承担）。
++- 校准：fresh 60 事件/54 重置 n=0 如实（21:41 刷新）。
++- E2E：源码恒等 0 字节双证（67494a2..27d0e8e src/src-tauri 空+6f6a991..27d0e8e 全树空）
++  ⇒ 继承 r8 双 PASS 识图审计；本班通道无 pwsh/桌面控制未重采（如实记录）。
++- 差距定夺：7 条零悬空零新卡（round9 报告 §3；RR26 worktree=有意保留复核确认）。
++- 勘误：main 21:38:46 历史重写（6f6a991→27d0e8e 等，树 diff 0 字节）——旧 sha 记载内容均有效。
++- 真值出处：codex-resets.com API（fetch-history 实拉 60 事件）+仓内 predictions.jsonl。
++- →下轮：REVIEW 第 10 轮（§9.1；shell 班补双主题新图识图）；RR30/v0.3 用户门控维持；
++  RR12r9.patch+本 done 收编。
+-- 
+2.52.0.windows.1
+

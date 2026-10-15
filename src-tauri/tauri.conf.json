@@ -27,7 +27,6 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "shadow": false,
-        "backgroundThrottling": "disabled",
         "focus": false,
         "visible": true
       }

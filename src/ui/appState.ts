@@ -87,3 +87,17 @@ export function initialRestForm(hash: string): RestForm {
 export function shouldAutoCollapse(state: DisplayState): boolean {
   return state === "expanded";
 }
+
+/** 原生弹层会抢走外壳焦点的表单控件：下拉框 / 日期与文本输入 / 多行文本。 */
+export const FORM_CONTROL_TAGS: readonly string[] = ["SELECT", "INPUT", "TEXTAREA"];
+
+/**
+ * RR56：外壳失焦时是否应“暂缓”自动缩圆。WebView2 的 `<select>` 下拉与日期选择器是独立窗口，
+ * 弹出瞬间外壳即失焦——过去 600ms 后面板就收成圆，用户“怎么都选不了今日建议量”。
+ * 指针仍在窗口内、或焦点停在表单控件上，都说明用户还在操作，等真正离开再计时。
+ */
+export function shouldDeferAutoCollapse(input: { pointerInside: boolean; activeTag: string | null | undefined }): boolean {
+  if (input.pointerInside) return true;
+  const tag = input.activeTag?.toUpperCase() ?? "";
+  return FORM_CONTROL_TAGS.includes(tag);
+}

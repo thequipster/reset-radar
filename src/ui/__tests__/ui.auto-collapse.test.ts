@@ -49,3 +49,16 @@ describe("initialRestForm（hash 入口）", () => {
     expect(initialRestForm("#form=capsule")).toBe("orb"); // 未知值回落默认
   });
 });
+
+describe("shouldDeferAutoCollapse（RR56：原生弹层抢焦点时不缩圆）", () => {
+  it("指针仍在窗口内 → 暂缓；焦点在下拉/输入框 → 暂缓；都不是才计时", async () => {
+    const { shouldDeferAutoCollapse, FORM_CONTROL_TAGS } = await import("../appState");
+    expect(shouldDeferAutoCollapse({ pointerInside: true, activeTag: "BODY" })).toBe(true);
+    expect(shouldDeferAutoCollapse({ pointerInside: false, activeTag: "SELECT" })).toBe(true);
+    expect(shouldDeferAutoCollapse({ pointerInside: false, activeTag: "input" })).toBe(true);
+    expect(shouldDeferAutoCollapse({ pointerInside: false, activeTag: "TEXTAREA" })).toBe(true);
+    expect(shouldDeferAutoCollapse({ pointerInside: false, activeTag: "BUTTON" })).toBe(false);
+    expect(shouldDeferAutoCollapse({ pointerInside: false, activeTag: null })).toBe(false);
+    expect(FORM_CONTROL_TAGS).toEqual(["SELECT", "INPUT", "TEXTAREA"]);
+  });
+});

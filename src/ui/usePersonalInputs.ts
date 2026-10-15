@@ -43,6 +43,8 @@ export interface PersonalInputsState extends PersonalInputsData {
 export interface PersonalInputsController {
   setContinueWorking?(value:boolean):void;
   setPlanningMode?(value:'policy_default'|'learned'):void;
+  /** RR57 冲刺模式开关与每天可用小时数。 */
+  setCardSprint?(value:{enabled:boolean;hoursPerDay:number}|null):void;
   state: PersonalInputsState;
   addCard(label: string, enteredExpiry: string | null, precision: CardEntryPrecision): void;
   updateExpiry(localId: string, enteredExpiry: string | null, precision: CardEntryPrecision): void;
@@ -124,6 +126,7 @@ export function usePersonalInputs(
   const setPreference = useCallback((preference: PersonalPreference | null) => updateInput("preference", preference), [updateInput]);
   const setContinueWorking=useCallback((value:boolean)=>updateInput('continueWorking',{localDate:beijingDateKey(now),value}),[now,updateInput]);
   const setPlanningMode=useCallback((value:'policy_default'|'learned')=>updateInput('planningMode',value),[updateInput]);
+  const setCardSprint=useCallback((value:{enabled:boolean;hoursPerDay:number}|null)=>updateInput('cardSprint',value),[updateInput]);
   const setUsualViewTimes = useCallback((times: string[], confirmed: boolean) => {
     setData((previous) => {
       const withTimes = withPersonalInputChange(previous, "usualViewTimes", times, now);
@@ -154,6 +157,6 @@ export function usePersonalInputs(
 
   return {
     state, addCard, updateExpiry, recordUse, markUnresolved, confirmAbsent, restoreAvailable, setWorkloadToday,
-    setPreference, setUsualViewTimes, setWeeklyBudgetPercent, recordFeedback,setContinueWorking,setPlanningMode,
+    setPreference, setUsualViewTimes, setWeeklyBudgetPercent, recordFeedback,setContinueWorking,setPlanningMode,setCardSprint,
   };
 }

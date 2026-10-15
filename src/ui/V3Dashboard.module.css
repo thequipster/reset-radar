@@ -40,3 +40,47 @@
 .compact:focus-visible{outline:2px solid var(--text-primary);outline-offset:2px}.compact small{color:var(--text-secondary)}
 .page{scrollbar-width:thin;scrollbar-color:var(--border-subtle) var(--bg-panel)}
 .page::-webkit-scrollbar{width:6px}.page::-webkit-scrollbar-track{background:var(--bg-panel)}.page::-webkit-scrollbar-thumb{background:var(--border-subtle);border-radius:8px}
+/* RR56：人话版概览 —— 今天用多少 / 卡哪天用 / 撑到几号 / 未来 7 天 / 就地选择 */
+.hero > div > strong{font-size:22px;line-height:1.3;white-space:normal}
+.hero > div > span:nth-of-type(2){white-space:normal;line-height:1.5}
+.plan{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:14px;border:2px solid var(--accent-purple);background:color-mix(in srgb,var(--accent-purple) 12%,var(--bg-card));color:var(--text-primary);font-size:12px;line-height:1.55}
+.planNow{border-color:var(--success);background:color-mix(in srgb,var(--success) 14%,var(--bg-card))}.planNow .planIcon{background:var(--success);color:#fff}
+.planWait{border-color:var(--accent-blue);background:color-mix(in srgb,var(--accent-blue) 10%,var(--bg-card))}.planWait .planIcon{background:var(--accent-blue);color:#fff}
+.planNone{border-color:var(--border-subtle);background:var(--bg-card)}.planNone .planIcon{background:var(--bg-inset);color:var(--text-secondary)}
+.planFill{border-color:var(--warn);background:var(--warn-dim)}.planFill .planIcon{background:var(--warn);color:#fff}
+.planIcon{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;background:var(--accent-purple);color:#fff}
+.planBody{display:grid;gap:4px;min-width:0;flex:1}.planLabel{font-size:11px;color:var(--text-secondary)}.planTitle{font-size:15px;line-height:1.4;font-weight:700}
+.planActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}.planActions:empty{display:none}
+.planActions button{min-height:30px;padding:5px 10px;border:1px solid currentColor;border-radius:9px;background:var(--bg-card);color:inherit;font:inherit;font-weight:700;cursor:pointer}
+.planActions button:hover{background:var(--bg-card-hover,var(--bg-inset))}.planActions button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin:0;padding:0;list-style:none}
+.stripDay{display:grid;gap:2px;align-content:start;min-width:0;min-height:58px;padding:6px 4px;border-radius:10px;border:1px solid var(--border-subtle);background:var(--bg-card);font-size:10px;line-height:1.3;color:var(--text-secondary)}
+.stripToday{border-color:var(--accent-blue);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent-blue) 40%,transparent)}.stripToday .stripLabel{color:var(--accent-blue-bright)}
+.stripBusy{background:color-mix(in srgb,var(--accent-purple) 6%,var(--bg-card))}
+.stripLabel{font-weight:700;color:var(--text-primary);font-size:11px}.stripDate{color:var(--text-tertiary)}
+.stripMark{display:block;padding:2px 3px;border-radius:6px;font-size:10px;line-height:1.25;white-space:normal;word-break:break-all;color:var(--text-primary);background:var(--bg-inset)}
+.stripTime{display:block;font-style:normal;font-weight:400;font-size:9px;opacity:.85}
+.mark_use{background:color-mix(in srgb,var(--success) 22%,var(--bg-card));color:var(--success);font-weight:700}
+.mark_decide{background:color-mix(in srgb,var(--accent-blue) 18%,var(--bg-card));color:var(--accent-blue-bright)}
+.mark_expire{background:var(--warn-dim);color:var(--warn-text);font-weight:700}
+.mark_reset,.mark_short{background:color-mix(in srgb,var(--accent-blue) 12%,var(--bg-card));color:var(--accent-blue-bright)}
+.mark_empty{background:var(--danger-dim);color:var(--danger)}
+.inlineGroup{display:grid;gap:7px;margin:0;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--bg-card);color:var(--text-primary);font-size:11px;line-height:1.5;min-width:0}
+.inlineGroup legend{padding:0 4px;font-size:12px;font-weight:700}
+.choiceRow{display:flex;flex-wrap:wrap;gap:6px}
+.choice{display:inline-grid;justify-items:center;gap:1px;min-height:34px;padding:5px 11px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--bg-inset);color:var(--text-primary);font:inherit;font-size:12px;line-height:1.3;cursor:pointer;transition:border-color 120ms ease,background 120ms ease,color 120ms ease}
+.choice b{font-weight:700}.choice small{font-size:10px;color:var(--text-tertiary)}
+.choice:hover{border-color:var(--accent-blue);background:var(--bg-card-hover,var(--bg-card))}
+.choice:focus-visible{outline:2px solid var(--accent-blue-bright);outline-offset:2px}
+.choiceOn,.choice[aria-pressed="true"]{border-color:var(--accent-blue);background:color-mix(in srgb,var(--accent-blue) 18%,var(--bg-card));color:var(--accent-blue-bright);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent-blue) 30%,transparent)}
+.choiceOn small,.choice[aria-pressed="true"] small{color:inherit;opacity:.85}
+.feedbackRow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-subtle);border-radius:12px;color:var(--text-secondary);font-size:11px}
+.feedbackRow .choice{min-height:28px;padding:3px 9px;font-size:11px}.feedbackRow small{color:var(--success);font-weight:600}
+.proStack{display:grid;gap:10px;margin-top:8px}
+/* RR57 冲刺模式 */
+.sprintOn{border-color:color-mix(in srgb,var(--accent-blue) 45%,var(--border-subtle))}
+.sprintHint{font-size:11px;color:var(--text-secondary);line-height:1.5;align-self:center}
+.sprintList{display:grid;gap:6px;margin:0;padding:0 0 0 2px;list-style:none}
+.sprintList li{display:grid;gap:2px;padding:7px 9px;border-radius:10px;background:var(--bg-inset);font-size:11px;line-height:1.45;color:var(--text-secondary)}
+.sprintList li strong{font-size:12px;color:var(--text-primary)}
+.linkButton{padding:0;border:none;background:none;color:var(--accent-blue-bright);font:inherit;text-decoration:underline;cursor:pointer}
