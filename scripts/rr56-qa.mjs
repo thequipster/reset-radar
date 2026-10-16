@@ -24,7 +24,7 @@ const report = { label, exe: path.relative(root, exe), startedAt: new Date().toI
 const check = (name, ok, detail = "") => { report.checks.push({ name, ok, detail }); console.log(`${ok ? "PASS" : "FAIL"}: ${name}${detail ? ` — ${detail}` : ""}`); };
 
 function cpuSnapshot(rootPid) {
-  const ps = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+  const ps = spawnSync("pwsh", ["-NoProfile", "-NonInteractive", "-Command",
     "Get-CimInstance Win32_Process -Filter \"Name='reset-radar.exe' OR Name='msedgewebview2.exe'\" | Select-Object ProcessId,ParentProcessId,Name,UserModeTime,KernelModeTime | ConvertTo-Json -Compress"], { encoding: "utf8" });
   let rows = [];
   try { rows = JSON.parse(ps.stdout || "[]"); } catch { rows = []; }

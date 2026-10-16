@@ -10,7 +10,7 @@ const seconds = Number(process.argv[4] ?? 90);
 const hash = process.argv[5] ?? "";
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 function procs(rootPid) {
-  const ps = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+  const ps = spawnSync("pwsh", ["-NoProfile", "-NonInteractive", "-Command",
     "Get-CimInstance Win32_Process -Filter \"Name='reset-radar.exe' OR Name='msedgewebview2.exe'\" | Select-Object ProcessId,ParentProcessId,Name,UserModeTime,KernelModeTime,CommandLine | ConvertTo-Json -Compress"], { encoding: "utf8" });
   let rows = []; try { rows = JSON.parse(ps.stdout || "[]"); } catch { rows = []; }
   if (!Array.isArray(rows)) rows = [rows];
